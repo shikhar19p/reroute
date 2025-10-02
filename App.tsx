@@ -1,13 +1,15 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { AuthProvider, useAuth } from './authContext';
 import { FarmRegistrationProvider } from './context/FarmRegistrationContext';
 import { AdminProvider } from './context/AdminContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { WishlistProvider } from './context/WishlistContext';
 import WelcomeScreen from './screens/WelcomeScreen';
 import LoginScreen from './screens/LoginScreen';
-import ProfileScreen from './screens/ProfileScreen';
-import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
 
 // Farm Registration Screens
 import RoleChoiceScreen from './screens/FarmRegistration/RoleChoiceScreen';
@@ -22,10 +24,75 @@ import KycScreen from './screens/FarmRegistration/KycScreen';
 import AdminScreen from './screens/Admin/AdminScreen';
 import EditFarmScreen from './screens/Admin/EditFarmScreen';
 
-// User Screen
-import VacationRentalApp from './screens/VacationRentalApp';
+// User Screens
+import ExploreScreen from './screens/User/ExploreScreen';
+import FarmhouseDetailScreen from './screens/User/FarmhouseDetailScreen';
+import AllAmenitiesScreen from './screens/User/AllAmenitiesScreen';
+import AllReviewsScreen from './screens/User/AllReviewsScreen';
+import BookingConfirmationScreen from './screens/User/BookingConfirmationScreen';
+import BookingsScreen from './screens/User/tabs/BookingsScreen';
+import WishlistScreen from './screens/User/tabs/WishlistScreen';
+import ProfileScreen from './screens/User/tabs/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
+
+// Bottom Tab Navigator for User screens
+function UserTabs() {
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: '#02444d',
+        tabBarInactiveTintColor: '#666',
+        tabBarStyle: {
+          borderTopWidth: 1,
+          borderTopColor: '#e0e0e0',
+          paddingBottom: 5,
+          paddingTop: 5,
+          height: 60,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '500',
+        },
+      }}
+    >
+      <Tab.Screen
+        name="Explore"
+        component={ExploreScreen}
+        options={{
+          tabBarLabel: 'Explore',
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>🔍</Text>,
+        }}
+      />
+      <Tab.Screen
+        name="Bookings"
+        component={BookingsScreen}
+        options={{
+          tabBarLabel: 'Bookings',
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>📅</Text>,
+        }}
+      />
+      <Tab.Screen
+        name="Wishlist"
+        component={WishlistScreen}
+        options={{
+          tabBarLabel: 'Wishlist',
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>❤️</Text>,
+        }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{
+          tabBarLabel: 'Profile',
+          tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>👤</Text>,
+        }}
+      />
+    </Tab.Navigator>
+  );
+}
 
 function AppNavigator() {
   const { user, loading } = useAuth();
@@ -100,16 +167,31 @@ function AppNavigator() {
               options={{ title: 'Edit Farm' }}
             />
 
-            {/* User Flow */}
+            {/* User Flow with Tabs */}
             <Stack.Screen
-              name="ReiHome"
-              component={VacationRentalApp}
+              name="UserHome"
+              component={UserTabs}
               options={{ headerShown: false }}
             />
             <Stack.Screen
-              name="Profile"
-              component={ProfileScreen}
-              options={{ title: 'Profile' }}
+              name="FarmhouseDetail"
+              component={FarmhouseDetailScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="AllAmenities"
+              component={AllAmenitiesScreen}
+              options={{ title: 'All Amenities' }}
+            />
+            <Stack.Screen
+              name="AllReviews"
+              component={AllReviewsScreen}
+              options={{ title: 'All Reviews' }}
+            />
+            <Stack.Screen
+              name="BookingConfirmation"
+              component={BookingConfirmationScreen}
+              options={{ title: 'Confirm Booking' }}
             />
           </>
         ) : (
@@ -134,11 +216,15 @@ function AppNavigator() {
 export default function App() {
   return (
     <AuthProvider>
-      <FarmRegistrationProvider>
-        <AdminProvider>
-          <AppNavigator />
-        </AdminProvider>
-      </FarmRegistrationProvider>
+      <ThemeProvider>
+        <WishlistProvider>
+          <FarmRegistrationProvider>
+            <AdminProvider>
+              <AppNavigator />
+            </AdminProvider>
+          </FarmRegistrationProvider>
+        </WishlistProvider>
+      </ThemeProvider>
     </AuthProvider>
   );
 }

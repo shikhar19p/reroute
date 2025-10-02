@@ -68,7 +68,7 @@ export default function RoleChoiceScreen({ navigation }: RoleChoiceScreenProps) 
 
         <TouchableOpacity
           style={[styles.roleCard, styles.userCard]}
-          onPress={() => navigation.navigate('ReiHome')}
+          onPress={() => navigation.navigate('UserHome')}
           activeOpacity={0.7}
         >
           <View style={[styles.iconContainer, styles.userIconContainer]}>
