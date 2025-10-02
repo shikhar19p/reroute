@@ -1,0 +1,858 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  Image,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  StatusBar,
+  Dimensions,
+  Linking,
+  Alert,
+  Share
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { Calendar, DateData } from 'react-native-calendars';
+import MapView, { Marker } from 'react-native-maps';
+import { useTheme } from '../../context/ThemeContext';
+import { useWishlist } from '../../context/WishlistContext';
+
+const { width } = Dimensions.get('window');
+
+interface Farmhouse {
+  id: string;
+  name: string;
+  location: string;
+  price: number;
+  rating: number;
+  reviews: number;
+  image: string;
+  amenities: string[];
+  capacity: number;
+  rooms: number;
+  description: string;
+  images: string[];
+  weekendPrice: number;
+  specialDates: { date: string; price: number }[];
+  extraGuestPrice: number;
+  coordinates: { latitude: number; longitude: number };
+  rules: string[];
+  terms: string[];
+  bookedDates: string[];
+}
+
+interface Review {
+  id: string;
+  userName: string;
+  rating: number;
+  date: string;
+  comment: string;
+}
+
+type RootStackParamList = {
+  FarmhouseDetail: { farmhouse: Farmhouse };
+  AllAmenities: { amenities: string[] };
+  AllReviews: { farmhouseId: string };
+  BookingConfirmation: {
+    farmhouseId: string;
+    farmhouseName: string;
+    farmhouseImage: string;
+    location: string;
+    startDate: string;
+    endDate: string;
+    guestCount: number;
+    totalPrice: number;
+    numberOfNights: number;
+    bookingType: string;
+    capacity: number;
+    rooms: number;
+  };
+  Profile: undefined;
+};
+
+type Props = NativeStackScreenProps<RootStackParamList, 'FarmhouseDetail'>;
+
+const SAMPLE_REVIEWS: Review[] = [
+  { id: '1', userName: 'Priya Sharma', rating: 5, date: '2 weeks ago', comment: 'Absolutely loved this place! The pool was amazing and the host was very accommodating. Perfect for a family weekend getaway.' },
+  { id: '2', userName: 'Rahul Mehta', rating: 4, date: '1 month ago', comment: 'Great farmhouse with all amenities. The bonfire area was fantastic. Only issue was the WiFi was a bit slow, but overall excellent experience.' },
+  { id: '3', userName: 'Sneha Kapoor', rating: 5, date: '3 weeks ago', comment: 'Best birthday celebration ever! The staff was super helpful and the location is peaceful. Highly recommend for special occasions.' },
+  { id: '4', userName: 'Amit Patel', rating: 4, date: '1 month ago', comment: 'Good value for money. Clean rooms and well-maintained property. The garden is beautiful for morning walks.' },
+];
+
+export default function FarmhouseDetailScreen({ route, navigation }: Props) {
+  const { farmhouse } = route.params;
+  const { colors, isDark } = useTheme();
+  const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
+
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [selectedDates, setSelectedDates] = useState<{ start?: string; end?: string }>({});
+  const [guestCount, setGuestCount] = useState(farmhouse.capacity);
+  const [showPricingInfo, setShowPricingInfo] = useState('overnight');
+
+  const toggleWishlist = () => {
+    if (isInWishlist(farmhouse.id)) {
+      removeFromWishlist(farmhouse.id);
+    } else {
+      addToWishlist(farmhouse.id);
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: `Check out ${farmhouse.name} in ${farmhouse.location}! Starting from ₹${farmhouse.price}/night. ${farmhouse.description}`,
+        title: farmhouse.name,
+      });
+    } catch (error) {
+      Alert.alert('Error', 'Could not share farmhouse');
+    }
+  };
+
+  const getMinimumDate = () => {
+    const now = new Date();
+    const currentHour = now.getHours();
+
+    if (currentHour < 12) {
+      return now.toISOString().split('T')[0];
+    }
+
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  };
+
+  const getMaximumDate = () => {
+    const now = new Date();
+    const maxDate = new Date(now);
+    maxDate.setDate(maxDate.getDate() + 21);
+    return maxDate.toISOString().split('T')[0];
+  };
+
+  const isDateBooked = (dateString: string) => {
+    return farmhouse.bookedDates?.includes(dateString);
+  };
+
+  const isWeekend = (dateString: string) => {
+    const date = new Date(dateString);
+    const day = date.getDay();
+    return day === 0 || day === 6;
+  };
+
+  const getSpecialPrice = (dateString: string) => {
+    const special = farmhouse.specialDates?.find(s => s.date === dateString);
+    return special ? special.price : null;
+  };
+
+  const getPriceForDate = (dateString: string) => {
+    const specialPrice = getSpecialPrice(dateString);
+    if (specialPrice) return specialPrice;
+    return isWeekend(dateString) ? farmhouse.weekendPrice : farmhouse.price;
+  };
+
+  const getDayUsePrice = (dateString: string) => {
+    const specialPrice = getSpecialPrice(dateString);
+    if (specialPrice) return Math.floor(specialPrice * 0.6);
+    const basePrice = isWeekend(dateString) ? farmhouse.weekendPrice : farmhouse.price;
+    return Math.floor(basePrice * 0.6);
+  };
+
+  const handleDateSelect = (day: DateData) => {
+    const dateString = day.dateString;
+
+    if (isDateBooked(dateString)) {
+      Alert.alert('Unavailable', 'This date is already booked');
+      return;
+    }
+
+    if (!selectedDates.start) {
+      setSelectedDates({ start: dateString, end: dateString });
+    } else if (selectedDates.start && selectedDates.start === selectedDates.end) {
+      if (dateString === selectedDates.start) {
+        setSelectedDates({});
+      } else if (dateString < selectedDates.start) {
+        setSelectedDates({ start: dateString, end: selectedDates.start });
+      } else {
+        const start = new Date(selectedDates.start);
+        const end = new Date(dateString);
+        let current = new Date(start);
+        let allAvailable = true;
+
+        while (current <= end) {
+          const checkDate = current.toISOString().split('T')[0];
+          if (isDateBooked(checkDate)) {
+            allAvailable = false;
+            break;
+          }
+          current.setDate(current.getDate() + 1);
+        }
+
+        if (allAvailable) {
+          setSelectedDates({ start: selectedDates.start, end: dateString });
+        } else {
+          Alert.alert('Unavailable', 'Some dates in this range are already booked. Please select different dates.');
+        }
+      }
+    } else {
+      setSelectedDates({ start: dateString, end: dateString });
+    }
+  };
+
+  const getMarkedDates = () => {
+    const marked: any = {};
+
+    farmhouse.bookedDates?.forEach(date => {
+      marked[date] = {
+        disabled: true,
+        disableTouchEvent: true,
+        customStyles: {
+          container: {
+            backgroundColor: '#FFE5E5',
+          },
+          text: {
+            color: '#999999',
+          }
+        }
+      };
+    });
+
+    if (selectedDates.start && selectedDates.end) {
+      if (selectedDates.start === selectedDates.end) {
+        marked[selectedDates.start] = {
+          selected: true,
+          customStyles: {
+            container: {
+              backgroundColor: '#14B8A6',
+            },
+            text: {
+              color: '#FFFFFF',
+              fontWeight: 'bold'
+            }
+          }
+        };
+      } else {
+        const start = new Date(selectedDates.start);
+        const end = new Date(selectedDates.end);
+        let current = new Date(start);
+
+        while (current <= end) {
+          const dateString = current.toISOString().split('T')[0];
+          if (!marked[dateString] || !marked[dateString].disabled) {
+            const isStart = dateString === selectedDates.start;
+            const isEnd = dateString === selectedDates.end;
+
+            marked[dateString] = {
+              selected: true,
+              startingDay: isStart,
+              endingDay: isEnd,
+              color: '#14B8A6',
+              textColor: '#FFFFFF',
+              customStyles: {
+                container: {
+                  backgroundColor: '#14B8A6',
+                },
+                text: {
+                  color: '#FFFFFF',
+                  fontWeight: 'bold'
+                }
+              }
+            };
+          }
+          current.setDate(current.getDate() + 1);
+        }
+      }
+    }
+
+    return marked;
+  };
+
+  const calculateNights = () => {
+    if (!selectedDates.start || !selectedDates.end) return 0;
+
+    if (selectedDates.start === selectedDates.end) {
+      return 0;
+    }
+
+    const start = new Date(selectedDates.start);
+    const end = new Date(selectedDates.end);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  const getBookingType = () => {
+    const nights = calculateNights();
+    return nights === 0 ? 'day-use' : 'overnight';
+  };
+
+  const calculateTotalPrice = () => {
+    if (!selectedDates.start || !selectedDates.end) return 0;
+
+    let total = 0;
+    const bookingType = getBookingType();
+
+    if (bookingType === 'day-use') {
+      total = getDayUsePrice(selectedDates.start);
+    } else {
+      const start = new Date(selectedDates.start);
+      const end = new Date(selectedDates.end);
+      let current = new Date(start);
+
+      while (current < end) {
+        const dateString = current.toISOString().split('T')[0];
+        total += getPriceForDate(dateString);
+        current.setDate(current.getDate() + 1);
+      }
+    }
+
+    if (guestCount > farmhouse.capacity) {
+      const extraGuests = guestCount - farmhouse.capacity;
+      const days = bookingType === 'day-use' ? 1 : calculateNights();
+      total += extraGuests * farmhouse.extraGuestPrice * days;
+    }
+
+    return total;
+  };
+
+  const handleBooking = () => {
+    if (!selectedDates.start || !selectedDates.end) {
+      Alert.alert('Select Dates', 'Please select your dates');
+      return;
+    }
+
+    const kycStatus = 'approved';
+
+    if (kycStatus !== 'approved') {
+      Alert.alert(
+        'KYC Required',
+        'Please complete your KYC verification in your profile before booking.',
+        [
+          {
+            text: 'Go to Profile',
+            onPress: () => navigation.navigate('Profile')
+          },
+          {
+            text: 'Cancel',
+            style: 'cancel'
+          }
+        ]
+      );
+      return;
+    }
+
+    const bookingType = getBookingType();
+    const nights = calculateNights();
+
+    navigation.navigate('BookingConfirmation', {
+      farmhouseId: farmhouse.id,
+      farmhouseName: farmhouse.name,
+      farmhouseImage: farmhouse.image,
+      location: farmhouse.location,
+      startDate: selectedDates.start,
+      endDate: selectedDates.end,
+      guestCount,
+      totalPrice: calculateTotalPrice(),
+      numberOfNights: nights,
+      bookingType,
+      capacity: farmhouse.capacity,
+      rooms: farmhouse.rooms
+    });
+  };
+
+  const openGoogleMaps = () => {
+    const url = `https://maps.google.com/?q=${farmhouse.coordinates.latitude},${farmhouse.coordinates.longitude}`;
+    Linking.openURL(url);
+  };
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
+
+      <ScrollView style={styles.mainScroll} showsVerticalScrollIndicator={false}>
+        <View style={styles.imageSection}>
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={(event) => {
+              const index = Math.floor(event.nativeEvent.contentOffset.x / width);
+              setCurrentImageIndex(index);
+            }}
+          >
+            {(farmhouse.images || [farmhouse.image]).map((img, index) => (
+              <Image key={index} source={{ uri: img }} style={styles.image} />
+            ))}
+          </ScrollView>
+
+          <View style={styles.imageCounter}>
+            <Text style={styles.imageCounterText}>
+              {currentImageIndex + 1} / {(farmhouse.images || [farmhouse.image]).length}
+            </Text>
+          </View>
+
+          <View style={styles.topActions}>
+            <TouchableOpacity style={styles.actionButton} onPress={() => navigation.goBack()}>
+              <Text style={styles.actionIcon}>←</Text>
+            </TouchableOpacity>
+
+            <View style={styles.rightActions}>
+              <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
+                <Text style={styles.actionIconSmall}>📤</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.actionButton} onPress={toggleWishlist}>
+                <Text style={styles.actionIconSmall}>
+                  {isInWishlist(farmhouse.id) ? '❤️' : '🤍'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <Text style={[styles.title, { color: colors.text }]}>{farmhouse.name}</Text>
+            <View style={styles.ratingRow}>
+              <Text style={styles.starIcon}>⭐</Text>
+              <Text style={[styles.rating, { color: colors.text }]}>{farmhouse.rating}</Text>
+              <Text style={[styles.reviews, { color: colors.placeholder }]}>({farmhouse.reviews} reviews)</Text>
+            </View>
+          </View>
+
+          <View style={styles.locationRow}>
+            <Text style={styles.locationIcon}>📍</Text>
+            <Text style={[styles.location, { color: colors.placeholder }]}>{farmhouse.location}</Text>
+          </View>
+
+          <View style={styles.quickInfo}>
+            <View style={[styles.infoCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+              <Text style={styles.infoIcon}>👥</Text>
+              <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Capacity</Text>
+              <Text style={[styles.infoValue, { color: colors.text }]}>{farmhouse.capacity}</Text>
+            </View>
+            <View style={[styles.infoCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+              <Text style={styles.infoIcon}>🏠</Text>
+              <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Rooms</Text>
+              <Text style={[styles.infoValue, { color: colors.text }]}>{farmhouse.rooms}</Text>
+            </View>
+          </View>
+
+          <View style={[styles.timingCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+            <View style={styles.timingRow}>
+              <Text style={styles.timingIcon}>🕐</Text>
+              <View style={styles.timingInfo}>
+                <Text style={[styles.timingLabel, { color: colors.placeholder }]}>Check-in</Text>
+                <Text style={[styles.timingValue, { color: colors.text }]}>2:00 PM or earlier</Text>
+              </View>
+            </View>
+            <View style={[styles.timingDivider, { backgroundColor: colors.border }]} />
+            <View style={styles.timingRow}>
+              <Text style={styles.timingIcon}>🕐</Text>
+              <View style={styles.timingInfo}>
+                <Text style={[styles.timingLabel, { color: colors.placeholder }]}>Check-out</Text>
+                <Text style={[styles.timingValue, { color: colors.text }]}>12:00 PM</Text>
+                <Text style={[styles.timingNote, { color: colors.placeholder }]}>
+                  (6:00 PM same day for day-use bookings)
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>About</Text>
+            <Text style={[styles.description, { color: colors.placeholder }]}>
+              {farmhouse.description}
+            </Text>
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Amenities</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('AllAmenities', { amenities: farmhouse.amenities })}>
+                <Text style={[styles.viewAllText, { color: colors.buttonBackground }]}>View All</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.amenitiesGrid}>
+              {farmhouse.amenities.slice(0, 6).map((amenity, index) => (
+                <View key={index} style={[styles.amenityChip, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                  <Text style={[styles.amenityText, { color: colors.text }]}>{amenity}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          <View style={[styles.pricingCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Pricing Information</Text>
+
+            <View style={styles.pricingViewContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.pricingViewButton,
+                  showPricingInfo === 'overnight' && { backgroundColor: colors.buttonBackground },
+                  { borderColor: colors.border }
+                ]}
+                onPress={() => setShowPricingInfo('overnight')}
+              >
+                <Text style={[
+                  styles.pricingViewText,
+                  { color: showPricingInfo === 'overnight' ? colors.buttonText : colors.text }
+                ]}>
+                  Overnight Stay
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.pricingViewButton,
+                  showPricingInfo === 'day-use' && { backgroundColor: colors.buttonBackground },
+                  { borderColor: colors.border }
+                ]}
+                onPress={() => setShowPricingInfo('day-use')}
+              >
+                <Text style={[
+                  styles.pricingViewText,
+                  { color: showPricingInfo === 'day-use' ? colors.buttonText : colors.text }
+                ]}>
+                  Day Use
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {showPricingInfo === 'overnight' ? (
+              <>
+                <View style={styles.priceGrid}>
+                  <View style={styles.priceBox}>
+                    <Text style={[styles.priceBoxLabel, { color: colors.placeholder }]}>Weekday</Text>
+                    <Text style={[styles.priceBoxValue, { color: colors.text }]}>₹{farmhouse.price}</Text>
+                    <Text style={[styles.priceBoxSub, { color: colors.placeholder }]}>per night</Text>
+                  </View>
+                  <View style={styles.priceBox}>
+                    <Text style={[styles.priceBoxLabel, { color: colors.placeholder }]}>Weekend</Text>
+                    <Text style={[styles.priceBoxValue, { color: colors.text }]}>₹{farmhouse.weekendPrice}</Text>
+                    <Text style={[styles.priceBoxSub, { color: colors.placeholder }]}>per night</Text>
+                  </View>
+                </View>
+                <Text style={[styles.pricingNote, { color: colors.placeholder }]}>
+                  Check-in by 2:00 PM • Check-out by 12:00 PM next day
+                </Text>
+              </>
+            ) : (
+              <>
+                <View style={styles.dayUseBox}>
+                  <Text style={[styles.dayUseLabel, { color: colors.text }]}>Same-Day Booking</Text>
+                  <View style={styles.dayUsePriceRow}>
+                    <View style={styles.dayUsePriceItem}>
+                      <Text style={[styles.priceBoxLabel, { color: colors.placeholder }]}>Weekday</Text>
+                      <Text style={[styles.priceBoxValue, { color: colors.text }]}>₹{Math.floor(farmhouse.price * 0.6)}</Text>
+                    </View>
+                    <View style={styles.dayUsePriceItem}>
+                      <Text style={[styles.priceBoxLabel, { color: colors.placeholder }]}>Weekend</Text>
+                      <Text style={[styles.priceBoxValue, { color: colors.text }]}>₹{Math.floor(farmhouse.weekendPrice * 0.6)}</Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.dayUseNote, { color: colors.placeholder }]}>
+                    Check-in and check-out on the same day
+                  </Text>
+                </View>
+                <Text style={[styles.pricingNote, { color: colors.placeholder }]}>
+                  Check-in anytime • Check-out by 6:00 PM same day
+                </Text>
+              </>
+            )}
+
+            {farmhouse.specialDates?.length > 0 && (
+              <View style={[styles.specialDatesBox, { borderColor: colors.border }]}>
+                <Text style={[styles.specialLabel, { color: colors.text }]}>Special Dates:</Text>
+                {farmhouse.specialDates.map((special, idx) => (
+                  <View key={idx} style={styles.specialDateRow}>
+                    <Text style={[styles.specialDate, { color: colors.placeholder }]}>{special.date}</Text>
+                    <Text style={[styles.specialPrice, { color: colors.buttonBackground }]}>
+                      ₹{showPricingInfo === 'day-use' ? Math.floor(special.price * 0.6) : special.price}
+                    </Text>
+                  </View>
+                ))}
+                <Text style={[styles.specialNote, { color: colors.placeholder }]}>
+                  * Special day prices override weekend rates
+                </Text>
+              </View>
+            )}
+
+            <View style={[styles.extraGuestBox, { backgroundColor: isDark ? 'rgba(2,68,77,0.1)' : 'rgba(2,68,77,0.05)', borderColor: colors.border }]}>
+              <Text style={[styles.extraGuestText, { color: colors.text }]}>
+                Extra guest charge (above {farmhouse.capacity}):
+              </Text>
+              <Text style={[styles.extraGuestPrice, { color: colors.buttonBackground }]}>
+                ₹{farmhouse.extraGuestPrice}/person/day
+              </Text>
+            </View>
+          </View>
+
+          <View style={[styles.calendarCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Select Dates</Text>
+            <Text style={[styles.calendarInstruction, { color: colors.placeholder }]}>
+              Tap once for same-day booking, tap multiple dates for overnight stay. Red dates are unavailable.
+            </Text>
+            <Calendar
+              markedDates={getMarkedDates()}
+              onDayPress={handleDateSelect}
+              minDate={getMinimumDate()}
+              maxDate={getMaximumDate()}
+              markingType={'custom'}
+              theme={{
+                backgroundColor: colors.cardBackground,
+                calendarBackground: colors.cardBackground,
+                textSectionTitleColor: colors.text,
+                dayTextColor: colors.text,
+                todayTextColor: colors.buttonBackground,
+                monthTextColor: colors.text,
+                arrowColor: colors.buttonBackground,
+                textDisabledColor: '#999999',
+              }}
+            />
+
+            {selectedDates.start && selectedDates.end && (
+              <View style={[styles.bookingSummary, { backgroundColor: isDark ? 'rgba(20,184,166,0.15)' : 'rgba(20,184,166,0.1)', borderColor: '#14B8A6' }]}>
+                <View style={styles.summaryRow}>
+                  <Text style={[styles.summaryLabel, { color: colors.text }]}>Booking Type:</Text>
+                  <Text style={[styles.summaryValue, { color: '#14B8A6', fontWeight: '700' }]}>
+                    {getBookingType() === 'day-use' ? 'Day Use' : `Overnight (${calculateNights()} ${calculateNights() === 1 ? 'night' : 'nights'})`}
+                  </Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={[styles.summaryLabel, { color: colors.text }]}>Check-in:</Text>
+                  <Text style={[styles.summaryValue, { color: colors.text }]}>
+                    {selectedDates.start} {getBookingType() === 'day-use' ? 'anytime' : 'by 2:00 PM'}
+                  </Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={[styles.summaryLabel, { color: colors.text }]}>Check-out:</Text>
+                  <Text style={[styles.summaryValue, { color: colors.text }]}>
+                    {getBookingType() === 'day-use'
+                      ? `${selectedDates.start} by 6:00 PM`
+                      : `${selectedDates.end} by 12:00 PM`
+                    }
+                  </Text>
+                </View>
+                {getBookingType() === 'overnight' && calculateNights() > 0 && (
+                  <Text style={[styles.pricingDetailNote, { color: colors.placeholder }]}>
+                    * Price includes weekday, weekend, and special day rates
+                  </Text>
+                )}
+                <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
+                <View style={styles.summaryRow}>
+                  <Text style={[styles.totalLabel, { color: colors.text }]}>Total Amount:</Text>
+                  <Text style={[styles.totalValue, { color: '#14B8A6' }]}>₹{calculateTotalPrice()}</Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Location</Text>
+            <TouchableOpacity onPress={openGoogleMaps} activeOpacity={0.8}>
+              <MapView
+                style={styles.map}
+                initialRegion={{
+                  latitude: farmhouse.coordinates.latitude,
+                  longitude: farmhouse.coordinates.longitude,
+                  latitudeDelta: 0.01,
+                  longitudeDelta: 0.01,
+                }}
+                scrollEnabled={false}
+                zoomEnabled={false}
+                pitchEnabled={false}
+                rotateEnabled={false}
+              >
+                <Marker
+                  coordinate={farmhouse.coordinates}
+                  title={farmhouse.name}
+                />
+              </MapView>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>House Rules</Text>
+            {farmhouse.rules.map((rule, idx) => (
+              <Text key={idx} style={[styles.ruleText, { color: colors.placeholder }]}>
+                • {rule}
+              </Text>
+            ))}
+          </View>
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Terms & Conditions</Text>
+            {farmhouse.terms.map((term, idx) => (
+              <Text key={idx} style={[styles.termText, { color: colors.placeholder }]}>
+                • {term}
+              </Text>
+            ))}
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.reviewsHeader}>
+              <View>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Reviews</Text>
+                <View style={styles.overallRating}>
+                  <Text style={styles.overallRatingStar}>⭐</Text>
+                  <Text style={[styles.overallRatingText, { color: colors.text }]}>{farmhouse.rating}</Text>
+                  <Text style={[styles.totalReviews, { color: colors.placeholder }]}>({farmhouse.reviews} reviews)</Text>
+                </View>
+              </View>
+              <TouchableOpacity onPress={() => navigation.navigate('AllReviews', { farmhouseId: farmhouse.id })}>
+                <Text style={[styles.viewAllText, { color: colors.buttonBackground }]}>View All</Text>
+              </TouchableOpacity>
+            </View>
+
+            {SAMPLE_REVIEWS.slice(0, 3).map((review) => (
+              <View key={review.id} style={[styles.reviewCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                <View style={styles.reviewHeader}>
+                  <View style={styles.reviewerInfo}>
+                    <View style={[styles.avatarCircle, { backgroundColor: colors.buttonBackground }]}>
+                      <Text style={[styles.avatarText, { color: colors.buttonText }]}>
+                        {review.userName.charAt(0)}
+                      </Text>
+                    </View>
+                    <View>
+                      <Text style={[styles.reviewerName, { color: colors.text }]}>{review.userName}</Text>
+                      <Text style={[styles.reviewDate, { color: colors.placeholder }]}>{review.date}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.reviewRating}>
+                    {[...Array(5)].map((_, i) => (
+                      <Text key={i} style={styles.reviewStar}>
+                        {i < review.rating ? '⭐' : '☆'}
+                      </Text>
+                    ))}
+                  </View>
+                </View>
+                <Text style={[styles.reviewComment, { color: colors.placeholder }]}>{review.comment}</Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={{ height: 100 }} />
+        </View>
+      </ScrollView>
+
+      <View style={[styles.bottomBar, { backgroundColor: colors.cardBackground, borderTopColor: colors.border }]}>
+        <View>
+          <Text style={[styles.bottomLabel, { color: colors.placeholder }]}>
+            {selectedDates.start && selectedDates.end ? 'Total Price' : 'Starting from'}
+          </Text>
+          <Text style={[styles.bottomPrice, { color: colors.buttonBackground }]}>
+            ₹{selectedDates.start && selectedDates.end ? calculateTotalPrice() : farmhouse.price}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={[styles.bookButton, { backgroundColor: colors.buttonBackground }]}
+          onPress={handleBooking}
+        >
+          <Text style={[styles.bookButtonText, { color: colors.buttonText }]}>Book Now</Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  mainScroll: { flex: 1 },
+  imageSection: { position: 'relative', height: 300 },
+  image: { width, height: 300 },
+  imageCounter: { position: 'absolute', bottom: 15, right: 15, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 15 },
+  imageCounterText: { color: '#fff', fontSize: 12, fontWeight: '500' },
+  topActions: { position: 'absolute', top: 16, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16 },
+  rightActions: { flexDirection: 'row', gap: 8 },
+  actionButton: { backgroundColor: 'rgba(255, 255, 255, 0.9)', borderRadius: 20, padding: 8 },
+  actionIcon: { fontSize: 24, color: '#000' },
+  actionIconSmall: { fontSize: 20 },
+  content: { paddingHorizontal: 20 },
+  header: { marginTop: 20 },
+  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 8 },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  starIcon: { fontSize: 16 },
+  rating: { fontSize: 16, fontWeight: '600' },
+  reviews: { fontSize: 14 },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 },
+  locationIcon: { fontSize: 18 },
+  location: { fontSize: 16 },
+  quickInfo: { flexDirection: 'row', gap: 12, marginTop: 20 },
+  infoCard: { flex: 1, padding: 16, borderRadius: 12, alignItems: 'center', gap: 8, borderWidth: 1 },
+  infoIcon: { fontSize: 20 },
+  infoLabel: { fontSize: 12 },
+  infoValue: { fontSize: 16, fontWeight: '600' },
+  timingCard: { marginTop: 16, padding: 16, borderRadius: 12, borderWidth: 1 },
+  timingRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  timingIcon: { fontSize: 18 },
+  timingInfo: { flex: 1 },
+  timingLabel: { fontSize: 12, marginBottom: 4 },
+  timingValue: { fontSize: 16, fontWeight: '600' },
+  timingNote: { fontSize: 11, marginTop: 2, fontStyle: 'italic' },
+  timingDivider: { height: 1, marginVertical: 12 },
+  section: { marginTop: 24 },
+  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 12 },
+  viewAllText: { fontSize: 14, fontWeight: '500' },
+  description: { fontSize: 15, lineHeight: 22 },
+  amenitiesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  amenityChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  amenityText: { fontSize: 14 },
+  pricingCard: { marginTop: 24, padding: 20, borderRadius: 12, borderWidth: 1 },
+  pricingViewContainer: { flexDirection: 'row', gap: 12, marginBottom: 20 },
+  pricingViewButton: { flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
+  pricingViewText: { fontSize: 14, fontWeight: '600' },
+  pricingNote: { fontSize: 12, marginTop: 8, marginBottom: 12, fontStyle: 'italic' },
+  priceGrid: { flexDirection: 'row', gap: 12, marginBottom: 16 },
+  priceBox: { flex: 1, padding: 16, borderRadius: 8, backgroundColor: 'rgba(2,68,77,0.05)', alignItems: 'center' },
+  priceBoxLabel: { fontSize: 12, marginBottom: 8 },
+  priceBoxValue: { fontSize: 24, fontWeight: 'bold', marginBottom: 4 },
+  priceBoxSub: { fontSize: 11 },
+  dayUseBox: { padding: 16, backgroundColor: 'rgba(76,175,80,0.05)', borderRadius: 8, marginBottom: 16 },
+  dayUseLabel: { fontSize: 16, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' },
+  dayUsePriceRow: { flexDirection: 'row', gap: 16, justifyContent: 'center' },
+  dayUsePriceItem: { alignItems: 'center', minWidth: 100 },
+  dayUseNote: { fontSize: 12, marginTop: 12, textAlign: 'center', fontStyle: 'italic' },
+  specialDatesBox: { padding: 12, borderRadius: 8, borderWidth: 1, marginBottom: 16 },
+  specialLabel: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
+  specialDateRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  specialDate: { fontSize: 14 },
+  specialPrice: { fontSize: 14, fontWeight: '600' },
+  specialNote: { fontSize: 11, marginTop: 8, fontStyle: 'italic' },
+  extraGuestBox: { padding: 12, borderRadius: 8, borderWidth: 1, marginBottom: 12 },
+  extraGuestText: { fontSize: 13, marginBottom: 4 },
+  extraGuestPrice: { fontSize: 16, fontWeight: 'bold' },
+  calendarCard: { marginTop: 24, padding: 16, borderRadius: 12, borderWidth: 1 },
+  calendarInstruction: { fontSize: 13, marginBottom: 12, lineHeight: 18 },
+  bookingSummary: { marginTop: 16, padding: 16, borderRadius: 12, borderWidth: 2 },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  summaryLabel: { fontSize: 14 },
+  summaryValue: { fontSize: 14, fontWeight: '500' },
+  summaryDivider: { height: 1, marginVertical: 12 },
+  pricingDetailNote: { fontSize: 12, fontStyle: 'italic', marginVertical: 8 },
+  totalLabel: { fontSize: 16, fontWeight: 'bold' },
+  totalValue: { fontSize: 20, fontWeight: 'bold' },
+  map: { width: '100%', height: 200, borderRadius: 12 },
+  ruleText: { fontSize: 14, marginBottom: 8, lineHeight: 20 },
+  termText: { fontSize: 14, marginBottom: 8, lineHeight: 20 },
+  reviewsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
+  overallRating: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  overallRatingStar: { fontSize: 18 },
+  overallRatingText: { fontSize: 18, fontWeight: 'bold' },
+  totalReviews: { fontSize: 14 },
+  reviewCard: { padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 12 },
+  reviewHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  reviewerInfo: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  avatarCircle: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 18, fontWeight: 'bold' },
+  reviewerName: { fontSize: 15, fontWeight: '600' },
+  reviewDate: { fontSize: 12, marginTop: 2 },
+  reviewRating: { flexDirection: 'row', gap: 2 },
+  reviewStar: { fontSize: 12 },
+  reviewComment: { fontSize: 14, lineHeight: 20 },
+  bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1 },
+  bottomLabel: { fontSize: 12, marginBottom: 4 },
+  bottomPrice: { fontSize: 24, fontWeight: 'bold' },
+  bookButton: { paddingHorizontal: 32, paddingVertical: 14, borderRadius: 8 },
+  bookButtonText: { fontSize: 16, fontWeight: '600' },
+});
