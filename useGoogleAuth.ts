@@ -20,9 +20,10 @@ export function useGoogleAuth() {
       setError(null);
 
       await GoogleSignin.hasPlayServices();
-      const userInfo = await GoogleSignin.signIn();
+      const response = await GoogleSignin.signIn();
 
-      const idToken = userInfo.data?.idToken;
+      // Handle different response structures
+      const idToken = response.idToken || response.data?.idToken;
 
       if (!idToken) {
         throw new Error('No ID token received');
@@ -47,7 +48,7 @@ export function useGoogleAuth() {
       console.error('Google Sign-In Error:', err);
       if (err.code === 'auth/invalid-credential') {
         setError('Invalid credentials. Please try again.');
-      } else if (err.code === '-5') {
+      } else if (err.code === '-5' || err.code === '12501') {
         setError('Google Sign-In cancelled');
       } else {
         setError(err.message || 'Authentication failed');
