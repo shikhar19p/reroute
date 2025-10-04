@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,30 +18,9 @@ import { Calendar, DateData } from 'react-native-calendars';
 import MapView, { Marker } from 'react-native-maps';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
+import { Farmhouse } from '../../services/farmhouseService';
 
 const { width } = Dimensions.get('window');
-
-interface Farmhouse {
-  id: string;
-  name: string;
-  location: string;
-  price: number;
-  rating: number;
-  reviews: number;
-  image: string;
-  amenities: string[];
-  capacity: number;
-  rooms: number;
-  description: string;
-  images: string[];
-  weekendPrice: number;
-  specialDates: { date: string; price: number }[];
-  extraGuestPrice: number;
-  coordinates: { latitude: number; longitude: number };
-  rules: string[];
-  terms: string[];
-  bookedDates: string[];
-}
 
 interface Review {
   id: string;
@@ -91,6 +70,49 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   const [guestCount, setGuestCount] = useState(farmhouse.capacity);
   const [showPricingInfo, setShowPricingInfo] = useState('overnight');
 
+  // Convert amenities object to array for display
+  const amenitiesList = useMemo(() => {
+    const amenities = farmhouse.amenities;
+    const list: string[] = [];
+
+    if (amenities.tv > 0) list.push(`${amenities.tv} TV${amenities.tv > 1 ? 's' : ''}`);
+    if (amenities.geyser > 0) list.push(`${amenities.geyser} Geyser${amenities.geyser > 1 ? 's' : ''}`);
+    if (amenities.bonfire > 0) list.push(`${amenities.bonfire} Bonfire${amenities.bonfire > 1 ? 's' : ''}`);
+    if (amenities.chess > 0) list.push(`Chess`);
+    if (amenities.carroms > 0) list.push(`Carroms`);
+    if (amenities.volleyball > 0) list.push(`Volleyball`);
+    if (amenities.pool) list.push('Swimming Pool');
+
+    return list;
+  }, [farmhouse.amenities]);
+
+  // Map Firebase fields to expected format
+  const images = farmhouse.photos || [];
+  const mainImage = images[0] || 'https://via.placeholder.com/400x300?text=No+Image';
+  const rooms = farmhouse.bedrooms;
+  const bookedDates: string[] = [];  // TODO: Fetch from bookings
+  const specialDates = farmhouse.customPricing?.map(p => ({ date: p.label, price: p.price })) || [];
+  const extraGuestPrice = 500;  // Default extra guest price
+  const rulesList = useMemo(() => {
+    const rules = farmhouse.rules;
+    const list: string[] = [];
+
+    if (!rules.unmarriedCouples) list.push('Unmarried couples not allowed');
+    if (rules.pets) list.push('Pets allowed');
+    if (!rules.pets) list.push('No pets allowed');
+    if (rules.quietHours) list.push('Quiet hours enforced');
+
+    return list;
+  }, [farmhouse.rules]);
+
+  const terms = [
+    '50% advance payment required at booking',
+    'Cancellation 48 hours before check-in for full refund',
+    'No refund for cancellations within 48 hours',
+    'Property damage will be charged separately',
+    'Check-in: 2 PM, Check-out: 12 PM'
+  ];
+
   const toggleWishlist = () => {
     if (isInWishlist(farmhouse.id)) {
       removeFromWishlist(farmhouse.id);
@@ -131,7 +153,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   };
 
   const isDateBooked = (dateString: string) => {
-    return farmhouse.bookedDates?.includes(dateString);
+    return bookedDates.includes(dateString);
   };
 
   const isWeekend = (dateString: string) => {
@@ -141,7 +163,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   };
 
   const getSpecialPrice = (dateString: string) => {
-    const special = farmhouse.specialDates?.find(s => s.date === dateString);
+    const special = specialDates.find(s => s.date === dateString);
     return special ? special.price : null;
   };
 
@@ -202,7 +224,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   const getMarkedDates = () => {
     const marked: any = {};
 
-    farmhouse.bookedDates?.forEach(date => {
+    bookedDates.forEach(date => {
       marked[date] = {
         disabled: true,
         disableTouchEvent: true,
@@ -309,7 +331,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     if (guestCount > farmhouse.capacity) {
       const extraGuests = guestCount - farmhouse.capacity;
       const days = bookingType === 'day-use' ? 1 : calculateNights();
-      total += extraGuests * farmhouse.extraGuestPrice * days;
+      total += extraGuests * extraGuestPrice * days;
     }
 
     return total;
@@ -347,7 +369,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     navigation.navigate('BookingConfirmation', {
       farmhouseId: farmhouse.id,
       farmhouseName: farmhouse.name,
-      farmhouseImage: farmhouse.image,
+      farmhouseImage: mainImage,
       location: farmhouse.location,
       startDate: selectedDates.start,
       endDate: selectedDates.end,
@@ -356,13 +378,19 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
       numberOfNights: nights,
       bookingType,
       capacity: farmhouse.capacity,
-      rooms: farmhouse.rooms
+      rooms: rooms
     });
   };
 
   const openGoogleMaps = () => {
-    const url = `https://maps.google.com/?q=${farmhouse.coordinates.latitude},${farmhouse.coordinates.longitude}`;
-    Linking.openURL(url);
+    if (farmhouse.mapLink) {
+      Linking.openURL(farmhouse.mapLink);
+    } else if (farmhouse.coordinates) {
+      const url = `https://maps.google.com/?q=${farmhouse.coordinates.latitude},${farmhouse.coordinates.longitude}`;
+      Linking.openURL(url);
+    } else {
+      Alert.alert('Location', 'Map location not available for this property');
+    }
   };
 
   return (
@@ -380,14 +408,14 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
               setCurrentImageIndex(index);
             }}
           >
-            {(farmhouse.images || [farmhouse.image]).map((img, index) => (
+            {images.map((img, index) => (
               <Image key={index} source={{ uri: img }} style={styles.image} />
             ))}
           </ScrollView>
 
           <View style={styles.imageCounter}>
             <Text style={styles.imageCounterText}>
-              {currentImageIndex + 1} / {(farmhouse.images || [farmhouse.image]).length}
+              {currentImageIndex + 1} / {images.length}
             </Text>
           </View>
 
@@ -434,7 +462,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
             <View style={[styles.infoCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
               <Text style={styles.infoIcon}>🏠</Text>
               <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Rooms</Text>
-              <Text style={[styles.infoValue, { color: colors.text }]}>{farmhouse.rooms}</Text>
+              <Text style={[styles.infoValue, { color: colors.text }]}>{rooms}</Text>
             </View>
           </View>
 
@@ -469,12 +497,12 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Amenities</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('AllAmenities', { amenities: farmhouse.amenities })}>
+              <TouchableOpacity onPress={() => navigation.navigate('AllAmenities', { amenities: amenitiesList })}>
                 <Text style={[styles.viewAllText, { color: colors.buttonBackground }]}>View All</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.amenitiesGrid}>
-              {farmhouse.amenities.slice(0, 6).map((amenity, index) => (
+              {amenitiesList.slice(0, 6).map((amenity, index) => (
                 <View key={index} style={[styles.amenityChip, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
                   <Text style={[styles.amenityText, { color: colors.text }]}>{amenity}</Text>
                 </View>
@@ -560,10 +588,10 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
               </>
             )}
 
-            {farmhouse.specialDates?.length > 0 && (
+            {specialDates.length > 0 && (
               <View style={[styles.specialDatesBox, { borderColor: colors.border }]}>
                 <Text style={[styles.specialLabel, { color: colors.text }]}>Special Dates:</Text>
-                {farmhouse.specialDates.map((special, idx) => (
+                {specialDates.map((special, idx) => (
                   <View key={idx} style={styles.specialDateRow}>
                     <Text style={[styles.specialDate, { color: colors.placeholder }]}>{special.date}</Text>
                     <Text style={[styles.specialPrice, { color: colors.buttonBackground }]}>
@@ -582,7 +610,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
                 Extra guest charge (above {farmhouse.capacity}):
               </Text>
               <Text style={[styles.extraGuestPrice, { color: colors.buttonBackground }]}>
-                ₹{farmhouse.extraGuestPrice}/person/day
+                ₹{extraGuestPrice}/person/day
               </Text>
             </View>
           </View>
@@ -650,30 +678,37 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Location</Text>
             <TouchableOpacity onPress={openGoogleMaps} activeOpacity={0.8}>
-              <MapView
-                style={styles.map}
-                initialRegion={{
-                  latitude: farmhouse.coordinates.latitude,
-                  longitude: farmhouse.coordinates.longitude,
-                  latitudeDelta: 0.01,
-                  longitudeDelta: 0.01,
-                }}
-                scrollEnabled={false}
-                zoomEnabled={false}
-                pitchEnabled={false}
-                rotateEnabled={false}
-              >
-                <Marker
-                  coordinate={farmhouse.coordinates}
-                  title={farmhouse.name}
-                />
-              </MapView>
+              {farmhouse.coordinates ? (
+                <MapView
+                  style={styles.map}
+                  initialRegion={{
+                    latitude: farmhouse.coordinates.latitude,
+                    longitude: farmhouse.coordinates.longitude,
+                    latitudeDelta: 0.01,
+                    longitudeDelta: 0.01,
+                  }}
+                  scrollEnabled={false}
+                  zoomEnabled={false}
+                  pitchEnabled={false}
+                  rotateEnabled={false}
+                >
+                  <Marker
+                    coordinate={farmhouse.coordinates}
+                    title={farmhouse.name}
+                  />
+                </MapView>
+              ) : (
+                <View style={[styles.map, { backgroundColor: colors.cardBackground, borderColor: colors.border, borderWidth: 1, justifyContent: 'center', alignItems: 'center' }]}>
+                  <Text style={[{ color: colors.text, fontSize: 16, marginBottom: 8 }]}>📍 {farmhouse.location}</Text>
+                  <Text style={[{ color: colors.buttonBackground, fontSize: 14 }]}>Tap to open in Google Maps</Text>
+                </View>
+              )}
             </TouchableOpacity>
           </View>
 
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>House Rules</Text>
-            {farmhouse.rules.map((rule, idx) => (
+            {rulesList.map((rule, idx) => (
               <Text key={idx} style={[styles.ruleText, { color: colors.placeholder }]}>
                 • {rule}
               </Text>
@@ -682,7 +717,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Terms & Conditions</Text>
-            {farmhouse.terms.map((term, idx) => (
+            {terms.map((term, idx) => (
               <Text key={idx} style={[styles.termText, { color: colors.placeholder }]}>
                 • {term}
               </Text>

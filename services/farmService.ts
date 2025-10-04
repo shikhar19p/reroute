@@ -194,7 +194,7 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
   };
 
   console.log('Saving to Firestore...');
-  const farmsCollection = collection(db, 'farms');
+  const farmsCollection = collection(db, 'farmhouses');
   const docRef = await addDoc(farmsCollection, farmDoc);
 
   console.log('Farm saved successfully! Document ID:', docRef.id);

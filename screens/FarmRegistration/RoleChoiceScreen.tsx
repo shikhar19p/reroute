@@ -5,8 +5,9 @@ import { useAuth } from '../../authContext';
 
 type RootStackParamList = {
   RoleChoice: undefined;
+  MyFarmhouses: undefined;
   FarmBasicDetails: undefined;
-  ReiHome: undefined;
+  UserHome: undefined;
   AdminHome: undefined;
 };
 
@@ -40,7 +41,7 @@ export default function RoleChoiceScreen({ navigation }: RoleChoiceScreenProps) 
 
         <TouchableOpacity
           style={styles.roleCard}
-          onPress={() => navigation.navigate('FarmBasicDetails')}
+          onPress={() => navigation.navigate('MyFarmhouses')}
           activeOpacity={0.7}
         >
           <View style={styles.iconContainer}>
@@ -48,7 +49,7 @@ export default function RoleChoiceScreen({ navigation }: RoleChoiceScreenProps) 
           </View>
           <View style={styles.roleInfo}>
             <Text style={styles.roleTitle}>Farm Owner</Text>
-            <Text style={styles.roleDescription}>Register and manage your farmhouse</Text>
+            <Text style={styles.roleDescription}>Register and manage your farmhouses</Text>
           </View>
         </TouchableOpacity>
 
