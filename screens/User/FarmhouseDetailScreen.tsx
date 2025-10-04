@@ -97,6 +97,10 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     const rules = farmhouse.rules;
     const list: string[] = [];
 
+    if (!rules) {
+      return ['House rules will be provided by the owner'];
+    }
+
     if (!rules.unmarriedCouples) list.push('Unmarried couples not allowed');
     if (rules.pets) list.push('Pets allowed');
     if (!rules.pets) list.push('No pets allowed');
