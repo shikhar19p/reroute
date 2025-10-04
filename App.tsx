@@ -34,6 +34,9 @@ import BookingsScreen from './screens/User/tabs/BookingsScreen';
 import WishlistScreen from './screens/User/tabs/WishlistScreen';
 import ProfileScreen from './screens/User/tabs/ProfileScreen';
 
+// Owner Screens
+import MyFarmhousesScreen from './screens/Owner/MyFarmhousesScreen';
+
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -120,6 +123,13 @@ function AppNavigator() {
             <Stack.Screen
               name="RoleChoice"
               component={RoleChoiceScreen}
+              options={{ headerShown: false }}
+            />
+
+            {/* Owner Flow */}
+            <Stack.Screen
+              name="MyFarmhouses"
+              component={MyFarmhousesScreen}
               options={{ headerShown: false }}
             />
 

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { auth, db } from './firebaseConfig';
 import { saveSession, loadSession, clearSession, UserSession } from './sessionManager';
 
@@ -88,6 +89,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
+      try {
+        await GoogleSignin.signOut();
+      } catch (err) {
+        // Ignore if GoogleSignin not configured yet
+      }
       await auth.signOut();
       await clearSession();
       setUser(null);

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,13 +11,15 @@ import {
   TextInput,
   FlatList,
   Share,
-  Alert
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
+import { getApprovedFarmhouses, Farmhouse as FarmhouseType } from '../../services/farmhouseService';
 
 interface Farmhouse {
   id: string;
@@ -68,6 +70,25 @@ export default function ExploreScreen({ navigation }: Props) {
     maxPrice: '',
     minCapacity: '',
   });
+  const [farmhouses, setFarmhouses] = useState<FarmhouseType[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadFarmhouses();
+  }, []);
+
+  const loadFarmhouses = async () => {
+    try {
+      setLoading(true);
+      const data = await getApprovedFarmhouses();
+      setFarmhouses(data);
+    } catch (error) {
+      console.error('Error loading farmhouses:', error);
+      Alert.alert('Error', 'Could not load farmhouses');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const toggleWishlist = (id: string) => {
     if (isInWishlist(id)) {
@@ -89,7 +110,7 @@ export default function ExploreScreen({ navigation }: Props) {
   };
 
   const filteredAndSortedFarmhouses = useMemo(() => {
-    let result = [...SAMPLE_FARMHOUSES];
+    let result = [...farmhouses];
 
     if (searchText) {
       result = result.filter(f =>
@@ -129,7 +150,7 @@ export default function ExploreScreen({ navigation }: Props) {
         result.sort((a, b) => b.capacity - a.capacity);
         break;
       case 'rating':
-        result.sort((a, b) => b.rating - a.rating);
+        result.sort((a, b) => (b.rating || 0) - (a.rating || 0));
         break;
       case 'name':
         result.sort((a, b) => a.name.localeCompare(b.name));
@@ -137,7 +158,7 @@ export default function ExploreScreen({ navigation }: Props) {
     }
 
     return result;
-  }, [searchText, filters, sortBy]);
+  }, [searchText, filters, sortBy, farmhouses]);
 
   const handleLogout = async () => {
     try {
@@ -153,7 +174,7 @@ export default function ExploreScreen({ navigation }: Props) {
       onPress={() => navigation.navigate('FarmhouseDetail', { farmhouse: item })}
     >
       <View style={styles.imageContainer}>
-        <Image source={{ uri: item.image }} style={styles.propertyImage} />
+        <Image source={{ uri: item.photos?.[0] || 'https://via.placeholder.com/400x300' }} style={styles.propertyImage} />
 
         <View style={styles.imageActions}>
           <TouchableOpacity
@@ -230,20 +251,27 @@ export default function ExploreScreen({ navigation }: Props) {
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={filteredAndSortedFarmhouses}
-        renderItem={renderFarmhouse}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={[styles.emptyText, { color: colors.placeholder }]}>
-              No farmhouses found
-            </Text>
-          </View>
-        }
-      />
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.buttonBackground} />
+          <Text style={[styles.loadingText, { color: colors.placeholder }]}>Loading farmhouses...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredAndSortedFarmhouses}
+          renderItem={renderFarmhouse}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={[styles.emptyText, { color: colors.placeholder }]}>
+                No farmhouses found
+              </Text>
+            </View>
+          }
+        />
+      )}
 
       <Modal visible={showSortModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
@@ -402,4 +430,6 @@ const styles = StyleSheet.create({
   clearButton: { flex: 1, padding: 15, borderRadius: 8, alignItems: 'center' },
   applyButton: { flex: 1, padding: 15, borderRadius: 8, alignItems: 'center' },
   filterButtonText: { fontSize: 16, fontWeight: '600' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
+  loadingText: { marginTop: 12, fontSize: 16 },
 });

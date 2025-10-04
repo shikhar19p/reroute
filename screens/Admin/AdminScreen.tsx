@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAdmin } from '../../context/AdminContext';
@@ -9,13 +9,66 @@ type AdminScreenProps = {
 };
 
 export default function AdminScreen({ navigation }: AdminScreenProps) {
-  const { farms, removeFarm } = useAdmin();
+  const { farms, loading, approveFarm, rejectFarm, removeFarm } = useAdmin();
+
+  const handleApprove = useCallback(
+    async (id: string, name: string) => {
+      Alert.alert('Approve Farm', `Approve ${name} for listing?`, [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Approve',
+          style: 'default',
+          onPress: async () => {
+            try {
+              await approveFarm(id);
+              Alert.alert('Success', `${name} has been approved!`);
+            } catch (error) {
+              Alert.alert('Error', 'Failed to approve farm');
+            }
+          }
+        },
+      ]);
+    },
+    [approveFarm]
+  );
+
+  const handleReject = useCallback(
+    async (id: string, name: string) => {
+      Alert.alert('Reject Farm', `Reject ${name}?`, [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await rejectFarm(id);
+              Alert.alert('Success', `${name} has been rejected`);
+            } catch (error) {
+              Alert.alert('Error', 'Failed to reject farm');
+            }
+          }
+        },
+      ]);
+    },
+    [rejectFarm]
+  );
 
   const confirmRemove = useCallback(
-    (id: string, name: string) => {
-      Alert.alert('Remove Farm', `Are you sure you want to remove ${name}?`, [
+    async (id: string, name: string) => {
+      Alert.alert('Delete Farm', `Are you sure you want to delete ${name}?`, [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Remove', style: 'destructive', onPress: () => removeFarm(id) },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await removeFarm(id);
+              Alert.alert('Success', `${name} has been deleted`);
+            } catch (error) {
+              Alert.alert('Error', 'Failed to delete farm');
+            }
+          }
+        },
       ]);
     },
     [removeFarm]
@@ -25,9 +78,10 @@ export default function AdminScreen({ navigation }: AdminScreenProps) {
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <Text style={styles.farmName}>{item.name}</Text>
-        <View style={styles.capacityBadge}>
-          <Text style={styles.usersIcon}>👥</Text>
-          <Text style={styles.capacityText}>{item.capacity}</Text>
+        <View style={[styles.statusBadge, { backgroundColor: item.status === 'pending' ? '#FEF3C7' : '#FEE2E2' }]}>
+          <Text style={[styles.statusText, { color: item.status === 'pending' ? '#92400E' : '#991B1B' }]}>
+            {item.status}
+          </Text>
         </View>
       </View>
 
@@ -36,63 +90,101 @@ export default function AdminScreen({ navigation }: AdminScreenProps) {
         <Text style={styles.locationText}>{item.city} • {item.area}</Text>
       </View>
 
+      <View style={styles.capacityRow}>
+        <Text style={styles.usersIcon}>👥</Text>
+        <Text style={styles.capacityText}>{item.capacity} guests</Text>
+        <Text style={styles.separator}>•</Text>
+        <Text style={styles.bedroomsText}>🏠 {item.bedrooms} bedrooms</Text>
+      </View>
+
       <View style={styles.priceRow}>
         <View style={styles.priceItem}>
-          <Text style={styles.priceLabel}>Weekly</Text>
-          <Text style={styles.priceValue}>₹{item.priceWeekly}</Text>
-        </View>
-        <View style={styles.priceItem}>
-          <Text style={styles.priceLabel}>Occasional</Text>
-          <Text style={styles.priceValue}>₹{item.priceOccasional}</Text>
+          <Text style={styles.priceLabel}>Weekday</Text>
+          <Text style={styles.priceValue}>₹{item.price}</Text>
         </View>
         <View style={styles.priceItem}>
           <Text style={styles.priceLabel}>Weekend</Text>
-          <Text style={styles.priceValue}>₹{item.priceWeekend}</Text>
+          <Text style={styles.priceValue}>₹{item.weekendPrice}</Text>
         </View>
       </View>
 
-      <View style={styles.actions}>
-        <TouchableOpacity
-          style={styles.editButton}
-          onPress={() => navigation.navigate('AdminEditFarm', { id: item.id })}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.editIcon}>✏️</Text>
-          <Text style={styles.editButtonText}>Edit</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.removeButton}
-          onPress={() => confirmRemove(item.id, item.name)}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.trashIcon}>🗑️</Text>
-          <Text style={styles.removeButtonText}>Remove</Text>
-        </TouchableOpacity>
+      <View style={styles.ownerInfo}>
+        <Text style={styles.ownerLabel}>Owner:</Text>
+        <Text style={styles.ownerEmail}>{item.ownerEmail}</Text>
       </View>
+
+      {item.status === 'pending' && (
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={styles.approveButton}
+            onPress={() => handleApprove(item.id, item.name)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.buttonIcon}>✓</Text>
+            <Text style={styles.approveButtonText}>Approve</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.rejectButton}
+            onPress={() => handleReject(item.id, item.name)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.buttonIcon}>✕</Text>
+            <Text style={styles.rejectButtonText}>Reject</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={() => confirmRemove(item.id, item.name)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.buttonIcon}>🗑️</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {item.status !== 'pending' && (
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={() => confirmRemove(item.id, item.name)}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.trashIcon}>🗑️</Text>
+            <Text style={styles.removeButtonText}>Delete</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom']}>
       <View style={styles.header}>
-        <Text style={styles.title}>Farm Management</Text>
-        <Text style={styles.subtitle}>Manage all registered farmhouses</Text>
+        <Text style={styles.title}>Pending Farms</Text>
+        <Text style={styles.subtitle}>Review and approve farmhouse registrations</Text>
       </View>
 
-      <FlatList
-        data={farms}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.listContent}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-        ListEmptyComponent={
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#4CAF50" />
+          <Text style={styles.loadingText}>Loading farms...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={farms}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.listContent}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No farms registered yet</Text>
           </View>
         }
-        showsVerticalScrollIndicator={false}
-      />
+          showsVerticalScrollIndicator={false}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -146,22 +238,55 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1F2937',
   },
-  capacityBadge: {
+  statusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  capacityRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    marginBottom: 16,
   },
   usersIcon: {
     fontSize: 14,
+    marginRight: 4,
   },
   capacityText: {
-    color: '#FFFFFF',
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  separator: {
+    marginHorizontal: 8,
+    color: '#D1D5DB',
+  },
+  bedroomsText: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  ownerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  ownerLabel: {
     fontSize: 13,
     fontWeight: '600',
+    color: '#6B7280',
+    marginRight: 8,
+  },
+  ownerEmail: {
+    fontSize: 13,
+    color: '#1F2937',
   },
   locationRow: {
     flexDirection: 'row',
@@ -201,28 +326,47 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
-  editButton: {
+  approveButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#4CAF50',
+    gap: 6,
+    backgroundColor: '#10B981',
     paddingVertical: 12,
     borderRadius: 12,
-    shadowColor: '#4CAF50',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
   },
-  editIcon: {
-    fontSize: 18,
-  },
-  editButtonText: {
+  approveButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
+  },
+  rejectButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#EF4444',
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  rejectButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  deleteButton: {
+    width: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  buttonIcon: {
+    fontSize: 18,
   },
   removeButton: {
     flex: 1,
@@ -252,5 +396,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#9CA3AF',
     textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#6B7280',
   },
 });

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -7,12 +7,14 @@ import {
   StyleSheet,
   StatusBar,
   Image,
-  Alert
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../authContext';
+import { createBooking } from '../../services/bookingService';
 
 type RootStackParamList = {
   BookingConfirmation: {
@@ -52,6 +54,7 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
 
   const { colors, isDark } = useTheme();
   const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
 
   const userProfile = {
     name: user?.displayName || 'Akshita Reddy',
@@ -66,17 +69,54 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
     }
   };
 
-  const handleProceedToPayment = () => {
-    Alert.alert(
-      'Proceed to Payment',
-      'Payment gateway will be integrated soon. Your booking details have been confirmed.',
-      [
-        {
-          text: 'OK',
-          onPress: () => navigation.popToTop()
-        }
-      ]
-    );
+  const handleProceedToPayment = async () => {
+    if (!user) {
+      Alert.alert('Error', 'Please login to continue');
+      return;
+    }
+
+    try {
+      setLoading(true);
+
+      // Create booking in Firestore
+      const bookingId = await createBooking({
+        farmhouseId,
+        farmhouseName,
+        userId: user.uid,
+        userEmail: user.email || '',
+        userName: user.displayName || '',
+        userPhone: userProfile.phone,
+        checkInDate: startDate,
+        checkOutDate: endDate,
+        guests: guestCount,
+        totalPrice,
+        bookingType: bookingType === 'Day Use' ? 'dayuse' : 'overnight',
+        status: 'pending',
+        paymentStatus: 'pending',
+      });
+
+      setLoading(false);
+
+      Alert.alert(
+        'Booking Confirmed! 🎉',
+        `Your booking has been created successfully.\nBooking ID: ${bookingId}\n\nPayment gateway will be integrated soon.`,
+        [
+          {
+            text: 'View My Bookings',
+            onPress: () => {
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'UserHome' as never, params: { screen: 'Bookings' } as never }],
+              });
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      setLoading(false);
+      console.error('Booking error:', error);
+      Alert.alert('Error', 'Failed to create booking. Please try again.');
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -210,10 +250,15 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
         <TouchableOpacity
           style={[styles.proceedButton, { backgroundColor: colors.buttonBackground }]}
           onPress={handleProceedToPayment}
+          disabled={loading}
         >
-          <Text style={[styles.proceedButtonText, { color: colors.buttonText }]}>
-            Proceed to Payment
-          </Text>
+          {loading ? (
+            <ActivityIndicator color={colors.buttonText} />
+          ) : (
+            <Text style={[styles.proceedButtonText, { color: colors.buttonText }]}>
+              Proceed to Payment
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
