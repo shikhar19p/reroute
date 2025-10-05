@@ -1,28 +1,34 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert,
-  KeyboardAvoidingView, Platform
+  KeyboardAvoidingView, Platform, ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, User, Phone, Mail, Calendar, MapPin } from 'lucide-react-native';
+import { updateProfile } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
 import { useTheme } from '../../context/ThemeContext';
 import { RootStackScreenProps } from '../../types/navigation';
+import { useAuth } from '../../authContext';
+import { auth, db } from '../../firebaseConfig';
 
 type Props = RootStackScreenProps<'EditProfile'>;
 
 export default function EditProfileScreen({ route, navigation }: Props) {
   const { profile } = route.params;
   const { colors, isDark } = useTheme();
-
+  const { user } = useAuth(); // Get current user session
+  
   const [formData, setFormData] = useState({
     name: profile?.name || '',
     email: profile?.email || '',
-    phone: profile?.phone || '',
+    phone: profile?.phone?.replace('+91', '').trim() || '',
     age: profile?.age?.toString() || '',
     address: profile?.address || '',
     gender: profile?.gender || ''
   });
 
+  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   const validateForm = () => {
@@ -35,13 +41,10 @@ export default function EditProfileScreen({ route, navigation }: Props) {
     }
 
     const phoneRegex = /^[6-9]\d{9}$/;
-    const cleanPhone = formData.phone.replace(/[^\d]/g, '');
     if (!formData.phone.trim()) {
       newErrors.phone = 'Phone number is required';
-    } else if (cleanPhone.length !== 10) {
-      newErrors.phone = 'Phone number must be 10 digits';
-    } else if (!phoneRegex.test(cleanPhone)) {
-      newErrors.phone = 'Phone must start with 6, 7, 8, or 9';
+    } else if (!phoneRegex.test(formData.phone.trim())) {
+      newErrors.phone = 'Please enter a valid 10-digit mobile number';
     }
 
     if (formData.age) {
@@ -55,17 +58,38 @@ export default function EditProfileScreen({ route, navigation }: Props) {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSave = () => {
-    if (!validateForm()) {
-      Alert.alert('Validation Error', 'Please fix the errors');
+  const handleSave = async () => {
+    if (!validateForm() || !user || !auth.currentUser) {
       return;
     }
 
-    Alert.alert(
-      'Success',
-      'Profile updated successfully',
-      [{ text: 'OK', onPress: () => navigation.goBack() }]
-    );
+    setLoading(true);
+    try {
+      // 1. Update Firebase Authentication profile (for displayName)
+      await updateProfile(auth.currentUser, {
+        displayName: formData.name,
+      });
+
+      // 2. Update Firestore user document
+      const userDocRef = doc(db, 'users', user.uid);
+      await setDoc(userDocRef, {
+        name: formData.name,
+        phone: `+91 ${formData.phone}`,
+        age: formData.age ? parseInt(formData.age) : null,
+        address: formData.address,
+        gender: formData.gender,
+      }, { merge: true }); // merge: true prevents overwriting other fields like email, role etc.
+
+      Alert.alert('Success', 'Profile updated successfully',
+        [{ text: 'OK', onPress: () => navigation.goBack() }]
+      );
+
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      Alert.alert("Error", "Failed to update profile. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const updateField = (field: string, value: string) => {
@@ -92,6 +116,7 @@ export default function EditProfileScreen({ route, navigation }: Props) {
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           <View style={[styles.formCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
             
+            {/* --- Form fields are the same as before --- */}
             {/* Name */}
             <View style={styles.inputContainer}>
               <Text style={[styles.inputLabel, { color: colors.text }]}>Full Name</Text>
@@ -204,7 +229,6 @@ export default function EditProfileScreen({ route, navigation }: Props) {
                 />
               </View>
             </View>
-
           </View>
           <View style={{ height: 100 }} />
         </ScrollView>
@@ -218,10 +242,15 @@ export default function EditProfileScreen({ route, navigation }: Props) {
           <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
         </TouchableOpacity>
         <TouchableOpacity 
-          style={[styles.saveButton, { backgroundColor: colors.buttonBackground }]}
+          style={[styles.saveButton, { backgroundColor: colors.buttonBackground, opacity: loading ? 0.7 : 1 }]}
           onPress={handleSave}
+          disabled={loading}
         >
-          <Text style={[styles.saveButtonText, { color: colors.buttonText }]}>Save Changes</Text>
+          {loading ? (
+            <ActivityIndicator color={colors.buttonText} />
+          ) : (
+            <Text style={[styles.saveButtonText, { color: colors.buttonText }]}>Save Changes</Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>

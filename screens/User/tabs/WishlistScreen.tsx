@@ -4,31 +4,42 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Heart, MapPin, Users } from 'lucide-react-native';
 import { useWishlist } from '../../../context/WishlistContext';
 import { useTheme } from '../../../context/ThemeContext';
-import { getApprovedFarmhouses, Farmhouse } from '../../../services/farmhouseService';
+import { getFarmhousesByIds, Farmhouse } from '../../../services/farmhouseService';
 
 export default function WishlistScreen({ navigation }: any) {
   const { colors } = useTheme();
   const { wishlist, removeFromWishlist } = useWishlist();
-  const [farmhouses, setFarmhouses] = useState<Farmhouse[]>([]);
+  const [wishlistFarmhouses, setWishlistFarmhouses] = useState<Farmhouse[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadFarmhouses();
-  }, []);
+    const loadWishlistFarmhouses = async () => {
+      try {
+        setLoading(true);
+        if (wishlist.length > 0) {
+          const data = await getFarmhousesByIds(wishlist);
+          // Sort data to match the order in the wishlist context
+          const sortedData = data.sort((a, b) => wishlist.indexOf(b.id) - wishlist.indexOf(a.id));
+          setWishlistFarmhouses(sortedData);
+        } else {
+          setWishlistFarmhouses([]); // Clear if wishlist is empty
+        }
+      } catch (error) {
+        console.error('Error loading wishlist farmhouses:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const loadFarmhouses = async () => {
-    try {
-      setLoading(true);
-      const data = await getApprovedFarmhouses();
-      setFarmhouses(data);
-    } catch (error) {
-      console.error('Error loading farmhouses:', error);
-    } finally {
-      setLoading(false);
-    }
+    loadWishlistFarmhouses();
+  }, [wishlist]); // Re-run this effect whenever the wishlist from the context changes
+
+  const handleRemoveFromWishlist = async (id: string) => {
+    // Optimistically remove from local state for instant UI feedback
+    setWishlistFarmhouses(prev => prev.filter(f => f.id !== id));
+    // Call the context function to update the backend
+    await removeFromWishlist(id);
   };
-
-  const wishlistFarmhouses = farmhouses.filter(f => wishlist.includes(f.id));
 
   const renderItem = ({ item }: { item: Farmhouse }) => (
     <TouchableOpacity
@@ -39,7 +50,7 @@ export default function WishlistScreen({ navigation }: any) {
         <Image source={{ uri: item.photos?.[0] || 'https://via.placeholder.com/400x300' }} style={styles.image} />
         <TouchableOpacity
           style={styles.heartButton}
-          onPress={() => removeFromWishlist(item.id)}
+          onPress={() => handleRemoveFromWishlist(item.id)}
         >
           <Heart size={20} color="#EF4444" fill="#EF4444" />
         </TouchableOpacity>
@@ -70,7 +81,7 @@ export default function WishlistScreen({ navigation }: any) {
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>My Wishlist</Text>
         <Text style={[styles.count, { color: colors.placeholder }]}>
-          {wishlist.length} {wishlist.length === 1 ? 'property' : 'properties'}
+          {wishlistFarmhouses.length} {wishlistFarmhouses.length === 1 ? 'property' : 'properties'}
         </Text>
       </View>
 

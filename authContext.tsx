@@ -71,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: userData.role,
         displayName: firebaseUser.displayName || undefined,
         photoURL: firebaseUser.photoURL || undefined,
+        phoneNumber: firebaseUser.phoneNumber || undefined, // <-- Added phone number
       };
 
       // Save session to AsyncStorage

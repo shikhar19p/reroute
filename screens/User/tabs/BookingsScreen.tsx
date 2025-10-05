@@ -84,7 +84,8 @@ export default function BookingsScreen({ navigation }: any) {
       case 'cancelled':
         return bookings.filter(b => b.status === 'cancelled');
       default:
-        return bookings;
+        // Sort all bookings by check-in date, newest first
+        return bookings.sort((a, b) => new Date(b.checkInDate).getTime() - new Date(a.checkInDate).getTime());
     }
   };
 
@@ -101,7 +102,7 @@ export default function BookingsScreen({ navigation }: any) {
 
       <View style={styles.infoRow}>
         <MapPin size={14} color={colors.placeholder} />
-        <Text style={[styles.infoText, { color: colors.placeholder }]}>Location info</Text>
+        <Text style={[styles.infoText, { color: colors.placeholder }]}>Location info available in details</Text>
       </View>
 
       <View style={styles.infoRow}>
@@ -133,7 +134,7 @@ export default function BookingsScreen({ navigation }: any) {
       <View style={styles.actionRow}>
         <TouchableOpacity
           style={[styles.viewButton, { backgroundColor: colors.buttonBackground }]}
-          onPress={() => navigation.navigate('FarmhouseDetail', { farmhouseId: item.id })}
+          onPress={() => navigation.navigate('BookingDetails', { booking: item })}
         >
           <Text style={[styles.buttonText, { color: colors.buttonText }]}>View Details</Text>
         </TouchableOpacity>
@@ -157,7 +158,7 @@ export default function BookingsScreen({ navigation }: any) {
           <View style={styles.tabContainer}>
             {[
               { key: 'all', label: 'All' },
-              { key: 'current', label: 'Current' },
+              { key: 'current', label: 'Upcoming' },
               { key: 'past', label: 'Past' },
               { key: 'cancelled', label: 'Cancelled' }
             ].map((tab) => (
