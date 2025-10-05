@@ -97,11 +97,11 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     updateGuestCount(guestInputValue);
   };
 
-  const toggleWishlist = () => {
+  const toggleWishlist = async () => {
     if (isInWishlist(farmhouse.id)) {
-      removeFromWishlist(farmhouse.id);
+      await removeFromWishlist(farmhouse.id);
     } else {
-      addToWishlist(farmhouse.id);
+      await addToWishlist(farmhouse.id);
     }
   };
 

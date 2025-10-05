@@ -10,6 +10,7 @@ import { WishlistProvider } from './context/WishlistContext';
 import WelcomeScreen from './screens/WelcomeScreen';
 import LoginScreen from './screens/LoginScreen';
 import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
+import { Home, Calendar, Heart, User } from 'lucide-react-native';
 
 // Farm Registration Screens
 import RoleChoiceScreen from './screens/FarmRegistration/RoleChoiceScreen';
@@ -33,12 +34,16 @@ import BookingConfirmationScreen from './screens/User/BookingConfirmationScreen'
 import BookingsScreen from './screens/User/tabs/BookingsScreen';
 import WishlistScreen from './screens/User/tabs/WishlistScreen';
 import ProfileScreen from './screens/User/tabs/ProfileScreen';
+import EditProfileScreen from './screens/User/EditProfileScreen';
+import BookingDetailsScreen from './screens/User/BookingDetailsScreen';
 
 // Owner Screens
 import MyFarmhousesScreen from './screens/Owner/MyFarmhousesScreen';
 
-const Stack = createNativeStackNavigator();
-const Tab = createBottomTabNavigator();
+import { RootStackParamList, TabParamList } from './types/navigation';
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
+const Tab = createBottomTabNavigator<TabParamList>();
 
 // Bottom Tab Navigator for User screens
 function UserTabs() {
@@ -47,17 +52,22 @@ function UserTabs() {
       screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: '#02444d',
-        tabBarInactiveTintColor: '#666',
+        tabBarInactiveTintColor: '#999',
         tabBarStyle: {
           borderTopWidth: 1,
           borderTopColor: '#e0e0e0',
-          paddingBottom: 5,
-          paddingTop: 5,
-          height: 60,
+          paddingBottom: 8,
+          paddingTop: 8,
+          height: 65,
+          backgroundColor: '#fff',
         },
         tabBarLabelStyle: {
           fontSize: 12,
-          fontWeight: '500',
+          fontWeight: '600',
+          marginTop: 4,
+        },
+        tabBarIconStyle: {
+          marginTop: 4,
         },
       }}
     >
@@ -66,7 +76,7 @@ function UserTabs() {
         component={ExploreScreen}
         options={{
           tabBarLabel: 'Explore',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>🔍</Text>,
+          tabBarIcon: ({ color }) => <Home size={24} color={color} />,
         }}
       />
       <Tab.Screen
@@ -74,7 +84,7 @@ function UserTabs() {
         component={BookingsScreen}
         options={{
           tabBarLabel: 'Bookings',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>📅</Text>,
+          tabBarIcon: ({ color }) => <Calendar size={24} color={color} />,
         }}
       />
       <Tab.Screen
@@ -82,7 +92,7 @@ function UserTabs() {
         component={WishlistScreen}
         options={{
           tabBarLabel: 'Wishlist',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>❤️</Text>,
+          tabBarIcon: ({ color }) => <Heart size={24} color={color} />,
         }}
       />
       <Tab.Screen
@@ -90,7 +100,7 @@ function UserTabs() {
         component={ProfileScreen}
         options={{
           tabBarLabel: 'Profile',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 24 }}>👤</Text>,
+          tabBarIcon: ({ color }) => <User size={24} color={color} />,
         }}
       />
     </Tab.Navigator>
@@ -103,7 +113,8 @@ function AppNavigator() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#4CAF50" />
+        <ActivityIndicator size="large" color="#02444d" />
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
@@ -116,6 +127,7 @@ function AppNavigator() {
           headerStyle: { backgroundColor: '#FFFFFF' },
           headerTintColor: '#1F2937',
           headerTitleStyle: { fontWeight: '600' },
+          headerShadowVisible: false,
         }}
       >
         {user ? (
@@ -137,7 +149,10 @@ function AppNavigator() {
             <Stack.Screen
               name="FarmBasicDetails"
               component={BasicDetailsScreen}
-              options={{ title: 'Basic Details' }}
+              options={{ 
+                title: 'Basic Details',
+                headerBackTitle: 'Back'
+              }}
             />
             <Stack.Screen
               name="FarmPrices"
@@ -152,12 +167,12 @@ function AppNavigator() {
             <Stack.Screen
               name="FarmAmenitiesGames"
               component={AmenitiesGamesScreen}
-              options={{ title: 'Amenities & Rules' }}
+              options={{ title: 'Amenities & Games' }}
             />
             <Stack.Screen
               name="FarmRulesRestrictions"
               component={RulesRestrictionsScreen}
-              options={{ title: 'Review' }}
+              options={{ title: 'Rules & Review' }}
             />
             <Stack.Screen
               name="FarmKyc"
@@ -191,17 +206,27 @@ function AppNavigator() {
             <Stack.Screen
               name="AllAmenities"
               component={AllAmenitiesScreen}
-              options={{ title: 'All Amenities' }}
+              options={{ headerShown: false }}
             />
             <Stack.Screen
               name="AllReviews"
               component={AllReviewsScreen}
-              options={{ title: 'All Reviews' }}
+              options={{ headerShown: false }}
             />
             <Stack.Screen
               name="BookingConfirmation"
               component={BookingConfirmationScreen}
-              options={{ title: 'Confirm Booking' }}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="BookingDetails"
+              component={BookingDetailsScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="EditProfile"
+              component={EditProfileScreen}
+              options={{ headerShown: false }}
             />
           </>
         ) : (
@@ -245,5 +270,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#fff',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#666',
   },
 });

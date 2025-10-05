@@ -35,6 +35,7 @@ export default function ExploreScreen({ navigation }: any) {
   const loadFarmhouses = async () => {
     try {
       setLoading(true);
+      // This function correctly fetches only 'approved' farmhouses
       const data = await getApprovedFarmhouses();
       setFarmhouses(data);
     } catch (error) {
@@ -45,11 +46,11 @@ export default function ExploreScreen({ navigation }: any) {
     }
   };
 
-  const toggleWishlist = (id: string) => {
+  const toggleWishlist = async (id: string) => {
     if (isInWishlist(id)) {
-      removeFromWishlist(id);
+      await removeFromWishlist(id);
     } else {
-      addToWishlist(id);
+      await addToWishlist(id);
     }
   };
 
@@ -291,7 +292,7 @@ export default function ExploreScreen({ navigation }: any) {
             <Text style={[styles.filterLabel, { color: colors.text }]}>Location</Text>
             <TextInput
               style={[styles.filterInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
-              placeholder="e.g. Bangalore"
+              placeholder="e.g. Hyderabad"
               placeholderTextColor={colors.placeholder}
               value={filters.location}
               onChangeText={(text) => setFilters({...filters, location: text})}

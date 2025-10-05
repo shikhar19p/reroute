@@ -1,6 +1,5 @@
 import {
   collection,
-  addDoc,
   updateDoc,
   deleteDoc,
   doc,
@@ -10,10 +9,12 @@ import {
   where,
   serverTimestamp,
   orderBy,
-  Timestamp
+  DocumentData,
+  documentId,
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
+// This is the flat interface your application's components will use.
 export interface Farmhouse {
   id: string;
   name: string;
@@ -26,7 +27,7 @@ export interface Farmhouse {
   description: string;
   price: number;
   weekendPrice: number;
-  extraGuestPrice?: number; // Added this optional field
+  extraGuestPrice?: number;
   customPricing?: Array<{ label: string; price: number }>;
   photos: string[];
   amenities: {
@@ -43,18 +44,7 @@ export interface Farmhouse {
     pets: boolean;
     quietHours: boolean;
   };
-  kyc: {
-    aadhaarFront: string;
-    aadhaarBack: string;
-    panCard: string;
-    labourLicense: string;
-    bankAccountHolder: string;
-    bankAccountNumber: string;
-    ifscCode: string;
-    branch: string;
-  };
   ownerId: string;
-  ownerEmail: string;
   status: 'pending' | 'approved' | 'rejected';
   rating?: number;
   reviews?: number;
@@ -67,47 +57,61 @@ export interface Farmhouse {
   approvedAt?: any;
 }
 
-// Save farm registration (status: pending)
-export async function saveFarmRegistration(farmData: Omit<Farmhouse, 'id' | 'createdAt' | 'status'>): Promise<string> {
-  try {
-    const docRef = await addDoc(collection(db, 'farmhouses'), {
-      ...farmData,
-      status: 'pending',
-      rating: 0,
-      reviews: 0,
-      bookedDates: [],
-      createdAt: serverTimestamp(),
-    });
+/**
+ * Transforms a nested Firestore document into the flat Farmhouse object used by the app.
+ * @param docData The data from a Firestore document.
+ * @param id The ID of the document.
+ * @returns A flattened Farmhouse object.
+ */
+const transformDocToFarmhouse = (docData: DocumentData, id: string): Farmhouse => {
+  const { basicDetails, pricing, photoUrls, rules, amenities, ...rest } = docData;
 
-    console.log('Farm saved successfully with ID:', docRef.id);
-    return docRef.id;
-  } catch (error) {
-    console.error('Error saving farm:', error);
-    throw error;
-  }
-}
+  return {
+    id,
+    // --- Basic Details ---
+    name: basicDetails?.name || 'Unnamed Farmhouse',
+    location: basicDetails?.locationText || `${basicDetails?.area || ''}, ${basicDetails?.city || ''}`,
+    city: basicDetails?.city || '',
+    area: basicDetails?.area || '',
+    mapLink: basicDetails?.mapLink || '',
+    bedrooms: parseInt(basicDetails?.bedrooms, 10) || 0,
+    capacity: parseInt(basicDetails?.capacity, 10) || 0,
+    description: basicDetails?.description || '',
 
-// Get all pending farms (for admin)
-export async function getPendingFarms(): Promise<Farmhouse[]> {
-  try {
-    const q = query(
-      collection(db, 'farmhouses'),
-      where('status', '==', 'pending'),
-      orderBy('createdAt', 'desc')
-    );
+    // --- Pricing ---
+    price: parseInt(pricing?.weeklyNight, 10) || 0,
+    weekendPrice: parseInt(pricing?.weekendNight, 10) || 0,
+    extraGuestPrice: parseInt(pricing?.extraGuestPrice, 10) || 500,
+    customPricing: pricing?.customPricing?.map((p: any) => ({
+      label: p.name, // Map 'name' from DB to 'label' for the UI
+      price: parseInt(p.price, 10)
+    })) || [],
 
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    } as Farmhouse));
-  } catch (error) {
-    console.error('Error fetching pending farms:', error);
-    throw error;
-  }
-}
+    // --- Photos ---
+    photos: photoUrls || [],
 
-// Get all approved farmhouses (for users to browse)
+    // --- Rules ---
+    rules: {
+      unmarriedCouples: !rules?.unmarriedNotAllowed, // Inverted logic
+      pets: !rules?.petsNotAllowed, // Inverted logic
+      quietHours: !!rules?.quietHours,
+    },
+    
+    // --- Amenities ---
+    amenities: amenities || {},
+
+    // --- Other top-level fields ---
+    ...rest,
+
+    // --- Set defaults for fields that may not exist in the new structure ---
+    rating: docData.rating || 4.5, // Default rating
+    reviews: docData.reviews || 0,
+  } as Farmhouse;
+};
+
+/**
+ * Gets all farmhouses with 'approved' status.
+ */
 export async function getApprovedFarmhouses(): Promise<Farmhouse[]> {
   try {
     const q = query(
@@ -115,29 +119,56 @@ export async function getApprovedFarmhouses(): Promise<Farmhouse[]> {
       where('status', '==', 'approved'),
       orderBy('createdAt', 'desc')
     );
-
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    } as Farmhouse));
+    return snapshot.docs.map(doc => transformDocToFarmhouse(doc.data(), doc.id));
   } catch (error) {
     console.error('Error fetching approved farmhouses:', error);
     return [];
   }
 }
 
-// Get farmhouse by ID
+/**
+ * Gets multiple farmhouses by their IDs.
+ * Firestore 'in' query is limited to 30 items. This handles more by chunking.
+ */
+export async function getFarmhousesByIds(ids: string[]): Promise<Farmhouse[]> {
+  if (!ids || ids.length === 0) {
+    return [];
+  }
+
+  try {
+    const farmhouses: Farmhouse[] = [];
+    const chunkSize = 30; // Firestore 'in' query limit
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize);
+      
+      const q = query(
+        collection(db, 'farmhouses'),
+        where(documentId(), 'in', chunk)
+      );
+      
+      const snapshot = await getDocs(q);
+      const chunkFarmhouses = snapshot.docs.map(doc => transformDocToFarmhouse(doc.data(), doc.id));
+      farmhouses.push(...chunkFarmhouses);
+    }
+    return farmhouses;
+
+  } catch (error) {
+    console.error('Error fetching farmhouses by IDs:', error);
+    return [];
+  }
+}
+
+
+/**
+ * Gets a single farmhouse by its ID.
+ */
 export async function getFarmhouseById(id: string): Promise<Farmhouse | null> {
   try {
     const docRef = doc(db, 'farmhouses', id);
     const docSnap = await getDoc(docRef);
-
     if (docSnap.exists()) {
-      return {
-        id: docSnap.id,
-        ...docSnap.data()
-      } as Farmhouse;
+      return transformDocToFarmhouse(docSnap.data(), docSnap.id);
     }
     return null;
   } catch (error) {
@@ -146,7 +177,45 @@ export async function getFarmhouseById(id: string): Promise<Farmhouse | null> {
   }
 }
 
-// Admin: Approve farmhouse
+/**
+ * Gets all farmhouses with 'pending' status (for admin).
+ */
+export async function getPendingFarms(): Promise<Farmhouse[]> {
+  try {
+    const q = query(
+      collection(db, 'farmhouses'),
+      where('status', '==', 'pending'),
+      orderBy('createdAt', 'desc')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => transformDocToFarmhouse(doc.data(), doc.id));
+  } catch (error) {
+    console.error('Error fetching pending farms:', error);
+    throw error;
+  }
+}
+
+/**
+ * Gets all farmhouses belonging to a specific owner.
+ */
+export async function getFarmhousesByOwner(ownerId: string): Promise<Farmhouse[]> {
+  try {
+    const q = query(
+      collection(db, 'farmhouses'),
+      where('ownerId', '==', ownerId),
+      orderBy('createdAt', 'desc')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => transformDocToFarmhouse(doc.data(), doc.id));
+  } catch (error) {
+    console.error('Error fetching owner farmhouses:', error);
+    return [];
+  }
+}
+
+/**
+ * Approves a farmhouse (for admin).
+ */
 export async function approveFarmhouse(farmId: string): Promise<void> {
   try {
     const farmRef = doc(db, 'farmhouses', farmId);
@@ -161,7 +230,9 @@ export async function approveFarmhouse(farmId: string): Promise<void> {
   }
 }
 
-// Admin: Reject farmhouse
+/**
+ * Rejects a farmhouse (for admin).
+ */
 export async function rejectFarmhouse(farmId: string): Promise<void> {
   try {
     const farmRef = doc(db, 'farmhouses', farmId);
@@ -175,7 +246,9 @@ export async function rejectFarmhouse(farmId: string): Promise<void> {
   }
 }
 
-// Admin: Delete farmhouse
+/**
+ * Deletes a farmhouse document (for admin).
+ */
 export async function deleteFarmhouse(farmId: string): Promise<void> {
   try {
     const farmRef = doc(db, 'farmhouses', farmId);
@@ -187,10 +260,16 @@ export async function deleteFarmhouse(farmId: string): Promise<void> {
   }
 }
 
-// Admin: Update farmhouse details
+/**
+ * Updates farmhouse details (for admin).
+ * Note: This function would need to be expanded to handle "un-flattening" data
+ * if you intend to update nested fields from a flat object.
+ */
 export async function updateFarmhouse(farmId: string, updates: Partial<Farmhouse>): Promise<void> {
   try {
     const farmRef = doc(db, 'farmhouses', farmId);
+    // This is a simple update. For nested fields, a more complex object is needed.
+    // e.g., { 'basicDetails.name': 'New Name' }
     await updateDoc(farmRef, {
       ...updates,
       updatedAt: serverTimestamp()
@@ -199,25 +278,5 @@ export async function updateFarmhouse(farmId: string, updates: Partial<Farmhouse
   } catch (error) {
     console.error('Error updating farmhouse:', error);
     throw error;
-  }
-}
-
-// Get farmhouses by owner
-export async function getFarmhousesByOwner(ownerId: string): Promise<Farmhouse[]> {
-  try {
-    const q = query(
-      collection(db, 'farmhouses'),
-      where('ownerId', '==', ownerId),
-      orderBy('createdAt', 'desc')
-    );
-
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    } as Farmhouse));
-  } catch (error) {
-    console.error('Error fetching owner farmhouses:', error);
-    return [];
   }
 }
