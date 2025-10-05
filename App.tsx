@@ -36,6 +36,8 @@ import ProfileScreen from './screens/User/tabs/ProfileScreen';
 
 // Owner Screens
 import MyFarmhousesScreen from './screens/Owner/MyFarmhousesScreen';
+import FarmhouseDetailOwnerScreen from './screens/Owner/FarmhouseDetailOwnerScreen';
+import EditFarmhouseScreen from './screens/Owner/EditFarmhouseScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -131,6 +133,16 @@ function AppNavigator() {
               name="MyFarmhouses"
               component={MyFarmhousesScreen}
               options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="FarmhouseDetailOwner"
+              component={FarmhouseDetailOwnerScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="EditFarmhouse"
+              component={EditFarmhouseScreen}
+              options={{ title: 'Edit Farmhouse' }}
             />
 
             {/* Farm Registration Flow */}
