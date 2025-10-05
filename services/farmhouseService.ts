@@ -26,6 +26,7 @@ export interface Farmhouse {
   description: string;
   price: number;
   weekendPrice: number;
+  extraGuestPrice?: number; // Added this optional field
   customPricing?: Array<{ label: string; price: number }>;
   photos: string[];
   amenities: {
@@ -57,6 +58,7 @@ export interface Farmhouse {
   status: 'pending' | 'approved' | 'rejected';
   rating?: number;
   reviews?: number;
+  bookedDates?: string[];
   coordinates?: {
     latitude: number;
     longitude: number;
@@ -73,6 +75,7 @@ export async function saveFarmRegistration(farmData: Omit<Farmhouse, 'id' | 'cre
       status: 'pending',
       rating: 0,
       reviews: 0,
+      bookedDates: [],
       createdAt: serverTimestamp(),
     });
 
@@ -120,7 +123,7 @@ export async function getApprovedFarmhouses(): Promise<Farmhouse[]> {
     } as Farmhouse));
   } catch (error) {
     console.error('Error fetching approved farmhouses:', error);
-    return []; // Return empty array on error so app doesn't crash
+    return [];
   }
 }
 

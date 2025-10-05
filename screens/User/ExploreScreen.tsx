@@ -1,61 +1,16 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  View,
-  Text,
-  Image,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  StatusBar,
-  Modal,
-  TextInput,
-  FlatList,
-  Share,
-  Alert,
-  ActivityIndicator
+  View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, StatusBar,
+  Modal, TextInput, FlatList, Share, Alert, ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { Heart, Search, SlidersHorizontal, ArrowUpDown, LogOut, Share2 } from 'lucide-react-native';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
 import { getApprovedFarmhouses, Farmhouse as FarmhouseType } from '../../services/farmhouseService';
 
-interface Farmhouse {
-  id: string;
-  name: string;
-  location: string;
-  price: number;
-  rating: number;
-  reviews: number;
-  image: string;
-  amenities: string[];
-  capacity: number;
-  rooms: number;
-  description: string;
-  images: string[];
-  weekendPrice: number;
-  specialDates: { date: string; price: number }[];
-  extraGuestPrice: number;
-  coordinates: { latitude: number; longitude: number };
-  rules: string[];
-  terms: string[];
-  bookedDates: string[];
-}
-
-type RootStackParamList = {
-  FarmhouseDetail: { farmhouse: Farmhouse };
-};
-
-type Props = NativeStackScreenProps<RootStackParamList>;
-
-const SAMPLE_FARMHOUSES: Farmhouse[] = [
-  { id: '1', name: 'Green Valley Farmhouse', location: 'Bangalore Rural', price: 5000, rating: 4.8, reviews: 73, image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800&h=600&fit=crop', amenities: ['Pool', 'BBQ', 'WiFi', 'Parking'], capacity: 20, rooms: 4, description: 'Beautiful farmhouse with scenic valley views, perfect for family gatherings and weekend getaways.', images: ['https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=800&h=600&fit=crop', 'https://images.unsplash.com/photo-1600607687644-c7171b42498f?w=800&h=600&fit=crop'], weekendPrice: 7000, specialDates: [{ date: '2025-12-25', price: 10000 }], extraGuestPrice: 500, coordinates: { latitude: 12.9716, longitude: 77.5946 }, rules: ['No smoking inside', 'Pets allowed with notification', 'Music until 10 PM'], terms: ['50% advance required', 'Cancellation 48hrs before'], bookedDates: ['2025-10-05', '2025-10-06'] },
-  { id: '2', name: 'Sunset Hills Resort', location: 'Mysore Outskirts', price: 7500, rating: 4.6, reviews: 45, image: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800&h=600&fit=crop', amenities: ['Lake View', 'Bonfire', 'Kitchen', 'Games'], capacity: 15, rooms: 3, description: 'Luxurious resort offering stunning sunset views and premium amenities.', images: ['https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800&h=600&fit=crop'], weekendPrice: 9000, specialDates: [], extraGuestPrice: 600, coordinates: { latitude: 12.3051, longitude: 76.6553 }, rules: ['No loud music after 10 PM'], terms: ['Full payment on booking'], bookedDates: [] },
-  { id: '3', name: 'Palm Grove Retreat', location: 'Coorg Valley', price: 6200, rating: 4.9, reviews: 102, image: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=800&h=600&fit=crop', amenities: ['Garden', 'Spa', 'Restaurant', 'Nature Walk'], capacity: 25, rooms: 5, description: 'Serene retreat nestled in nature with spa facilities.', images: ['https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=800&h=600&fit=crop'], weekendPrice: 8000, specialDates: [], extraGuestPrice: 400, coordinates: { latitude: 12.4244, longitude: 75.7382 }, rules: ['Check-in 2 PM, Check-out 12 PM'], terms: ['Security deposit ₹5000'], bookedDates: ['2025-10-01'] },
-];
-
-export default function ExploreScreen({ navigation }: Props) {
+export default function ExploreScreen({ navigation }: any) {
   const { user, logout } = useAuth();
   const { colors, isDark } = useTheme();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
@@ -98,15 +53,32 @@ export default function ExploreScreen({ navigation }: Props) {
     }
   };
 
-  const handleShare = async (farmhouse: Farmhouse) => {
+  const handleShare = async (farmhouse: FarmhouseType) => {
     try {
       await Share.share({
-        message: `Check out ${farmhouse.name} in ${farmhouse.location}! Starting from ₹${farmhouse.price}/night. Book now!`,
+        message: `Check out ${farmhouse.name} in ${farmhouse.location}! Starting from ₹${farmhouse.price}/night.`,
         title: farmhouse.name,
       });
     } catch (error) {
       Alert.alert('Error', 'Could not share farmhouse');
     }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Logout', style: 'destructive', onPress: async () => {
+          try {
+            await logout();
+          } catch (error) {
+            Alert.alert('Error', 'Failed to logout');
+          }
+        }}
+      ]
+    );
   };
 
   const filteredAndSortedFarmhouses = useMemo(() => {
@@ -160,37 +132,34 @@ export default function ExploreScreen({ navigation }: Props) {
     return result;
   }, [searchText, filters, sortBy, farmhouses]);
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-  };
-
-  const renderFarmhouse = ({ item }: { item: Farmhouse }) => (
+  const renderFarmhouse = ({ item }: { item: FarmhouseType }) => (
     <TouchableOpacity
       style={[styles.propertyCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
       onPress={() => navigation.navigate('FarmhouseDetail', { farmhouse: item })}
     >
       <View style={styles.imageContainer}>
-        <Image source={{ uri: item.photos?.[0] || 'https://via.placeholder.com/400x300' }} style={styles.propertyImage} />
+        <Image 
+          source={{ uri: item.photos?.[0] || 'https://via.placeholder.com/400x300' }} 
+          style={styles.propertyImage} 
+        />
 
         <View style={styles.imageActions}>
           <TouchableOpacity
             onPress={() => handleShare(item)}
             style={styles.actionButton}
           >
-            <Text style={styles.actionIcon}>📤</Text>
+            <Share2 size={18} color="#666" />
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => toggleWishlist(item.id)}
             style={styles.actionButton}
           >
-            <Text style={styles.actionIcon}>
-              {isInWishlist(item.id) ? '❤️' : '🤍'}
-            </Text>
+            <Heart 
+              size={18} 
+              color={isInWishlist(item.id) ? "#EF4444" : "#666"} 
+              fill={isInWishlist(item.id) ? "#EF4444" : "transparent"} 
+            />
           </TouchableOpacity>
         </View>
       </View>
@@ -200,7 +169,7 @@ export default function ExploreScreen({ navigation }: Props) {
           <Text style={[styles.propertyTitle, { color: colors.text }]}>{item.name}</Text>
           <View style={styles.ratingContainer}>
             <Text style={styles.star}>★</Text>
-            <Text style={[styles.rating, { color: colors.text }]}>{item.rating}</Text>
+            <Text style={[styles.rating, { color: colors.text }]}>{item.rating || 4.5}</Text>
           </View>
         </View>
         <Text style={[styles.distance, { color: colors.placeholder }]}>{item.location}</Text>
@@ -222,13 +191,13 @@ export default function ExploreScreen({ navigation }: Props) {
           <Text style={[styles.userName, { color: colors.text }]}>{user?.displayName || 'User'}!</Text>
         </View>
         <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <Text style={styles.logoutIcon}>🚪</Text>
+          <LogOut size={20} color="#EF4444" />
         </TouchableOpacity>
       </View>
 
       <View style={styles.searchFilterRow}>
         <View style={[styles.searchBar, { backgroundColor: isDark ? colors.cardBackground : '#F3F4F6', borderColor: colors.border }]}>
-          <Text style={styles.searchIcon}>🔍</Text>
+          <Search size={20} color={colors.placeholder} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
             placeholder="Search farmhouses..."
@@ -241,13 +210,13 @@ export default function ExploreScreen({ navigation }: Props) {
           style={[styles.iconButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
           onPress={() => setShowSortModal(true)}
         >
-          <Text style={[styles.buttonIcon, { color: colors.text }]}>↕️</Text>
+          <ArrowUpDown size={20} color={colors.text} />
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.iconButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
           onPress={() => setShowFilterModal(true)}
         >
-          <Text style={[styles.buttonIcon, { color: colors.text }]}>⚙️</Text>
+          <SlidersHorizontal size={20} color={colors.text} />
         </TouchableOpacity>
       </View>
 
@@ -388,20 +357,16 @@ const styles = StyleSheet.create({
   greeting: { fontSize: 14 },
   userName: { fontSize: 18, fontWeight: '600' },
   logoutButton: { padding: 8 },
-  logoutIcon: { fontSize: 20 },
   searchFilterRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingBottom: 16 },
   searchBar: { flex: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1 },
-  searchIcon: { fontSize: 18 },
   searchInput: { flex: 1, fontSize: 14 },
   iconButton: { width: 44, height: 44, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  buttonIcon: { fontSize: 18 },
   listContent: { paddingHorizontal: 16, paddingBottom: 20 },
   propertyCard: { borderRadius: 16, overflow: 'hidden', marginBottom: 24, borderWidth: 1 },
   imageContainer: { position: 'relative' },
   propertyImage: { width: '100%', height: 200 },
   imageActions: { position: 'absolute', top: 12, right: 12, flexDirection: 'row', gap: 8 },
   actionButton: { backgroundColor: 'rgba(255, 255, 255, 0.9)', borderRadius: 20, padding: 8 },
-  actionIcon: { fontSize: 18 },
   propertyDetails: { padding: 16 },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
   propertyTitle: { flex: 1, fontSize: 16, fontWeight: '600' },
@@ -414,6 +379,8 @@ const styles = StyleSheet.create({
   capacity: { fontSize: 14 },
   emptyContainer: { alignItems: 'center', marginTop: 50 },
   emptyText: { fontSize: 16 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
+  loadingText: { marginTop: 12, fontSize: 16 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
   filterModalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '80%' },
@@ -430,6 +397,4 @@ const styles = StyleSheet.create({
   clearButton: { flex: 1, padding: 15, borderRadius: 8, alignItems: 'center' },
   applyButton: { flex: 1, padding: 15, borderRadius: 8, alignItems: 'center' },
   filterButtonText: { fontSize: 16, fontWeight: '600' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
-  loadingText: { marginTop: 12, fontSize: 16 },
 });
