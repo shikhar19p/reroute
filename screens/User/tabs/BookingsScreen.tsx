@@ -1,18 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { Calendar, MapPin, Users, CreditCard } from 'lucide-react-native';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../authContext';
 import { getUserBookings, cancelBooking, Booking as BookingType } from '../../../services/bookingService';
 
-export default function BookingsScreen() {
+export default function BookingsScreen({ navigation }: any) {
   const [activeTab, setActiveTab] = useState('all');
   const [bookings, setBookings] = useState<BookingType[]>([]);
   const [loading, setLoading] = useState(true);
   const { colors } = useTheme();
   const { user } = useAuth();
-  const navigation = useNavigation();
 
   useEffect(() => {
     if (user) {
@@ -41,13 +40,12 @@ export default function BookingsScreen() {
       case 'pending': return '#FF9800';
       case 'cancelled': return '#F44336';
       case 'completed': return '#2196F3';
-      case 'draft': return '#9E9E9E';
       default: return colors.placeholder;
     }
   };
 
   const handleCancelBooking = async (bookingId: string, farmhouseName: string) => {
-    Alert.alert('Cancel Booking', `Are you sure you want to cancel booking for ${farmhouseName}?`, [
+    Alert.alert('Cancel Booking', `Cancel booking for ${farmhouseName}?`, [
       { text: 'No', style: 'cancel' },
       {
         text: 'Yes, Cancel',
@@ -56,7 +54,7 @@ export default function BookingsScreen() {
           try {
             await cancelBooking(bookingId);
             Alert.alert('Success', 'Booking cancelled successfully');
-            loadBookings(); // Reload bookings
+            loadBookings();
           } catch (error) {
             console.error('Error cancelling booking:', error);
             Alert.alert('Error', 'Failed to cancel booking');
@@ -64,10 +62,6 @@ export default function BookingsScreen() {
         }
       }
     ]);
-  };
-
-  const handleContinueBooking = (farmhouseId: string) => {
-    (navigation as any).navigate('FarmhouseDetail', { farmhouseId });
   };
 
   const getBookingCategory = (booking: BookingType): string => {
@@ -95,38 +89,60 @@ export default function BookingsScreen() {
   };
 
   const renderBooking = ({ item }: { item: BookingType }) => (
-    <View style={[styles.bookingCard, { backgroundColor: colors.cardBackground }]}>
+    <View style={[styles.bookingCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
       <View style={styles.bookingHeader}>
-        <Text style={[styles.farmhouseName, { color: colors.text }]}>{item.farmhouseName}</Text>
+        <Text style={[styles.farmhouseName, { color: colors.text }]} numberOfLines={1}>
+          {item.farmhouseName}
+        </Text>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
           <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
         </View>
       </View>
-      <View style={styles.dateRow}>
+
+      <View style={styles.infoRow}>
+        <MapPin size={14} color={colors.placeholder} />
+        <Text style={[styles.infoText, { color: colors.placeholder }]}>Location info</Text>
+      </View>
+
+      <View style={styles.infoRow}>
+        <Calendar size={14} color={colors.placeholder} />
         <Text style={[styles.dateText, { color: colors.text }]}>
-          {new Date(item.checkInDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} to {new Date(item.checkOutDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+          {new Date(item.checkInDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} - {new Date(item.checkOutDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
         </Text>
       </View>
-      <Text style={[styles.guestInfo, { color: colors.placeholder }]}>👥 {item.guests} guests • {item.bookingType === 'dayuse' ? 'Day Use' : 'Overnight'}</Text>
+
+      <View style={styles.infoRow}>
+        <Users size={14} color={colors.placeholder} />
+        <Text style={[styles.infoText, { color: colors.placeholder }]}>
+          {item.guests} guests • {item.bookingType === 'dayuse' ? 'Day Use' : 'Overnight'}
+        </Text>
+      </View>
+
       <View style={styles.amountRow}>
-        <Text style={[styles.totalAmount, { color: colors.buttonBackground }]}>Total: ₹{item.totalPrice}</Text>
-        <Text style={[styles.paymentStatus, { color: item.paymentStatus === 'paid' ? '#4CAF50' : colors.placeholder }]}>
-          {item.paymentStatus === 'paid' ? '✓ Paid' : 'Payment Pending'}
-        </Text>
+        <View style={styles.priceContainer}>
+          <CreditCard size={16} color={colors.buttonBackground} />
+          <Text style={[styles.totalAmount, { color: colors.buttonBackground }]}>₹{item.totalPrice}</Text>
+        </View>
+        <View style={[styles.paymentBadge, { backgroundColor: item.paymentStatus === 'paid' ? '#E8F5E9' : '#FFF3E0' }]}>
+          <Text style={[styles.paymentText, { color: item.paymentStatus === 'paid' ? '#4CAF50' : '#FF9800' }]}>
+            {item.paymentStatus === 'paid' ? '✓ Paid' : 'Pending'}
+          </Text>
+        </View>
       </View>
+
       <View style={styles.actionRow}>
         <TouchableOpacity
-          style={[styles.detailsButton, { backgroundColor: colors.buttonBackground }]}
-          onPress={() => (navigation as any).navigate('FarmhouseDetail', { farmhouseId: item.id })}
+          style={[styles.viewButton, { backgroundColor: colors.buttonBackground }]}
+          onPress={() => navigation.navigate('FarmhouseDetail', { farmhouseId: item.id })}
         >
           <Text style={[styles.buttonText, { color: colors.buttonText }]}>View Details</Text>
         </TouchableOpacity>
         {(item.status === 'confirmed' || item.status === 'pending') && getBookingCategory(item) === 'future' && (
           <TouchableOpacity
-            style={[styles.cancelButton, { backgroundColor: '#F44336' }]}
+            style={[styles.cancelButton, { borderColor: '#F44336' }]}
             onPress={() => handleCancelBooking(item.id, item.farmhouseName)}
           >
-            <Text style={[styles.buttonText, { color: '#fff' }]}>Cancel</Text>
+            <Text style={[styles.cancelButtonText, { color: '#F44336' }]}>Cancel</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -143,8 +159,7 @@ export default function BookingsScreen() {
               { key: 'all', label: 'All' },
               { key: 'current', label: 'Current' },
               { key: 'past', label: 'Past' },
-              { key: 'cancelled', label: 'Cancelled' },
-              { key: 'draft', label: 'Continue Booking' }
+              { key: 'cancelled', label: 'Cancelled' }
             ].map((tab) => (
               <TouchableOpacity
                 key={tab.key}
@@ -159,6 +174,7 @@ export default function BookingsScreen() {
           </View>
         </ScrollView>
       </View>
+
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.buttonBackground} />
@@ -174,7 +190,7 @@ export default function BookingsScreen() {
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={[styles.emptyText, { color: colors.placeholder }]}>
-                No bookings found in this category
+                No bookings found
               </Text>
             </View>
           }
@@ -189,28 +205,28 @@ const styles = StyleSheet.create({
   header: { paddingTop: 10, paddingHorizontal: 20, paddingBottom: 15 },
   headerTitle: { fontSize: 24, fontWeight: 'bold', marginBottom: 15 },
   tabContainer: { flexDirection: 'row', gap: 8 },
-  tab: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20, backgroundColor: 'transparent' },
+  tab: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20 },
   tabText: { fontSize: 14, fontWeight: '500' },
   listContainer: { padding: 20, paddingTop: 0 },
-  bookingCard: { borderRadius: 12, padding: 15, marginBottom: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
-  bookingHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  farmhouseName: { fontSize: 16, fontWeight: 'bold', flex: 1 },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
+  bookingCard: { borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  bookingHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  farmhouseName: { fontSize: 17, fontWeight: 'bold', flex: 1, marginRight: 8 },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
   statusText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
-  location: { fontSize: 14, marginBottom: 8 },
-  dateRow: { marginBottom: 8 },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  infoText: { fontSize: 14 },
   dateText: { fontSize: 14, fontWeight: '500' },
-  amountRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
-  totalAmount: { fontSize: 16, fontWeight: 'bold' },
-  advanceAmount: { fontSize: 14 },
-  guestInfo: { fontSize: 14, marginBottom: 10 },
-  paymentStatus: { fontSize: 14, fontWeight: '500' },
-  actionRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
-  detailsButton: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
-  continueButton: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
-  cancelButton: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
-  buttonText: { fontSize: 14, fontWeight: '500' },
-  emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 50 },
+  amountRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, marginBottom: 12 },
+  priceContainer: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  totalAmount: { fontSize: 18, fontWeight: 'bold' },
+  paymentBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
+  paymentText: { fontSize: 12, fontWeight: '600' },
+  actionRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  viewButton: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+  cancelButton: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1.5 },
+  buttonText: { fontSize: 14, fontWeight: '600' },
+  cancelButtonText: { fontSize: 14, fontWeight: '600' },
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
   emptyText: { fontSize: 16, textAlign: 'center' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
   loadingText: { marginTop: 12, fontSize: 16 },

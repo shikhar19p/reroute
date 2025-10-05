@@ -1,23 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import {
-  View,
-  Text,
-  Image,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  StatusBar,
-  Dimensions,
-  Linking,
-  Alert,
-  Share
+  View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
+  Dimensions, Linking, Alert, Share, TextInput
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { ArrowLeft, Heart, MapPin, Users, Home, Star, Clock, Share2, Phone } from 'lucide-react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 import MapView, { Marker } from 'react-native-maps';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
+import { RootStackScreenProps } from '../../types/navigation';
 import { Farmhouse } from '../../services/farmhouseService';
 
 const { width } = Dimensions.get('window');
@@ -30,34 +22,12 @@ interface Review {
   comment: string;
 }
 
-type RootStackParamList = {
-  FarmhouseDetail: { farmhouse: Farmhouse };
-  AllAmenities: { amenities: string[] };
-  AllReviews: { farmhouseId: string };
-  BookingConfirmation: {
-    farmhouseId: string;
-    farmhouseName: string;
-    farmhouseImage: string;
-    location: string;
-    startDate: string;
-    endDate: string;
-    guestCount: number;
-    totalPrice: number;
-    numberOfNights: number;
-    bookingType: string;
-    capacity: number;
-    rooms: number;
-  };
-  Profile: undefined;
-};
-
-type Props = NativeStackScreenProps<RootStackParamList, 'FarmhouseDetail'>;
+type Props = RootStackScreenProps<'FarmhouseDetail'>;
 
 const SAMPLE_REVIEWS: Review[] = [
   { id: '1', userName: 'Priya Sharma', rating: 5, date: '2 weeks ago', comment: 'Absolutely loved this place! The pool was amazing and the host was very accommodating. Perfect for a family weekend getaway.' },
   { id: '2', userName: 'Rahul Mehta', rating: 4, date: '1 month ago', comment: 'Great farmhouse with all amenities. The bonfire area was fantastic. Only issue was the WiFi was a bit slow, but overall excellent experience.' },
   { id: '3', userName: 'Sneha Kapoor', rating: 5, date: '3 weeks ago', comment: 'Best birthday celebration ever! The staff was super helpful and the location is peaceful. Highly recommend for special occasions.' },
-  { id: '4', userName: 'Amit Patel', rating: 4, date: '1 month ago', comment: 'Good value for money. Clean rooms and well-maintained property. The garden is beautiful for morning walks.' },
 ];
 
 export default function FarmhouseDetailScreen({ route, navigation }: Props) {
@@ -68,44 +38,38 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [selectedDates, setSelectedDates] = useState<{ start?: string; end?: string }>({});
   const [guestCount, setGuestCount] = useState(farmhouse.capacity);
-  const [showPricingInfo, setShowPricingInfo] = useState('overnight');
+  const [guestInputValue, setGuestInputValue] = useState(farmhouse.capacity.toString());
+  const [showPricingInfo, setShowPricingInfo] = useState<'overnight' | 'day-use'>('overnight');
 
-  // Convert amenities object to array for display
   const amenitiesList = useMemo(() => {
     const amenities = farmhouse.amenities;
     const list: string[] = [];
-
     if (amenities.tv > 0) list.push(`${amenities.tv} TV${amenities.tv > 1 ? 's' : ''}`);
     if (amenities.geyser > 0) list.push(`${amenities.geyser} Geyser${amenities.geyser > 1 ? 's' : ''}`);
-    if (amenities.bonfire > 0) list.push(`${amenities.bonfire} Bonfire${amenities.bonfire > 1 ? 's' : ''}`);
-    if (amenities.chess > 0) list.push(`Chess`);
-    if (amenities.carroms > 0) list.push(`Carroms`);
-    if (amenities.volleyball > 0) list.push(`Volleyball`);
+    if (amenities.bonfire > 0) list.push('Bonfire');
+    if (amenities.chess > 0) list.push('Chess');
+    if (amenities.carroms > 0) list.push('Carroms');
+    if (amenities.volleyball > 0) list.push('Volleyball');
     if (amenities.pool) list.push('Swimming Pool');
-
     return list;
   }, [farmhouse.amenities]);
 
-  // Map Firebase fields to expected format
   const images = farmhouse.photos || [];
-  const mainImage = images[0] || 'https://via.placeholder.com/400x300?text=No+Image';
+  const mainImage = images[0] || 'https://via.placeholder.com/400x300';
   const rooms = farmhouse.bedrooms;
-  const bookedDates: string[] = [];  // TODO: Fetch from bookings
+  const bookedDates: string[] = [];
   const specialDates = farmhouse.customPricing?.map(p => ({ date: p.label, price: p.price })) || [];
-  const extraGuestPrice = 500;  // Default extra guest price
+  // Use price from backend, with 500 as a fallback
+  const extraGuestPrice = farmhouse.extraGuestPrice || 500;
+
   const rulesList = useMemo(() => {
     const rules = farmhouse.rules;
+    if (!rules) return ['House rules will be provided by the owner'];
     const list: string[] = [];
-
-    if (!rules) {
-      return ['House rules will be provided by the owner'];
-    }
-
     if (!rules.unmarriedCouples) list.push('Unmarried couples not allowed');
     if (rules.pets) list.push('Pets allowed');
     if (!rules.pets) list.push('No pets allowed');
     if (rules.quietHours) list.push('Quiet hours enforced');
-
     return list;
   }, [farmhouse.rules]);
 
@@ -116,6 +80,22 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     'Property damage will be charged separately',
     'Check-in: 2 PM, Check-out: 12 PM'
   ];
+
+  const updateGuestCount = (value: string) => {
+    const numValue = parseInt(value) || 0;
+    const clampedValue = Math.max(1, Math.min(50, numValue));
+    setGuestCount(clampedValue);
+    setGuestInputValue(clampedValue.toString());
+  };
+
+  const handleGuestInputChange = (text: string) => {
+    const numericText = text.replace(/[^0-9]/g, '');
+    setGuestInputValue(numericText);
+  };
+
+  const handleGuestInputBlur = () => {
+    updateGuestCount(guestInputValue);
+  };
 
   const toggleWishlist = () => {
     if (isInWishlist(farmhouse.id)) {
@@ -128,7 +108,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Check out ${farmhouse.name} in ${farmhouse.location}! Starting from ₹${farmhouse.price}/night. ${farmhouse.description}`,
+        message: `Check out ${farmhouse.name} in ${farmhouse.location}! Starting from ₹${farmhouse.price}/night.`,
         title: farmhouse.name,
       });
     } catch (error) {
@@ -139,11 +119,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   const getMinimumDate = () => {
     const now = new Date();
     const currentHour = now.getHours();
-
-    if (currentHour < 12) {
-      return now.toISOString().split('T')[0];
-    }
-
+    if (currentHour < 12) return now.toISOString().split('T')[0];
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
     return tomorrow.toISOString().split('T')[0];
@@ -156,9 +132,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     return maxDate.toISOString().split('T')[0];
   };
 
-  const isDateBooked = (dateString: string) => {
-    return bookedDates.includes(dateString);
-  };
+  const isDateBooked = (dateString: string) => bookedDates.includes(dateString);
 
   const isWeekend = (dateString: string) => {
     const date = new Date(dateString);
@@ -186,7 +160,6 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
   const handleDateSelect = (day: DateData) => {
     const dateString = day.dateString;
-
     if (isDateBooked(dateString)) {
       Alert.alert('Unavailable', 'This date is already booked');
       return;
@@ -200,25 +173,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
       } else if (dateString < selectedDates.start) {
         setSelectedDates({ start: dateString, end: selectedDates.start });
       } else {
-        const start = new Date(selectedDates.start);
-        const end = new Date(dateString);
-        let current = new Date(start);
-        let allAvailable = true;
-
-        while (current <= end) {
-          const checkDate = current.toISOString().split('T')[0];
-          if (isDateBooked(checkDate)) {
-            allAvailable = false;
-            break;
-          }
-          current.setDate(current.getDate() + 1);
-        }
-
-        if (allAvailable) {
-          setSelectedDates({ start: selectedDates.start, end: dateString });
-        } else {
-          Alert.alert('Unavailable', 'Some dates in this range are already booked. Please select different dates.');
-        }
+        setSelectedDates({ start: selectedDates.start, end: dateString });
       }
     } else {
       setSelectedDates({ start: dateString, end: dateString });
@@ -227,18 +182,14 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
   const getMarkedDates = () => {
     const marked: any = {};
-
+    
     bookedDates.forEach(date => {
       marked[date] = {
         disabled: true,
         disableTouchEvent: true,
         customStyles: {
-          container: {
-            backgroundColor: '#FFE5E5',
-          },
-          text: {
-            color: '#999999',
-          }
+          container: { backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#EF4444' },
+          text: { color: '#EF4444', fontWeight: '600' }
         }
       };
     });
@@ -246,15 +197,9 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     if (selectedDates.start && selectedDates.end) {
       if (selectedDates.start === selectedDates.end) {
         marked[selectedDates.start] = {
-          selected: true,
           customStyles: {
-            container: {
-              backgroundColor: '#14B8A6',
-            },
-            text: {
-              color: '#FFFFFF',
-              fontWeight: 'bold'
-            }
+            container: { backgroundColor: '#14B8A6', borderWidth: 2, borderColor: '#0F766E' },
+            text: { color: '#FFFFFF', fontWeight: 'bold' }
           }
         };
       } else {
@@ -264,24 +209,14 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
         while (current <= end) {
           const dateString = current.toISOString().split('T')[0];
-          if (!marked[dateString] || !marked[dateString].disabled) {
+          if (!marked[dateString]?.disabled) {
             const isStart = dateString === selectedDates.start;
             const isEnd = dateString === selectedDates.end;
-
+            
             marked[dateString] = {
-              selected: true,
-              startingDay: isStart,
-              endingDay: isEnd,
-              color: '#14B8A6',
-              textColor: '#FFFFFF',
               customStyles: {
-                container: {
-                  backgroundColor: '#14B8A6',
-                },
-                text: {
-                  color: '#FFFFFF',
-                  fontWeight: 'bold'
-                }
+                container: { backgroundColor: '#14B8A6', borderWidth: isStart || isEnd ? 2 : 0, borderColor: '#0F766E' },
+                text: { color: '#FFFFFF', fontWeight: 'bold' }
               }
             };
           }
@@ -289,22 +224,16 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
         }
       }
     }
-
     return marked;
   };
 
   const calculateNights = () => {
     if (!selectedDates.start || !selectedDates.end) return 0;
-
-    if (selectedDates.start === selectedDates.end) {
-      return 0;
-    }
-
+    if (selectedDates.start === selectedDates.end) return 0;
     const start = new Date(selectedDates.start);
     const end = new Date(selectedDates.end);
     const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
   const getBookingType = () => {
@@ -314,7 +243,6 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
   const calculateTotalPrice = () => {
     if (!selectedDates.start || !selectedDates.end) return 0;
-
     let total = 0;
     const bookingType = getBookingType();
 
@@ -324,7 +252,6 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
       const start = new Date(selectedDates.start);
       const end = new Date(selectedDates.end);
       let current = new Date(start);
-
       while (current < end) {
         const dateString = current.toISOString().split('T')[0];
         total += getPriceForDate(dateString);
@@ -337,33 +264,12 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
       const days = bookingType === 'day-use' ? 1 : calculateNights();
       total += extraGuests * extraGuestPrice * days;
     }
-
     return total;
   };
 
   const handleBooking = () => {
     if (!selectedDates.start || !selectedDates.end) {
       Alert.alert('Select Dates', 'Please select your dates');
-      return;
-    }
-
-    const kycStatus = 'approved';
-
-    if (kycStatus !== 'approved') {
-      Alert.alert(
-        'KYC Required',
-        'Please complete your KYC verification in your profile before booking.',
-        [
-          {
-            text: 'Go to Profile',
-            onPress: () => navigation.navigate('Profile')
-          },
-          {
-            text: 'Cancel',
-            style: 'cancel'
-          }
-        ]
-      );
       return;
     }
 
@@ -382,7 +288,8 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
       numberOfNights: nights,
       bookingType,
       capacity: farmhouse.capacity,
-      rooms: rooms
+      rooms: rooms,
+      // Removed extraGuestPrice from here to fix the error
     });
   };
 
@@ -392,15 +299,13 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     } else if (farmhouse.coordinates) {
       const url = `https://maps.google.com/?q=${farmhouse.coordinates.latitude},${farmhouse.coordinates.longitude}`;
       Linking.openURL(url);
-    } else {
-      Alert.alert('Location', 'Map location not available for this property');
     }
   };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
-
+      
       <ScrollView style={styles.mainScroll} showsVerticalScrollIndicator={false}>
         <View style={styles.imageSection}>
           <ScrollView
@@ -418,25 +323,25 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
           </ScrollView>
 
           <View style={styles.imageCounter}>
-            <Text style={styles.imageCounterText}>
-              {currentImageIndex + 1} / {images.length}
-            </Text>
+            <Text style={styles.imageCounterText}>{currentImageIndex + 1} / {images.length}</Text>
           </View>
 
           <View style={styles.topActions}>
             <TouchableOpacity style={styles.actionButton} onPress={() => navigation.goBack()}>
-              <Text style={styles.actionIcon}>←</Text>
+              <ArrowLeft size={24} color="#000" />
             </TouchableOpacity>
 
             <View style={styles.rightActions}>
               <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
-                <Text style={styles.actionIconSmall}>📤</Text>
+                <Share2 size={22} color="#666" />
               </TouchableOpacity>
-
+              
               <TouchableOpacity style={styles.actionButton} onPress={toggleWishlist}>
-                <Text style={styles.actionIconSmall}>
-                  {isInWishlist(farmhouse.id) ? '❤️' : '🤍'}
-                </Text>
+                <Heart 
+                  size={22} 
+                  color={isInWishlist(farmhouse.id) ? "#EF4444" : "#666"} 
+                  fill={isInWishlist(farmhouse.id) ? "#EF4444" : "transparent"} 
+                />
               </TouchableOpacity>
             </View>
           </View>
@@ -446,25 +351,25 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
           <View style={styles.header}>
             <Text style={[styles.title, { color: colors.text }]}>{farmhouse.name}</Text>
             <View style={styles.ratingRow}>
-              <Text style={styles.starIcon}>⭐</Text>
+              <Star size={16} color="#FCD34D" fill="#FCD34D" />
               <Text style={[styles.rating, { color: colors.text }]}>{farmhouse.rating}</Text>
               <Text style={[styles.reviews, { color: colors.placeholder }]}>({farmhouse.reviews} reviews)</Text>
             </View>
           </View>
 
           <View style={styles.locationRow}>
-            <Text style={styles.locationIcon}>📍</Text>
+            <MapPin size={18} color={colors.placeholder} />
             <Text style={[styles.location, { color: colors.placeholder }]}>{farmhouse.location}</Text>
           </View>
 
           <View style={styles.quickInfo}>
             <View style={[styles.infoCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-              <Text style={styles.infoIcon}>👥</Text>
+              <Users size={20} color={colors.buttonBackground} />
               <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Capacity</Text>
               <Text style={[styles.infoValue, { color: colors.text }]}>{farmhouse.capacity}</Text>
             </View>
             <View style={[styles.infoCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-              <Text style={styles.infoIcon}>🏠</Text>
+              <Home size={20} color={colors.buttonBackground} />
               <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Rooms</Text>
               <Text style={[styles.infoValue, { color: colors.text }]}>{rooms}</Text>
             </View>
@@ -472,7 +377,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
           <View style={[styles.timingCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
             <View style={styles.timingRow}>
-              <Text style={styles.timingIcon}>🕐</Text>
+              <Clock size={18} color={colors.buttonBackground} />
               <View style={styles.timingInfo}>
                 <Text style={[styles.timingLabel, { color: colors.placeholder }]}>Check-in</Text>
                 <Text style={[styles.timingValue, { color: colors.text }]}>2:00 PM or earlier</Text>
@@ -480,7 +385,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
             </View>
             <View style={[styles.timingDivider, { backgroundColor: colors.border }]} />
             <View style={styles.timingRow}>
-              <Text style={styles.timingIcon}>🕐</Text>
+              <Clock size={18} color={colors.buttonBackground} />
               <View style={styles.timingInfo}>
                 <Text style={[styles.timingLabel, { color: colors.placeholder }]}>Check-out</Text>
                 <Text style={[styles.timingValue, { color: colors.text }]}>12:00 PM</Text>
@@ -493,9 +398,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>About</Text>
-            <Text style={[styles.description, { color: colors.placeholder }]}>
-              {farmhouse.description}
-            </Text>
+            <Text style={[styles.description, { color: colors.placeholder }]}>{farmhouse.description}</Text>
           </View>
 
           <View style={styles.section}>
@@ -516,7 +419,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
           <View style={[styles.pricingCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Pricing Information</Text>
-
+            
             <View style={styles.pricingViewContainer}>
               <TouchableOpacity
                 style={[
@@ -570,43 +473,20 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
               </>
             ) : (
               <>
-                <View style={styles.dayUseBox}>
-                  <Text style={[styles.dayUseLabel, { color: colors.text }]}>Same-Day Booking</Text>
-                  <View style={styles.dayUsePriceRow}>
-                    <View style={styles.dayUsePriceItem}>
-                      <Text style={[styles.priceBoxLabel, { color: colors.placeholder }]}>Weekday</Text>
-                      <Text style={[styles.priceBoxValue, { color: colors.text }]}>₹{Math.floor(farmhouse.price * 0.6)}</Text>
-                    </View>
-                    <View style={styles.dayUsePriceItem}>
-                      <Text style={[styles.priceBoxLabel, { color: colors.placeholder }]}>Weekend</Text>
-                      <Text style={[styles.priceBoxValue, { color: colors.text }]}>₹{Math.floor(farmhouse.weekendPrice * 0.6)}</Text>
-                    </View>
+                <View style={styles.priceGrid}>
+                  <View style={styles.priceBox}>
+                    <Text style={[styles.priceBoxLabel, { color: colors.placeholder }]}>Weekday</Text>
+                    <Text style={[styles.priceBoxValue, { color: colors.text }]}>₹{Math.floor(farmhouse.price * 0.6)}</Text>
                   </View>
-                  <Text style={[styles.dayUseNote, { color: colors.placeholder }]}>
-                    Check-in and check-out on the same day
-                  </Text>
+                  <View style={styles.priceBox}>
+                    <Text style={[styles.priceBoxLabel, { color: colors.placeholder }]}>Weekend</Text>
+                    <Text style={[styles.priceBoxValue, { color: colors.text }]}>₹{Math.floor(farmhouse.weekendPrice * 0.6)}</Text>
+                  </View>
                 </View>
                 <Text style={[styles.pricingNote, { color: colors.placeholder }]}>
-                  Check-in anytime • Check-out by 6:00 PM same day
+                  Check-in anytime • Check-out by 6PM same day
                 </Text>
               </>
-            )}
-
-            {specialDates.length > 0 && (
-              <View style={[styles.specialDatesBox, { borderColor: colors.border }]}>
-                <Text style={[styles.specialLabel, { color: colors.text }]}>Special Dates:</Text>
-                {specialDates.map((special, idx) => (
-                  <View key={idx} style={styles.specialDateRow}>
-                    <Text style={[styles.specialDate, { color: colors.placeholder }]}>{special.date}</Text>
-                    <Text style={[styles.specialPrice, { color: colors.buttonBackground }]}>
-                      ₹{showPricingInfo === 'day-use' ? Math.floor(special.price * 0.6) : special.price}
-                    </Text>
-                  </View>
-                ))}
-                <Text style={[styles.specialNote, { color: colors.placeholder }]}>
-                  * Special day prices override weekend rates
-                </Text>
-              </View>
             )}
 
             <View style={[styles.extraGuestBox, { backgroundColor: isDark ? 'rgba(2,68,77,0.1)' : 'rgba(2,68,77,0.05)', borderColor: colors.border }]}>
@@ -622,8 +502,63 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
           <View style={[styles.calendarCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Select Dates</Text>
             <Text style={[styles.calendarInstruction, { color: colors.placeholder }]}>
-              Tap once for same-day booking, tap multiple dates for overnight stay. Red dates are unavailable.
+              Tap a date for same-day booking, or tap two dates for overnight stay.
             </Text>
+            
+            <View style={[styles.guestSelector, { borderColor: colors.border }]}>
+              <View style={styles.guestInfoContainer}>
+                <Text style={[styles.guestLabel, { color: colors.text }]}>Number of Guests</Text>
+                <Text style={[styles.guestSubLabel, { color: colors.placeholder }]}>
+                  Capacity: {farmhouse.capacity} • Max: 50
+                </Text>
+              </View>
+              <View style={styles.guestControls}>
+                <TouchableOpacity
+                  style={[styles.guestButton, { backgroundColor: colors.buttonBackground, opacity: guestCount <= 1 ? 0.5 : 1 }]}
+                  onPress={() => updateGuestCount((guestCount - 1).toString())}
+                  disabled={guestCount <= 1}
+                >
+                  <Text style={[styles.guestButtonText, { color: colors.buttonText }]}>−</Text>
+                </TouchableOpacity>
+                <TextInput
+                  style={[styles.guestInput, { 
+                    color: colors.text, 
+                    borderColor: colors.border,
+                    backgroundColor: colors.background 
+                  }]}
+                  value={guestInputValue}
+                  onChangeText={handleGuestInputChange}
+                  onBlur={handleGuestInputBlur}
+                  onSubmitEditing={handleGuestInputBlur}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  selectTextOnFocus
+                />
+                <TouchableOpacity
+                  style={[styles.guestButton, { backgroundColor: colors.buttonBackground, opacity: guestCount >= 50 ? 0.5 : 1 }]}
+                  onPress={() => updateGuestCount((guestCount + 1).toString())}
+                  disabled={guestCount >= 50}
+                >
+                  <Text style={[styles.guestButtonText, { color: colors.buttonText }]}>+</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View style={styles.calendarLegend}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: '#14B8A6' }]} />
+                <Text style={[styles.legendText, { color: colors.text }]}>Selected</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#EF4444' }]} />
+                <Text style={[styles.legendText, { color: colors.text }]}>Booked</Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendDot, { backgroundColor: colors.cardBackground, borderWidth: 1, borderColor: colors.border }]} />
+                <Text style={[styles.legendText, { color: colors.text }]}>Available</Text>
+              </View>
+            </View>
+
             <Calendar
               markedDates={getMarkedDates()}
               onDayPress={handleDateSelect}
@@ -651,25 +586,15 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
                   </Text>
                 </View>
                 <View style={styles.summaryRow}>
-                  <Text style={[styles.summaryLabel, { color: colors.text }]}>Check-in:</Text>
+                  <Text style={[styles.summaryLabel, { color: colors.text }]}>Guests:</Text>
                   <Text style={[styles.summaryValue, { color: colors.text }]}>
-                    {selectedDates.start} {getBookingType() === 'day-use' ? 'anytime' : 'by 2:00 PM'}
+                    {guestCount} {guestCount > farmhouse.capacity && (
+                      <Text style={{ fontSize: 12, color: colors.placeholder }}>
+                        ({farmhouse.capacity} base + {guestCount - farmhouse.capacity} extra)
+                      </Text>
+                    )}
                   </Text>
                 </View>
-                <View style={styles.summaryRow}>
-                  <Text style={[styles.summaryLabel, { color: colors.text }]}>Check-out:</Text>
-                  <Text style={[styles.summaryValue, { color: colors.text }]}>
-                    {getBookingType() === 'day-use'
-                      ? `${selectedDates.start} by 6:00 PM`
-                      : `${selectedDates.end} by 12:00 PM`
-                    }
-                  </Text>
-                </View>
-                {getBookingType() === 'overnight' && calculateNights() > 0 && (
-                  <Text style={[styles.pricingDetailNote, { color: colors.placeholder }]}>
-                    * Price includes weekday, weekend, and special day rates
-                  </Text>
-                )}
                 <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
                 <View style={styles.summaryRow}>
                   <Text style={[styles.totalLabel, { color: colors.text }]}>Total Amount:</Text>
@@ -693,13 +618,8 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
                   }}
                   scrollEnabled={false}
                   zoomEnabled={false}
-                  pitchEnabled={false}
-                  rotateEnabled={false}
                 >
-                  <Marker
-                    coordinate={farmhouse.coordinates}
-                    title={farmhouse.name}
-                  />
+                  <Marker coordinate={farmhouse.coordinates} title={farmhouse.name} />
                 </MapView>
               ) : (
                 <View style={[styles.map, { backgroundColor: colors.cardBackground, borderColor: colors.border, borderWidth: 1, justifyContent: 'center', alignItems: 'center' }]}>
@@ -713,18 +633,14 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>House Rules</Text>
             {rulesList.map((rule, idx) => (
-              <Text key={idx} style={[styles.ruleText, { color: colors.placeholder }]}>
-                • {rule}
-              </Text>
+              <Text key={idx} style={[styles.ruleText, { color: colors.placeholder }]}>• {rule}</Text>
             ))}
           </View>
 
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Terms & Conditions</Text>
             {terms.map((term, idx) => (
-              <Text key={idx} style={[styles.termText, { color: colors.placeholder }]}>
-                • {term}
-              </Text>
+              <Text key={idx} style={[styles.termText, { color: colors.placeholder }]}>• {term}</Text>
             ))}
           </View>
 
@@ -733,7 +649,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
               <View>
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>Reviews</Text>
                 <View style={styles.overallRating}>
-                  <Text style={styles.overallRatingStar}>⭐</Text>
+                  <Star size={18} color="#FCD34D" fill="#FCD34D" />
                   <Text style={[styles.overallRatingText, { color: colors.text }]}>{farmhouse.rating}</Text>
                   <Text style={[styles.totalReviews, { color: colors.placeholder }]}>({farmhouse.reviews} reviews)</Text>
                 </View>
@@ -759,9 +675,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
                   </View>
                   <View style={styles.reviewRating}>
                     {[...Array(5)].map((_, i) => (
-                      <Text key={i} style={styles.reviewStar}>
-                        {i < review.rating ? '⭐' : '☆'}
-                      </Text>
+                      <Star key={i} size={12} color="#FCD34D" fill={i < review.rating ? "#FCD34D" : "transparent"} />
                     ))}
                   </View>
                 </View>
@@ -783,7 +697,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
             ₹{selectedDates.start && selectedDates.end ? calculateTotalPrice() : farmhouse.price}
           </Text>
         </View>
-        <TouchableOpacity
+        <TouchableOpacity 
           style={[styles.bookButton, { backgroundColor: colors.buttonBackground }]}
           onPress={handleBooking}
         >
@@ -804,26 +718,20 @@ const styles = StyleSheet.create({
   topActions: { position: 'absolute', top: 16, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16 },
   rightActions: { flexDirection: 'row', gap: 8 },
   actionButton: { backgroundColor: 'rgba(255, 255, 255, 0.9)', borderRadius: 20, padding: 8 },
-  actionIcon: { fontSize: 24, color: '#000' },
-  actionIconSmall: { fontSize: 20 },
   content: { paddingHorizontal: 20 },
   header: { marginTop: 20 },
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 8 },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  starIcon: { fontSize: 16 },
   rating: { fontSize: 16, fontWeight: '600' },
   reviews: { fontSize: 14 },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 },
-  locationIcon: { fontSize: 18 },
   location: { fontSize: 16 },
   quickInfo: { flexDirection: 'row', gap: 12, marginTop: 20 },
   infoCard: { flex: 1, padding: 16, borderRadius: 12, alignItems: 'center', gap: 8, borderWidth: 1 },
-  infoIcon: { fontSize: 20 },
   infoLabel: { fontSize: 12 },
   infoValue: { fontSize: 16, fontWeight: '600' },
   timingCard: { marginTop: 16, padding: 16, borderRadius: 12, borderWidth: 1 },
   timingRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  timingIcon: { fontSize: 18 },
   timingInfo: { flex: 1 },
   timingLabel: { fontSize: 12, marginBottom: 4 },
   timingValue: { fontSize: 16, fontWeight: '600' },
@@ -847,28 +755,28 @@ const styles = StyleSheet.create({
   priceBoxLabel: { fontSize: 12, marginBottom: 8 },
   priceBoxValue: { fontSize: 24, fontWeight: 'bold', marginBottom: 4 },
   priceBoxSub: { fontSize: 11 },
-  dayUseBox: { padding: 16, backgroundColor: 'rgba(76,175,80,0.05)', borderRadius: 8, marginBottom: 16 },
-  dayUseLabel: { fontSize: 16, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' },
-  dayUsePriceRow: { flexDirection: 'row', gap: 16, justifyContent: 'center' },
-  dayUsePriceItem: { alignItems: 'center', minWidth: 100 },
-  dayUseNote: { fontSize: 12, marginTop: 12, textAlign: 'center', fontStyle: 'italic' },
-  specialDatesBox: { padding: 12, borderRadius: 8, borderWidth: 1, marginBottom: 16 },
-  specialLabel: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
-  specialDateRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  specialDate: { fontSize: 14 },
-  specialPrice: { fontSize: 14, fontWeight: '600' },
-  specialNote: { fontSize: 11, marginTop: 8, fontStyle: 'italic' },
   extraGuestBox: { padding: 12, borderRadius: 8, borderWidth: 1, marginBottom: 12 },
   extraGuestText: { fontSize: 13, marginBottom: 4 },
   extraGuestPrice: { fontSize: 16, fontWeight: 'bold' },
   calendarCard: { marginTop: 24, padding: 16, borderRadius: 12, borderWidth: 1 },
   calendarInstruction: { fontSize: 13, marginBottom: 12, lineHeight: 18 },
+  guestSelector: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderRadius: 10, borderWidth: 1, marginBottom: 16 },
+  guestInfoContainer: { flex: 1 },
+  guestLabel: { fontSize: 15, fontWeight: '600', marginBottom: 2 },
+  guestSubLabel: { fontSize: 12 },
+  guestControls: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  guestButton: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  guestButtonText: { fontSize: 20, fontWeight: 'bold' },
+  guestInput: { width: 50, height: 40, borderWidth: 1, borderRadius: 8, textAlign: 'center', fontSize: 16, fontWeight: '600' },
+  calendarLegend: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 16, paddingVertical: 12, paddingHorizontal: 8 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendDot: { width: 16, height: 16, borderRadius: 4 },
+  legendText: { fontSize: 12 },
   bookingSummary: { marginTop: 16, padding: 16, borderRadius: 12, borderWidth: 2 },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   summaryLabel: { fontSize: 14 },
   summaryValue: { fontSize: 14, fontWeight: '500' },
   summaryDivider: { height: 1, marginVertical: 12 },
-  pricingDetailNote: { fontSize: 12, fontStyle: 'italic', marginVertical: 8 },
   totalLabel: { fontSize: 16, fontWeight: 'bold' },
   totalValue: { fontSize: 20, fontWeight: 'bold' },
   map: { width: '100%', height: 200, borderRadius: 12 },
@@ -876,7 +784,6 @@ const styles = StyleSheet.create({
   termText: { fontSize: 14, marginBottom: 8, lineHeight: 20 },
   reviewsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
   overallRating: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-  overallRatingStar: { fontSize: 18 },
   overallRatingText: { fontSize: 18, fontWeight: 'bold' },
   totalReviews: { fontSize: 14 },
   reviewCard: { padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 12 },
@@ -887,7 +794,6 @@ const styles = StyleSheet.create({
   reviewerName: { fontSize: 15, fontWeight: '600' },
   reviewDate: { fontSize: 12, marginTop: 2 },
   reviewRating: { flexDirection: 'row', gap: 2 },
-  reviewStar: { fontSize: 12 },
   reviewComment: { fontSize: 14, lineHeight: 20 },
   bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1 },
   bottomLabel: { fontSize: 12, marginBottom: 4 },

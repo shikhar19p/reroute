@@ -24,6 +24,9 @@ export interface Booking {
   checkOutDate: string;
   guests: number;
   totalPrice: number;
+  originalPrice?: number;
+  discountApplied?: number;
+  couponCode?: string | null;
   bookingType: 'dayuse' | 'overnight';
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   paymentStatus: 'pending' | 'paid' | 'refunded';

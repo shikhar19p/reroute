@@ -1,17 +1,10 @@
 import React, { useState } from 'react';
 import {
-  Alert,
-  StyleSheet,
-  Switch,
-  Text,
-  TouchableOpacity,
-  View,
-  ScrollView,
-  Image,
-  Modal,
-  Platform
+  Alert, StyleSheet, Switch, Text, TouchableOpacity, View, ScrollView,
+  Image, Modal, Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { User, Phone, Mail, Calendar, MapPin, X, CheckCircle } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../../../authContext';
 import { useTheme } from '../../../context/ThemeContext';
@@ -27,7 +20,7 @@ interface UserProfile {
   name: string;
   email: string;
   phone: string;
-  kycStatus: 'not-uploaded' | 'uploaded';
+  kycStatus: 'not-uploaded' | 'uploaded' | 'approved';
   totalBookings: number;
   memberSince: string;
   kycDocuments: KycDocuments | null;
@@ -50,7 +43,7 @@ const SAMPLE_USER: UserProfile = {
   kycDocuments: null
 };
 
-export default function ProfileScreen() {
+export default function ProfileScreen({ navigation }: any) {
   const { user, logout } = useAuth();
   const [profile, setProfile] = useState<UserProfile>(SAMPLE_USER);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
@@ -65,11 +58,19 @@ export default function ProfileScreen() {
   const { colors, isDark, toggleTheme } = useTheme();
 
   const getKYCStatusColor = (status: string) => {
-    return status === 'uploaded' ? '#4CAF50' : '#666';
+    switch (status) {
+      case 'approved': return '#4CAF50';
+      case 'uploaded': return '#FF9800';
+      default: return '#9E9E9E';
+    }
   };
 
   const getKYCStatusText = (status: string) => {
-    return status === 'uploaded' ? 'UPLOADED' : 'NOT UPLOADED';
+    switch (status) {
+      case 'approved': return 'VERIFIED';
+      case 'uploaded': return 'PENDING';
+      default: return 'NOT UPLOADED';
+    }
   };
 
   const handleLogout = () => {
@@ -87,7 +88,7 @@ export default function ProfileScreen() {
     if (Platform.OS !== 'web') {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Please allow access to your photos to upload documents');
+        Alert.alert('Permission needed', 'Please allow access to photos');
         return false;
       }
     }
@@ -108,46 +109,33 @@ export default function ProfileScreen() {
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
-
         if (asset.fileSize && asset.fileSize > 3 * 1024 * 1024) {
           Alert.alert('File too large', 'Please select an image smaller than 3 MB');
           return;
         }
-
-        setDocuments(prev => ({
-          ...prev,
-          [docType]: asset.uri
-        }));
-
+        setDocuments(prev => ({ ...prev, [docType]: asset.uri }));
         Alert.alert('Success', 'Document uploaded successfully!');
       }
     } catch (error) {
       console.error('Image picker error:', error);
-      Alert.alert('Error', 'Failed to pick image. Please try again.');
+      Alert.alert('Error', 'Failed to pick image');
     }
   };
 
   const removeDocument = (docType: keyof Documents) => {
-    setDocuments(prev => ({
-      ...prev,
-      [docType]: null
-    }));
+    setDocuments(prev => ({ ...prev, [docType]: null }));
   };
 
   const isDocumentComplete = () => {
     if (selectedDocType === 'aadhar') {
       return documents.aadharFront && documents.aadharBack;
-    } else {
-      return documents.panFront && documents.panBack;
     }
+    return documents.panFront && documents.panBack;
   };
 
   const handleSubmitKYC = () => {
     if (!isDocumentComplete()) {
-      Alert.alert(
-        'Documents Required',
-        `Please upload both front and back images of your ${selectedDocType === 'aadhar' ? 'Aadhar' : 'PAN'} card`
-      );
+      Alert.alert('Documents Required', `Please upload both sides of your ${selectedDocType === 'aadhar' ? 'Aadhar' : 'PAN'} card`);
       return;
     }
 
@@ -163,10 +151,7 @@ export default function ProfileScreen() {
     }));
 
     setShowKycModal(false);
-    Alert.alert(
-      'KYC Documents Saved',
-      'Your documents have been saved. You can now proceed with bookings. The farmhouse owner will verify your documents.'
-    );
+    Alert.alert('KYC Documents Saved', 'Your documents have been saved. The farmhouse owner will verify them during booking.');
   };
 
   const DocumentUploadCard = ({ title, docKey, icon }: { title: string; docKey: keyof Documents; icon: string }) => (
@@ -176,19 +161,14 @@ export default function ProfileScreen() {
           <Text style={styles.docIcon}>{icon}</Text>
           <Text style={[styles.docTitle, { color: colors.text }]}>{title}</Text>
         </View>
-        {documents[docKey] && (
-          <Text style={styles.checkIcon}>✅</Text>
-        )}
+        {documents[docKey] && <CheckCircle size={20} color="#4CAF50" />}
       </View>
 
       {documents[docKey] ? (
         <View style={styles.uploadedDoc}>
           <Image source={{ uri: documents[docKey]! }} style={styles.docPreview} />
-          <TouchableOpacity
-            style={styles.removeButton}
-            onPress={() => removeDocument(docKey)}
-          >
-            <Text style={styles.removeIcon}>❌</Text>
+          <TouchableOpacity style={styles.removeButton} onPress={() => removeDocument(docKey)}>
+            <X size={16} color="#fff" />
           </TouchableOpacity>
         </View>
       ) : (
@@ -197,12 +177,8 @@ export default function ProfileScreen() {
           onPress={() => pickImage(docKey)}
         >
           <Text style={styles.uploadIcon}>📤</Text>
-          <Text style={[styles.uploadText, { color: colors.placeholder }]}>
-            Tap to upload
-          </Text>
-          <Text style={[styles.uploadSubtext, { color: colors.placeholder }]}>
-            Max size: 3 MB
-          </Text>
+          <Text style={[styles.uploadText, { color: colors.placeholder }]}>Tap to upload</Text>
+          <Text style={[styles.uploadSubtext, { color: colors.placeholder }]}>Max size: 3 MB</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -224,8 +200,8 @@ export default function ProfileScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={[styles.profileCard, { backgroundColor: colors.cardBackground }]}>
           <View style={styles.avatarContainer}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
+            <View style={[styles.avatar, { backgroundColor: colors.buttonBackground }]}>
+              <Text style={[styles.avatarText, { color: colors.buttonText }]}>
                 {(user?.displayName || profile.name).split(' ').map(n => n[0]).join('')}
               </Text>
             </View>
@@ -251,17 +227,14 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          {profile.kycStatus === 'uploaded' && profile.kycDocuments ? (
+          {profile.kycStatus === 'uploaded' || profile.kycStatus === 'approved' ? (
             <View style={styles.kycApprovedInfo}>
-              <Text style={styles.kycApprovedIcon}>✅</Text>
+              <CheckCircle size={20} color={profile.kycStatus === 'approved' ? '#4CAF50' : '#FF9800'} />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.kycApprovedText, { color: colors.placeholder }]}>
-                  Your {profile.kycDocuments.type.toUpperCase()} has been uploaded
+                  Your {profile.kycDocuments?.type.toUpperCase()} has been {profile.kycStatus === 'approved' ? 'verified' : 'uploaded'}
                 </Text>
-                <TouchableOpacity
-                  style={[styles.kycUpdateButton, { marginTop: 8 }]}
-                  onPress={() => setShowKycModal(true)}
-                >
+                <TouchableOpacity style={styles.kycUpdateButton} onPress={() => setShowKycModal(true)}>
                   <Text style={[styles.kycUpdateButtonText, { color: colors.buttonBackground }]}>
                     Update Documents
                   </Text>
@@ -287,14 +260,14 @@ export default function ProfileScreen() {
 
         <View style={[styles.statsCard, { backgroundColor: colors.cardBackground }]}>
           <View style={styles.statItem}>
-            <Text style={[styles.statNumber, { color: isDark ? '#4CAF50' : '#2E8B57' }]}>
+            <Text style={[styles.statNumber, { color: colors.buttonBackground }]}>
               {profile.totalBookings}
             </Text>
             <Text style={[styles.statLabel, { color: colors.placeholder }]}>Total Bookings</Text>
           </View>
-          <View style={styles.statDivider} />
+          <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
           <View style={styles.statItem}>
-            <Text style={[styles.statNumber, { color: isDark ? '#2196F3' : '#1976D2' }]}>
+            <Text style={[styles.statNumber, { color: colors.buttonBackground }]}>
               {profile.memberSince}
             </Text>
             <Text style={[styles.statLabel, { color: colors.placeholder }]}>Member Since</Text>
@@ -302,14 +275,14 @@ export default function ProfileScreen() {
         </View>
 
         <View style={[styles.menuCard, { backgroundColor: colors.cardBackground }]}>
-          <MenuButton title="Edit Profile" onPress={() => {}} />
+          <MenuButton title="Edit Profile" onPress={() => navigation.navigate('EditProfile', { profile })} />
 
           <View style={styles.menuItem}>
             <Text style={[styles.menuText, { color: colors.text }]}>Push Notifications</Text>
             <Switch
               value={notificationsEnabled}
               onValueChange={setNotificationsEnabled}
-              trackColor={{ false: '#767577', true: '#4CAF50' }}
+              trackColor={{ false: '#767577', true: colors.buttonBackground }}
               thumbColor={notificationsEnabled ? '#fff' : '#f4f3f4'}
             />
           </View>
@@ -334,7 +307,7 @@ export default function ProfileScreen() {
             <View style={styles.modalHeader}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Upload KYC Documents</Text>
               <TouchableOpacity onPress={() => setShowKycModal(false)}>
-                <Text style={[styles.closeIcon, { color: colors.text }]}>❌</Text>
+                <X size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
 
@@ -381,29 +354,13 @@ export default function ProfileScreen() {
 
               {selectedDocType === 'aadhar' ? (
                 <>
-                  <DocumentUploadCard
-                    title="Aadhar Card - Front Side"
-                    docKey="aadharFront"
-                    icon="📄"
-                  />
-                  <DocumentUploadCard
-                    title="Aadhar Card - Back Side"
-                    docKey="aadharBack"
-                    icon="📄"
-                  />
+                  <DocumentUploadCard title="Aadhar Card - Front" docKey="aadharFront" icon="📄" />
+                  <DocumentUploadCard title="Aadhar Card - Back" docKey="aadharBack" icon="📄" />
                 </>
               ) : (
                 <>
-                  <DocumentUploadCard
-                    title="PAN Card - Front Side"
-                    docKey="panFront"
-                    icon="💳"
-                  />
-                  <DocumentUploadCard
-                    title="PAN Card - Back Side"
-                    docKey="panBack"
-                    icon="💳"
-                  />
+                  <DocumentUploadCard title="PAN Card - Front" docKey="panFront" icon="💳" />
+                  <DocumentUploadCard title="PAN Card - Back" docKey="panBack" icon="💳" />
                 </>
               )}
 
@@ -440,8 +397,8 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 24, fontWeight: 'bold' },
   profileCard: { margin: 20, marginTop: 0, borderRadius: 15, padding: 20, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   avatarContainer: { marginBottom: 15 },
-  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#2E8B57', alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: '#fff', fontSize: 24, fontWeight: 'bold' },
+  avatar: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 24, fontWeight: 'bold' },
   userInfo: { alignItems: 'center' },
   userName: { fontSize: 20, fontWeight: 'bold', marginBottom: 5 },
   userEmail: { fontSize: 14, marginBottom: 3 },
@@ -452,9 +409,8 @@ const styles = StyleSheet.create({
   kycBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
   kycStatus: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
   kycApprovedInfo: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  kycApprovedIcon: { fontSize: 20 },
   kycApprovedText: { fontSize: 13 },
-  kycUpdateButton: { alignSelf: 'flex-start' },
+  kycUpdateButton: { marginTop: 8 },
   kycUpdateButtonText: { fontSize: 13, fontWeight: '600', textDecorationLine: 'underline' },
   kycNotUploadedText: { fontSize: 13, marginBottom: 12 },
   kycButton: { paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginTop: 8 },
@@ -463,7 +419,7 @@ const styles = StyleSheet.create({
   statItem: { flex: 1, alignItems: 'center' },
   statNumber: { fontSize: 20, fontWeight: 'bold', marginBottom: 5 },
   statLabel: { fontSize: 14, textAlign: 'center' },
-  statDivider: { width: 1, backgroundColor: '#e0e0e0', marginHorizontal: 20 },
+  statDivider: { width: 1, marginHorizontal: 20 },
   menuCard: { margin: 20, marginTop: 0, borderRadius: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   menuItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
   menuText: { fontSize: 16, fontWeight: '500' },
@@ -472,7 +428,6 @@ const styles = StyleSheet.create({
   modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '90%' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   modalTitle: { fontSize: 20, fontWeight: 'bold' },
-  closeIcon: { fontSize: 24 },
   modalSubtext: { fontSize: 13, marginBottom: 16, lineHeight: 18 },
   docTypeSelector: { flexDirection: 'row', gap: 12, marginBottom: 20 },
   docTypeButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 8, borderWidth: 1 },
@@ -483,15 +438,13 @@ const styles = StyleSheet.create({
   docTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   docIcon: { fontSize: 20 },
   docTitle: { fontSize: 14, fontWeight: '600' },
-  checkIcon: { fontSize: 20 },
   uploadButton: { borderWidth: 2, borderStyle: 'dashed', borderRadius: 8, padding: 24, alignItems: 'center', gap: 8 },
   uploadIcon: { fontSize: 24 },
   uploadText: { fontSize: 14, fontWeight: '500' },
   uploadSubtext: { fontSize: 12 },
   uploadedDoc: { position: 'relative' },
   docPreview: { width: '100%', height: 150, borderRadius: 8 },
-  removeButton: { position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(239,68,68,0.9)', borderRadius: 16, padding: 6 },
-  removeIcon: { fontSize: 16 },
+  removeButton: { position: 'absolute', top: 8, right: 8, backgroundColor: '#EF4444', borderRadius: 16, padding: 6 },
   securityNote: { fontSize: 12, marginTop: 12, marginBottom: 16, lineHeight: 18, textAlign: 'center' },
   submitButton: { paddingVertical: 14, borderRadius: 8, alignItems: 'center', marginBottom: 20 },
   submitButtonText: { fontSize: 16, fontWeight: '600' },
