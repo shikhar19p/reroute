@@ -69,6 +69,21 @@ export default function PhotosScreen({ navigation }: PhotosScreenProps) {
     setIsProcessing(true);
 
     try {
+      if (source === 'camera') {
+        const camPerm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!camPerm.granted) {
+          Alert.alert('Permission required', 'Please allow camera access to take photos.');
+          setIsProcessing(false);
+          return;
+        }
+      } else {
+        const libPerm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!libPerm.granted) {
+          Alert.alert('Permission required', 'Please allow photo library access to pick images.');
+          setIsProcessing(false);
+          return;
+        }
+      }
       const result = source === 'camera'
         ? await ImagePicker.launchCameraAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,

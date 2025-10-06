@@ -29,7 +29,14 @@
     },
     "plugins": [
       "expo-web-browser",
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to upload property images.",
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to take photos of your property."
+        }
+      ]
     ]
   }
 }

@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
+import { useCallback } from 'react';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
 import { getFarmhousesByOwner, Farmhouse } from '../../services/farmhouseService';
@@ -33,6 +35,13 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
   useEffect(() => {
     loadFarmhouses();
   }, []);
+
+  // Refresh list whenever screen gets focus
+  useFocusEffect(
+    useCallback(() => {
+      loadFarmhouses();
+    }, [])
+  );
 
   const loadFarmhouses = async () => {
     if (!user) return;
@@ -92,15 +101,11 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
 
         <View style={styles.farmDetails}>
           <View style={styles.detailItem}>
-            <Text style={[styles.detailLabel, { color: colors.placeholder }]}>Price</Text>
-            <Text style={[styles.detailValue, { color: colors.text }]}>₹{item.price}/night</Text>
-          </View>
-          <View style={styles.detailItem}>
             <Text style={[styles.detailLabel, { color: colors.placeholder }]}>Capacity</Text>
             <Text style={[styles.detailValue, { color: colors.text }]}>{item.capacity} guests</Text>
           </View>
           <View style={styles.detailItem}>
-            <Text style={[styles.detailLabel, { color: colors.placeholder }]}>Rooms</Text>
+            <Text style={[styles.detailLabel, { color: colors.placeholder }]}>Bedrooms</Text>
             <Text style={[styles.detailValue, { color: colors.text }]}>{item.bedrooms}</Text>
           </View>
         </View>
@@ -147,12 +152,20 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
         </View>
 
         {farmhouses.length > 0 && (
-          <TouchableOpacity
-            style={[styles.addIconButton, { backgroundColor: colors.buttonBackground }]}
-            onPress={() => navigation.navigate('FarmBasicDetails' as never)}
-          >
-            <Text style={[styles.addIcon, { color: colors.buttonText }]}>+</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <TouchableOpacity
+              style={[styles.smallPillButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+              onPress={() => navigation.navigate('OwnerBookings' as never)}
+            >
+              <Text style={[styles.smallPillText, { color: colors.text }]}>All Bookings</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.addIconButton, { backgroundColor: colors.buttonBackground }]}
+              onPress={() => navigation.navigate('FarmBasicDetails' as never)}
+            >
+              <Text style={[styles.addIcon, { color: colors.buttonText }]}>+</Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
 
@@ -206,6 +219,15 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '300',
   },
+  smallPillButton: {
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  smallPillText: { fontSize: 12, fontWeight: '700' },
   listContent: {
     padding: 20,
     paddingTop: 8,

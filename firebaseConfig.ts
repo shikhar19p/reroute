@@ -8,7 +8,7 @@ const firebaseConfig = {
   apiKey: 'AIzaSyDMLXQjQSSZRPUdlOeNf1afg2WPPQFSTAI',
   authDomain: 'rustique-6b7c4.firebaseapp.com',
   projectId: 'rustique-6b7c4',
-  storageBucket: 'rustique-6b7c4.firebasestorage.app',
+  storageBucket: 'rustique-6b7c4.appspot.com',
   messagingSenderId: '272634614965',
   appId: '1:272634614965:web:82bb8ef1772cac9c019afc',
 };
