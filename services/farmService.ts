@@ -3,9 +3,23 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, auth } from '../firebaseConfig';
 
 const uriToBlob = async (uri: string): Promise<Blob> => {
-  const response = await fetch(uri);
-  const blob = await response.blob();
-  return blob;
+  try {
+    console.log('Fetching URI:', uri);
+    const response = await fetch(uri);
+    console.log('Fetch response status:', response.status, response.statusText);
+    console.log('Response headers:', JSON.stringify(Object.fromEntries(response.headers.entries())));
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch URI: ${response.status} ${response.statusText}`);
+    }
+
+    const blob = await response.blob();
+    console.log('Blob created successfully');
+    return blob;
+  } catch (error) {
+    console.error('uriToBlob error:', error);
+    throw new Error(`Failed to convert URI to blob: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 };
 
 export const uploadImage = async (uri: string, path: string): Promise<string> => {
@@ -14,6 +28,8 @@ export const uploadImage = async (uri: string, path: string): Promise<string> =>
   }
 
   try {
+    console.log('Storage instance:', storage);
+    console.log('Storage bucket:', storage.app.options.storageBucket);
     console.log('Converting URI to blob:', uri);
     const blob = await uriToBlob(uri);
     console.log('Blob created, size:', blob.size, 'type:', blob.type);
@@ -21,6 +37,7 @@ export const uploadImage = async (uri: string, path: string): Promise<string> =>
     console.log('Creating storage reference:', path);
     const storageRef = ref(storage, path);
     console.log('Storage reference created, fullPath:', storageRef.fullPath);
+    console.log('Storage reference bucket:', storageRef.bucket);
 
     console.log('Uploading bytes to storage...');
     const snapshot = await uploadBytes(storageRef, blob);
@@ -36,7 +53,11 @@ export const uploadImage = async (uri: string, path: string): Promise<string> =>
       message: error.message,
       serverResponse: error.serverResponse,
       customData: error.customData,
-      fullError: JSON.stringify(error, Object.getOwnPropertyNames(error))
+      fullError: JSON.stringify(error, Object.getOwnPropertyNames(error)),
+      storageInfo: {
+        bucket: storage.app.options.storageBucket,
+        path: path
+      }
     });
     throw error;
   }
@@ -47,16 +68,45 @@ export const uploadDocument = async (fileObj: any, path: string): Promise<string
     return null;
   }
 
-  const blob = await uriToBlob(fileObj.uri);
-  const storageRef = ref(storage, path);
-  const snapshot = await uploadBytes(storageRef, blob);
-  const downloadURL = await getDownloadURL(snapshot.ref);
+  try {
+    console.log('Converting document URI to blob:', fileObj.uri);
+    const blob = await uriToBlob(fileObj.uri);
+    console.log('Document blob created, size:', blob.size, 'type:', blob.type);
 
-  return downloadURL;
+    console.log('Creating storage reference for document:', path);
+    const storageRef = ref(storage, path);
+    console.log('Storage reference created, fullPath:', storageRef.fullPath);
+
+    console.log('Uploading document bytes to storage...');
+    const snapshot = await uploadBytes(storageRef, blob);
+    console.log('Document upload complete, getting download URL...');
+
+    const downloadURL = await getDownloadURL(snapshot.ref);
+    console.log('Document download URL obtained:', downloadURL);
+
+    return downloadURL;
+  } catch (error: any) {
+    console.error('Document upload error details:', {
+      code: error.code,
+      message: error.message,
+      serverResponse: error.serverResponse,
+      customData: error.customData,
+      fullError: JSON.stringify(error, Object.getOwnPropertyNames(error)),
+      path: path,
+      fileInfo: {
+        uri: fileObj.uri,
+        name: fileObj.name,
+        mimeType: fileObj.mimeType,
+        size: fileObj.size
+      }
+    });
+    throw error;
+  }
 };
 
 export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: string; userId: string }> => {
   console.log('Starting farm registration save...');
+  console.log('Farm data:', JSON.stringify(farmData, null, 2));
 
   const currentUser = auth.currentUser;
 
@@ -66,6 +116,7 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
 
   const userId = currentUser.uid;
   const timestamp = Date.now();
+  console.log('User ID:', userId, 'Timestamp:', timestamp);
 
   console.log('Uploading photos to Storage...');
 
@@ -74,9 +125,14 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
     const photo = farmData.photos[i];
     const photoPath = `farms/${userId}/${timestamp}/photos/photo_${i}.jpg`;
     console.log(`Uploading photo ${i + 1}/${farmData.photos.length}...`);
-    const photoUrl = await uploadImage(photo.uri, photoPath);
-    photoUrls.push(photoUrl);
-    console.log(`Photo ${i + 1} uploaded successfully`);
+    try {
+      const photoUrl = await uploadImage(photo.uri, photoPath);
+      photoUrls.push(photoUrl);
+      console.log(`Photo ${i + 1} uploaded successfully`);
+    } catch (error) {
+      console.error(`Failed to upload photo ${i + 1}:`, error);
+      throw new Error(`Failed to upload photo ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   console.log('All photos uploaded, uploading KYC documents to Storage...');
