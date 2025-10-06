@@ -41,6 +41,9 @@ import BookingDetailsScreen from './screens/User/BookingDetailsScreen';
 import MyFarmhousesScreen from './screens/Owner/MyFarmhousesScreen';
 import FarmhouseDetailOwnerScreen from './screens/Owner/FarmhouseDetailOwnerScreen';
 import EditFarmhouseScreen from './screens/Owner/EditFarmhouseScreen';
+import OwnerBookingsScreen from './screens/Owner/BookingsListScreen';
+import OwnerBookingDetailScreen from './screens/Owner/BookingDetailScreen';
+import ManageBlockedDatesScreen from './screens/Owner/ManageBlockedDatesScreen';
 
 import { RootStackParamList, TabParamList } from './types/navigation';
 
@@ -155,6 +158,21 @@ function AppNavigator() {
               name="EditFarmhouse"
               component={EditFarmhouseScreen}
               options={{ title: 'Edit Farmhouse' }}
+            />
+            <Stack.Screen
+              name="OwnerBookings"
+              component={OwnerBookingsScreen}
+              options={{ title: 'Bookings' }}
+            />
+            <Stack.Screen
+              name="OwnerBookingDetails"
+              component={OwnerBookingDetailScreen}
+              options={{ title: 'Booking Details' }}
+            />
+            <Stack.Screen
+              name="ManageBlockedDates"
+              component={ManageBlockedDatesScreen}
+              options={{ title: 'Blocked Dates' }}
             />
 
             {/* Farm Registration Flow */}
