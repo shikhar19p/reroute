@@ -87,14 +87,14 @@ export default function ExploreScreen({ navigation }: any) {
 
     if (searchText) {
       result = result.filter(f =>
-        f.name.toLowerCase().includes(searchText.toLowerCase()) ||
-        f.location.toLowerCase().includes(searchText.toLowerCase())
+        (f.name || '').toLowerCase().includes(searchText.toLowerCase()) ||
+        (f.location || '').toLowerCase().includes(searchText.toLowerCase())
       );
     }
 
     if (filters.location) {
       result = result.filter(f =>
-        f.location.toLowerCase().includes(filters.location.toLowerCase())
+        (f.location || '').toLowerCase().includes(filters.location.toLowerCase())
       );
     }
 
@@ -126,7 +126,7 @@ export default function ExploreScreen({ navigation }: any) {
         result.sort((a, b) => (b.rating || 0) - (a.rating || 0));
         break;
       case 'name':
-        result.sort((a, b) => a.name.localeCompare(b.name));
+        result.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         break;
     }
 

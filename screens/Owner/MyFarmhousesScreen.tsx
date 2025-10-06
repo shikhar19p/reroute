@@ -19,6 +19,7 @@ import { getFarmhousesByOwner, Farmhouse } from '../../services/farmhouseService
 type RootStackParamList = {
   MyFarmhouses: undefined;
   FarmBasicDetails: undefined;
+  FarmhouseDetailOwner: { farmhouseId: string };
 };
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MyFarmhouses'>;
@@ -68,7 +69,7 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
   const renderFarmhouse = ({ item }: { item: Farmhouse }) => (
     <TouchableOpacity
       style={[styles.farmCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
-      onPress={() => Alert.alert('Edit Farmhouse', `View/Edit ${item.name} - Coming soon!`)}
+      onPress={() => navigation.navigate('FarmhouseDetailOwner', { farmhouseId: item.id })}
     >
       <Image
         source={{ uri: item.photos?.[0] || 'https://via.placeholder.com/400x300' }}
