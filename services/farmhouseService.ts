@@ -25,9 +25,13 @@ export interface Farmhouse {
   bedrooms: number;
   capacity: number;
   description: string;
-  price: number;
-  weekendPrice: number;
-  extraGuestPrice?: number;
+  // All 6 pricing fields
+  weeklyDay: number;
+  weeklyNight: number;
+  occasionalDay: number;
+  occasionalNight: number;
+  weekendDay: number;
+  weekendNight: number;
   customPricing?: Array<{ label: string; price: number }>;
   photos: string[];
   amenities: {
@@ -49,6 +53,7 @@ export interface Farmhouse {
   rating?: number;
   reviews?: number;
   bookedDates?: string[];
+  blockedDates?: string[];
   coordinates?: {
     latitude: number;
     longitude: number;
@@ -78,10 +83,13 @@ const transformDocToFarmhouse = (docData: DocumentData, id: string): Farmhouse =
     capacity: parseInt(basicDetails?.capacity, 10) || 0,
     description: basicDetails?.description || '',
 
-    // --- Pricing ---
-    price: parseInt(pricing?.weeklyNight, 10) || 0,
-    weekendPrice: parseInt(pricing?.weekendNight, 10) || 0,
-    extraGuestPrice: parseInt(pricing?.extraGuestPrice, 10) || 500,
+    // --- Pricing (All 6 fields) ---
+    weeklyDay: parseInt(pricing?.weeklyDay, 10) || 0,
+    weeklyNight: parseInt(pricing?.weeklyNight, 10) || 0,
+    occasionalDay: parseInt(pricing?.occasionalDay, 10) || 0,
+    occasionalNight: parseInt(pricing?.occasionalNight, 10) || 0,
+    weekendDay: parseInt(pricing?.weekendDay, 10) || 0,
+    weekendNight: parseInt(pricing?.weekendNight, 10) || 0,
     customPricing: pricing?.customPricing?.map((p: any) => ({
       label: p.name, // Map 'name' from DB to 'label' for the UI
       price: parseInt(p.price, 10)
@@ -96,7 +104,7 @@ const transformDocToFarmhouse = (docData: DocumentData, id: string): Farmhouse =
       pets: !rules?.petsNotAllowed, // Inverted logic
       quietHours: !!rules?.quietHours,
     },
-    
+
     // --- Amenities ---
     amenities: amenities || {},
 

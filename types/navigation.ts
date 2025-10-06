@@ -84,10 +84,15 @@ export type RootStackParamList = {
   Welcome: undefined;
   Login: undefined;
   RoleChoice: undefined;
-  
+
   // Owner
   MyFarmhouses: undefined;
-  
+  FarmhouseDetailOwner: { farmhouseId: string };
+  EditFarmhouse: { farmhouse: Farmhouse };
+  OwnerBookings: { farmhouseId?: string } | undefined;
+  OwnerBookingDetails: { booking: Booking };
+  ManageBlockedDates: { farmhouseId: string };
+
   // Farm Registration
   FarmBasicDetails: undefined;
   FarmPrices: undefined;
@@ -95,11 +100,11 @@ export type RootStackParamList = {
   FarmAmenitiesGames: undefined;
   FarmRulesRestrictions: undefined;
   FarmKyc: undefined;
-  
+
   // Admin
   AdminHome: undefined;
   AdminEditFarm: { farmId: string };
-  
+
   // User
   UserHome: { screen?: string };
   FarmhouseDetail: { farmhouse: Farmhouse; draftData?: any };

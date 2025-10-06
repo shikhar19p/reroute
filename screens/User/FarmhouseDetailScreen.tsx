@@ -57,7 +57,10 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   const images = farmhouse.photos || [];
   const mainImage = images[0] || 'https://via.placeholder.com/400x300';
   const rooms = farmhouse.bedrooms;
-  const bookedDates: string[] = [];
+  // Unavailable dates include both booked and owner-blocked dates
+  const blockedDates: string[] = (farmhouse as any).blockedDates || [];
+  const bookedDates: string[] = (farmhouse as any).bookedDates || [];
+  const unavailableDates: string[] = [...new Set([...(blockedDates || []), ...(bookedDates || [])])];
   const specialDates = farmhouse.customPricing?.map(p => ({ date: p.label, price: p.price })) || [];
   // Use price from backend, with 500 as a fallback
   const extraGuestPrice = farmhouse.extraGuestPrice || 500;
@@ -132,7 +135,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     return maxDate.toISOString().split('T')[0];
   };
 
-  const isDateBooked = (dateString: string) => bookedDates.includes(dateString);
+  const isDateBooked = (dateString: string) => unavailableDates.includes(dateString);
 
   const isWeekend = (dateString: string) => {
     const date = new Date(dateString);
@@ -183,7 +186,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   const getMarkedDates = () => {
     const marked: any = {};
     
-    bookedDates.forEach(date => {
+    unavailableDates.forEach(date => {
       marked[date] = {
         disabled: true,
         disableTouchEvent: true,
@@ -690,9 +693,9 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
       <View style={[styles.bottomBar, { backgroundColor: colors.cardBackground, borderTopColor: colors.border }]}>
         <View>
-          <Text style={[styles.bottomLabel, { color: colors.placeholder }]}>
-            {selectedDates.start && selectedDates.end ? 'Total Price' : 'Starting from'}
-          </Text>
+          {selectedDates.start && selectedDates.end && (
+            <Text style={[styles.bottomLabel, { color: colors.placeholder }]}>Total Price</Text>
+          )}
           <Text style={[styles.bottomPrice, { color: colors.buttonBackground }]}>
             ₹{selectedDates.start && selectedDates.end ? calculateTotalPrice() : farmhouse.price}
           </Text>
