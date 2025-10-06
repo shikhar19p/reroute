@@ -1,5 +1,7 @@
 import React, { useCallback } from 'react';
 import {
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Switch,
@@ -41,12 +43,18 @@ export default function AmenitiesGamesScreen({ navigation }: AmenitiesGamesScree
   );
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-      <ScrollView
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <KeyboardAvoidingView
         style={styles.container}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
         <Text style={styles.mainTitle}>Amenities & Rules</Text>
         <Text style={styles.subtitle}>Configure amenities, games, and property rules</Text>
 
@@ -153,9 +161,9 @@ export default function AmenitiesGamesScreen({ navigation }: AmenitiesGamesScree
             />
           </View>
         </View>
-      </ScrollView>
+        </ScrollView>
 
-      <View style={styles.footer}>
+        <View style={styles.footer}>
         <TouchableOpacity
           style={styles.secondaryButton}
           onPress={() => navigation.goBack()}
@@ -170,7 +178,8 @@ export default function AmenitiesGamesScreen({ navigation }: AmenitiesGamesScree
         >
           <Text style={styles.primaryButtonText}>Next: Review</Text>
         </TouchableOpacity>
-      </View>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -181,6 +190,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   container: {
+    flex: 1,
+  },
+  scrollView: {
     flex: 1,
   },
   content: {

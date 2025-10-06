@@ -241,8 +241,8 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
         <View style={[styles.pricingCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Pricing Information</Text>
 
-            {/* Weekly Rates */}
-            <Text style={[styles.priceCategoryTitle, { color: colors.text }]}>Weekly Rates</Text>
+            {/* Weekday Rates */}
+            <Text style={[styles.priceCategoryTitle, { color: colors.text }]}>Weekday Rates</Text>
             <View style={styles.priceGrid}>
               <View style={styles.priceBox}>
                 <Text style={[styles.priceBoxLabel, { color: colors.placeholder }]}>Day Use</Text>
@@ -251,19 +251,6 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
               <View style={styles.priceBox}>
                 <Text style={[styles.priceBoxLabel, { color: colors.placeholder }]}>Night Stay</Text>
                 <Text style={[styles.priceBoxValue, { color: colors.text }]}>₹{farmhouse.weeklyNight}</Text>
-              </View>
-            </View>
-
-            {/* Occasional Rates */}
-            <Text style={[styles.priceCategoryTitle, { color: colors.text, marginTop: 16 }]}>Occasional Rates</Text>
-            <View style={styles.priceGrid}>
-              <View style={styles.priceBox}>
-                <Text style={[styles.priceBoxLabel, { color: colors.placeholder }]}>Day Use</Text>
-                <Text style={[styles.priceBoxValue, { color: colors.text }]}>₹{farmhouse.occasionalDay}</Text>
-              </View>
-              <View style={styles.priceBox}>
-                <Text style={[styles.priceBoxLabel, { color: colors.placeholder }]}>Night Stay</Text>
-                <Text style={[styles.priceBoxValue, { color: colors.text }]}>₹{farmhouse.occasionalNight}</Text>
               </View>
             </View>
 

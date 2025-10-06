@@ -82,13 +82,16 @@ export default function KycScreen({ navigation }: KycScreenProps) {
     setIsSubmitting(true);
 
     try {
-      await saveFarmRegistration(farm);
+      console.log('KycScreen: About to call saveFarmRegistration');
+      const result = await saveFarmRegistration(farm);
+      console.log('KycScreen: Registration successful!', result);
       Alert.alert('Success', 'Farm registration submitted for review!');
       resetFarm();
       navigation.reset({ index: 0, routes: [{ name: 'RoleChoice' }] });
     } catch (error) {
-      console.error('Submission error:', error);
-      Alert.alert('Error', 'Failed to submit registration. Please try again.');
+      console.error('KycScreen: Submission error:', error);
+      console.error('KycScreen: Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+      Alert.alert('Error', `Failed to submit registration: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -100,10 +103,11 @@ export default function KycScreen({ navigation }: KycScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         <ScrollView
           style={styles.scrollView}
@@ -113,9 +117,9 @@ export default function KycScreen({ navigation }: KycScreenProps) {
           <Text style={styles.mainTitle}>KYC Verification</Text>
           <Text style={styles.subtitle}>Complete KYC to verify your farmhouse</Text>
 
-          {/* Primary Contact */}
+          {/* Person 1 Contact */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>👤 Primary Contact</Text>
+            <Text style={styles.sectionTitle}>👤 Contact Person 1</Text>
 
             <View style={styles.field}>
               <Text style={styles.label}>Name*</Text>
@@ -135,9 +139,10 @@ export default function KycScreen({ navigation }: KycScreenProps) {
                 value={farm.kyc.person1.phone}
                 onChangeText={(text) => updateField(['kyc', 'person1', 'phone'], text)}
                 style={styles.input}
-                placeholder="10-digit phone"
+                placeholder="10-digit phone number"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="phone-pad"
+                maxLength={10}
               />
               {errors['person1.phone'] && <Text style={styles.error}>{errors['person1.phone']}</Text>}
             </View>
@@ -148,7 +153,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
                 value={farm.kyc.person1.aadhaarNumber}
                 onChangeText={(text) => updateField(['kyc', 'person1', 'aadhaarNumber'], text)}
                 style={styles.input}
-                placeholder="12-digit Aadhaar"
+                placeholder="12-digit Aadhaar number"
                 placeholderTextColor="#9CA3AF"
                 keyboardType="number-pad"
                 maxLength={12}
@@ -165,6 +170,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
                 {farm.kyc.person1.aadhaarFront ? 'Aadhaar Front ✓' : 'Upload Aadhaar Front*'}
               </Text>
             </TouchableOpacity>
+            {errors['person1.aadhaarFront'] && <Text style={styles.error}>{errors['person1.aadhaarFront']}</Text>}
 
             <TouchableOpacity
               style={styles.uploadButton}
@@ -175,6 +181,74 @@ export default function KycScreen({ navigation }: KycScreenProps) {
                 {farm.kyc.person1.aadhaarBack ? 'Aadhaar Back ✓' : 'Upload Aadhaar Back*'}
               </Text>
             </TouchableOpacity>
+            {errors['person1.aadhaarBack'] && <Text style={styles.error}>{errors['person1.aadhaarBack']}</Text>}
+          </View>
+
+          {/* Person 2 Contact */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>👤 Contact Person 2</Text>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Name*</Text>
+              <TextInput
+                value={farm.kyc.person2.name}
+                onChangeText={(text) => updateField(['kyc', 'person2', 'name'], text)}
+                style={styles.input}
+                placeholder="Full name"
+                placeholderTextColor="#9CA3AF"
+              />
+              {errors['person2.name'] && <Text style={styles.error}>{errors['person2.name']}</Text>}
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Phone*</Text>
+              <TextInput
+                value={farm.kyc.person2.phone}
+                onChangeText={(text) => updateField(['kyc', 'person2', 'phone'], text)}
+                style={styles.input}
+                placeholder="10-digit phone number"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="phone-pad"
+                maxLength={10}
+              />
+              {errors['person2.phone'] && <Text style={styles.error}>{errors['person2.phone']}</Text>}
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Aadhaar Number*</Text>
+              <TextInput
+                value={farm.kyc.person2.aadhaarNumber}
+                onChangeText={(text) => updateField(['kyc', 'person2', 'aadhaarNumber'], text)}
+                style={styles.input}
+                placeholder="12-digit Aadhaar number"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="number-pad"
+                maxLength={12}
+              />
+              {errors['person2.aadhaarNumber'] && <Text style={styles.error}>{errors['person2.aadhaarNumber']}</Text>}
+            </View>
+
+            <TouchableOpacity
+              style={styles.uploadButton}
+              onPress={() => pickDocument(['kyc', 'person2', 'aadhaarFront'])}
+            >
+              <Text style={styles.uploadIcon}>⬆️</Text>
+              <Text style={styles.uploadText}>
+                {farm.kyc.person2.aadhaarFront ? 'Aadhaar Front ✓' : 'Upload Aadhaar Front*'}
+              </Text>
+            </TouchableOpacity>
+            {errors['person2.aadhaarFront'] && <Text style={styles.error}>{errors['person2.aadhaarFront']}</Text>}
+
+            <TouchableOpacity
+              style={styles.uploadButton}
+              onPress={() => pickDocument(['kyc', 'person2', 'aadhaarBack'])}
+            >
+              <Text style={styles.uploadIcon}>⬆️</Text>
+              <Text style={styles.uploadText}>
+                {farm.kyc.person2.aadhaarBack ? 'Aadhaar Back ✓' : 'Upload Aadhaar Back*'}
+              </Text>
+            </TouchableOpacity>
+            {errors['person2.aadhaarBack'] && <Text style={styles.error}>{errors['person2.aadhaarBack']}</Text>}
           </View>
 
           {/* Company Details */}
@@ -204,6 +278,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
                 {farm.kyc.companyPAN ? 'Company PAN ✓' : 'Upload Company PAN*'}
               </Text>
             </TouchableOpacity>
+            {errors.companyPAN && <Text style={styles.error}>{errors.companyPAN}</Text>}
 
             <TouchableOpacity
               style={styles.uploadButton}
@@ -214,6 +289,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
                 {farm.kyc.labourDoc ? 'Labour License ✓' : 'Upload Labour License*'}
               </Text>
             </TouchableOpacity>
+            {errors.labourDoc && <Text style={styles.error}>{errors.labourDoc}</Text>}
           </View>
 
           {/* Bank Details */}
