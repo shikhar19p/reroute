@@ -105,12 +105,14 @@ export const uploadDocument = async (fileObj: any, path: string): Promise<string
 };
 
 export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: string; userId: string }> => {
+  console.log('========================================');
   console.log('Starting farm registration save...');
   console.log('Farm data:', JSON.stringify(farmData, null, 2));
 
   const currentUser = auth.currentUser;
 
   if (!currentUser) {
+    console.error('ERROR: User not authenticated');
     throw new Error('User must be authenticated to register a farm');
   }
 
@@ -119,6 +121,7 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
   console.log('User ID:', userId, 'Timestamp:', timestamp);
 
   console.log('Uploading photos to Storage...');
+  console.log('Number of photos to upload:', farmData.photos.length);
 
   const photoUrls: string[] = [];
   for (let i = 0; i < farmData.photos.length; i++) {
@@ -135,7 +138,9 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
     }
   }
 
-  console.log('All photos uploaded, uploading KYC documents to Storage...');
+  console.log('All photos uploaded successfully!');
+  console.log('Photo URLs:', photoUrls);
+  console.log('Now uploading KYC documents to Storage...');
 
   const person1AadhaarFrontUrl = farmData.kyc.person1.aadhaarFront
     ? await uploadDocument(
@@ -195,8 +200,6 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
     pricing: {
       weeklyDay: farmData.pricing.weeklyDay,
       weeklyNight: farmData.pricing.weeklyNight,
-      occasionalDay: farmData.pricing.occasionalDay,
-      occasionalNight: farmData.pricing.occasionalNight,
       weekendDay: farmData.pricing.weekendDay,
       weekendNight: farmData.pricing.weekendNight,
       customPricing: farmData.pricing.customPricing || [],
@@ -250,13 +253,25 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
   };
 
   console.log('Saving to Firestore...');
-  const farmsCollection = collection(db, 'farmhouses');
-  const docRef = await addDoc(farmsCollection, farmDoc);
+  console.log('Farm document to be saved:', JSON.stringify(farmDoc, null, 2));
 
-  console.log('Farm saved successfully! Document ID:', docRef.id);
+  try {
+    const farmsCollection = collection(db, 'farmhouses');
+    console.log('Firestore collection reference created');
 
-  return {
-    farmId: docRef.id,
-    userId,
-  };
+    const docRef = await addDoc(farmsCollection, farmDoc);
+    console.log('Farm saved successfully! Document ID:', docRef.id);
+
+    return {
+      farmId: docRef.id,
+      userId,
+    };
+  } catch (firestoreError: any) {
+    console.error('Firestore save error:', {
+      code: firestoreError.code,
+      message: firestoreError.message,
+      details: JSON.stringify(firestoreError, Object.getOwnPropertyNames(firestoreError))
+    });
+    throw new Error(`Failed to save to Firestore: ${firestoreError.message}`);
+  }
 };

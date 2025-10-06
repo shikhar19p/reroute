@@ -50,8 +50,6 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
     capacity: farmhouse.capacity.toString(),
     weeklyDay: farmhouse.weeklyDay.toString(),
     weeklyNight: farmhouse.weeklyNight.toString(),
-    occasionalDay: farmhouse.occasionalDay.toString(),
-    occasionalNight: farmhouse.occasionalNight.toString(),
     weekendDay: farmhouse.weekendDay.toString(),
     weekendNight: farmhouse.weekendNight.toString(),
     customPricing: farmhouse.customPricing || [],
@@ -103,7 +101,7 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsMultipleSelection: true,
         quality: 0.8,
       });
@@ -140,7 +138,7 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
         return;
       }
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         quality: 0.8,
       });
       if (!result.canceled && result.assets?.length) {
@@ -234,8 +232,6 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
         'basicDetails.capacity': formData.capacity,
         'pricing.weeklyDay': formData.weeklyDay,
         'pricing.weeklyNight': formData.weeklyNight,
-        'pricing.occasionalDay': formData.occasionalDay,
-        'pricing.occasionalNight': formData.occasionalNight,
         'pricing.weekendDay': formData.weekendDay,
         'pricing.weekendNight': formData.weekendNight,
         'pricing.customPricing': formData.customPricing.map(cp => ({ name: cp.label, price: cp.price })),
@@ -433,7 +429,7 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Pricing</Text>
 
-            <Text style={[styles.priceCategory, { color: colors.text }]}>Weekly Rates</Text>
+            <Text style={[styles.priceCategory, { color: colors.text }]}>Weekday Rates</Text>
             <View style={styles.row}>
               <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
                 <Text style={[styles.label, { color: colors.text }]}>Day Use *</Text>
@@ -453,33 +449,6 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
                   style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
                   value={formData.weeklyNight}
                   onChangeText={(text) => updateField('weeklyNight', text.replace(/[^0-9]/g, ''))}
-                  placeholder="₹0"
-                  placeholderTextColor={colors.placeholder}
-                  keyboardType="number-pad"
-                />
-              </View>
-            </View>
-
-            <Text style={[styles.priceCategory, { color: colors.text }]}>Occasional Rates</Text>
-            <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                <Text style={[styles.label, { color: colors.text }]}>Day Use *</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
-                  value={formData.occasionalDay}
-                  onChangeText={(text) => updateField('occasionalDay', text.replace(/[^0-9]/g, ''))}
-                  placeholder="₹0"
-                  placeholderTextColor={colors.placeholder}
-                  keyboardType="number-pad"
-                />
-              </View>
-
-              <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                <Text style={[styles.label, { color: colors.text }]}>Night Stay *</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
-                  value={formData.occasionalNight}
-                  onChangeText={(text) => updateField('occasionalNight', text.replace(/[^0-9]/g, ''))}
                   placeholder="₹0"
                   placeholderTextColor={colors.placeholder}
                   keyboardType="number-pad"
