@@ -11,6 +11,7 @@ import { db } from '../../firebaseConfig';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../authContext';
 import { createBooking } from '../../services/bookingService';
+import { addBookedDatesToFarmhouse } from '../../services/farmhouseService'; // Import the new function
 import { Booking } from '../../types/navigation';
 
 type RootStackParamList = {
@@ -34,23 +35,42 @@ type RootStackParamList = {
 
 type Props = NativeStackScreenProps<RootStackParamList, 'BookingConfirmation'>;
 
-// Updated Coupon interface to match your Firestore structure
 interface Coupon {
   id: string;
-  code: string; //
-  discount_type: 'percentage' | 'fixed_amount'; //
-  discount_value: number; //
-  valid_from: string; //
-  valid_until: string; //
-  is_active: boolean; //
-  min_booking_amount: number; //
-  max_uses: number; //
-  current_uses: number; //
+  code: string;
+  discount_type: 'percentage' | 'fixed_amount';
+  discount_value: number;
+  valid_from: string;
+  valid_until: string;
+  is_active: boolean;
+  min_booking_amount: number;
+  max_uses: number;
+  current_uses: number;
 }
 
 type ValidationResult =
   | { valid: true; coupon: Coupon }
   | { valid: false; error: string };
+  
+// Helper function to generate a date range
+const generateDateRange = (start: string, end: string, bookingType: string): string[] => {
+    const dates: string[] = [];
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    
+    if (bookingType === 'day-use') {
+        return [start];
+    }
+    
+    // For overnight, block all dates from start up to (but not including) the end date
+    let currentDate = new Date(startDate);
+    while (currentDate < endDate) {
+        dates.push(currentDate.toISOString().split('T')[0]);
+        currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    return dates;
+};
 
 export default function BookingConfirmationScreen({ route, navigation }: Props) {
   const {
@@ -71,7 +91,6 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
   const [couponError, setCouponError] = useState('');
   const [availableCoupons, setAvailableCoupons] = useState<Coupon[]>([]);
 
-  // Fetch user profile
   useEffect(() => {
     const fetchUserProfile = async () => {
       if (!user) {
@@ -96,7 +115,6 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
     fetchUserProfile();
   }, [user]);
 
-  // Fetch available coupons from Firestore
   useEffect(() => {
     const fetchCoupons = async () => {
       try {
@@ -104,17 +122,16 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
         const couponsCol = collection(db, 'coupons');
         const q = query(
           couponsCol,
-          where('is_active', '==', true), //
-          where('valid_until', '>=', now) //
+          where('is_active', '==', true),
+          where('valid_until', '>=', now)
         );
 
         const snapshot = await getDocs(q);
         const couponsList = snapshot.docs
           .map(doc => {
             const data = doc.data();
-            // Firestore Timestamps need to be converted
             const validFrom = (data.valid_from as Timestamp).toDate();
-            if (validFrom > now) return null; // Filter out coupons that are not yet active
+            if (validFrom > now) return null;
 
             return {
               id: doc.id,
@@ -128,7 +145,6 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
         setAvailableCoupons(couponsList);
       } catch (error) {
         console.error("Failed to fetch coupons:", error);
-        Alert.alert("Error", "Could not fetch available coupons. Please check your connection or Firestore configuration.");
       }
     };
 
@@ -139,8 +155,8 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
     const coupon = availableCoupons.find(c => c.code.toUpperCase() === code.toUpperCase());
     
     if (!coupon) return { valid: false, error: 'Invalid coupon code' };
-    if (coupon.current_uses >= coupon.max_uses) return { valid: false, error: 'This coupon has reached its usage limit' }; //
-    if (totalPrice < coupon.min_booking_amount) return { valid: false, error: `Requires a minimum spend of ₹${coupon.min_booking_amount}` }; //
+    if (coupon.current_uses >= coupon.max_uses) return { valid: false, error: 'This coupon has reached its usage limit' };
+    if (totalPrice < coupon.min_booking_amount) return { valid: false, error: `Requires a minimum spend of ₹${coupon.min_booking_amount}` };
     
     return { valid: true, coupon };
   };
@@ -168,8 +184,8 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
 
   const calculateDiscount = () => {
     if (!appliedCoupon) return 0;
-    if (appliedCoupon.discount_type === 'fixed_amount') { //
-      return Math.min(appliedCoupon.discount_value, totalPrice); //
+    if (appliedCoupon.discount_type === 'fixed_amount') {
+      return Math.min(appliedCoupon.discount_value, totalPrice);
     }
     if (appliedCoupon.discount_type === 'percentage') {
       return Math.floor((totalPrice * appliedCoupon.discount_value) / 100);
@@ -181,7 +197,6 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
   const finalPrice = totalPrice - discountAmount;
 
   const handleProceedToPayment = async () => {
-    // ... (rest of the function remains the same)
     if (!user || !userProfile) {
       Alert.alert('Error', 'Please login to continue');
       return;
@@ -192,8 +207,8 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
         return;
     }
 
+    setLoading(true);
     try {
-      setLoading(true);
       const bookingData = {
         farmhouseId, farmhouseName, userId: user.uid, userEmail: user.email || '',
         userName: userProfile.name, userPhone: userProfile.phone,
@@ -203,7 +218,13 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
         bookingType: bookingType === 'day-use' ? 'dayuse' : 'overnight' as 'dayuse' | 'overnight',
         status: 'confirmed' as 'confirmed', paymentStatus: 'paid' as 'paid',
       };
+      
       const bookingId = await createBooking(bookingData);
+      
+      // Block the dates on the farmhouse document
+      const datesToBlock = generateDateRange(startDate, endDate, bookingType);
+      await addBookedDatesToFarmhouse(farmhouseId, datesToBlock);
+
       setLoading(false);
       Alert.alert(
         'Booking Confirmed! 🎉', `Your booking for ${farmhouseName} is confirmed.`,
@@ -212,13 +233,8 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
     } catch (error) {
       setLoading(false);
       console.error('Booking error:', error);
-      Alert.alert('Error', 'Failed to create booking');
+      Alert.alert('Error', 'Failed to create booking. The dates may have just been taken. Please try again.');
     }
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
   return (
@@ -234,7 +250,6 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Farmhouse Summary Card */}
         <View style={[styles.summaryCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <Image source={{ uri: farmhouseImage }} style={styles.farmhouseImage} />
           <View style={styles.farmhouseInfo}>
@@ -243,7 +258,6 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
           </View>
         </View>
 
-        {/* Billing Summary Card */}
         <View style={[styles.billingCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Billing Summary</Text>
           <View style={styles.billingRow}>
@@ -267,7 +281,6 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
           </View>
         </View>
 
-        {/* Coupon Card */}
         <View style={[styles.couponCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <View style={styles.couponHeader}>
             <Tag size={20} color={colors.buttonBackground} />
@@ -317,7 +330,6 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
           )}
         </View>
 
-        {/* Contact Info Card */}
         <View style={[styles.contactCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Contact Information</Text>
           {profileLoading ? <ActivityIndicator color={colors.buttonBackground} /> : userProfile && (
@@ -332,7 +344,6 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
         <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* Bottom Bar */}
       <View style={[styles.bottomBar, { backgroundColor: colors.cardBackground, borderTopColor: colors.border }]}>
         <View>
           <Text style={[styles.bottomPrice, { color: colors.buttonBackground }]}>₹{finalPrice}</Text>
@@ -349,7 +360,6 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
   );
 }
 
-// Styles
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16 },

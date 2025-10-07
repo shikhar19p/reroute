@@ -8,7 +8,9 @@ import { Heart, Search, SlidersHorizontal, ArrowUpDown, LogOut, Share2 } from 'l
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
-import { getApprovedFarmhouses, Farmhouse as FarmhouseType } from '../../services/farmhouseService';
+import { getApprovedFarmhouses } from '../../services/farmhouseService';
+// This import now correctly aligns with the service
+import { Farmhouse as FarmhouseType } from '../../types/navigation';
 
 export default function ExploreScreen({ navigation }: any) {
   const { user, logout } = useAuth();
@@ -35,7 +37,6 @@ export default function ExploreScreen({ navigation }: any) {
   const loadFarmhouses = async () => {
     try {
       setLoading(true);
-      // This function correctly fetches only 'approved' farmhouses
       const data = await getApprovedFarmhouses();
       setFarmhouses(data);
     } catch (error) {
@@ -46,18 +47,19 @@ export default function ExploreScreen({ navigation }: any) {
     }
   };
 
-  const toggleWishlist = async (id: string) => {
-    if (isInWishlist(id)) {
-      await removeFromWishlist(id);
+  const toggleWishlist = async (farmhouse: FarmhouseType) => {
+    if (isInWishlist(farmhouse.id)) {
+      await removeFromWishlist(farmhouse.id);
     } else {
-      await addToWishlist(id);
+      // Pass the whole farmhouse object if your context needs it
+      await addToWishlist(farmhouse.id);
     }
   };
 
   const handleShare = async (farmhouse: FarmhouseType) => {
     try {
       await Share.share({
-        message: `Check out ${farmhouse.name} in ${farmhouse.location}! Starting from ₹${farmhouse.price}/night.`,
+        message: `Check out ${farmhouse.name} in ${farmhouse.location}! Starting from ₹${farmhouse.weeklyNight}/night.`,
         title: farmhouse.name,
       });
     } catch (error) {
@@ -98,23 +100,25 @@ export default function ExploreScreen({ navigation }: any) {
       );
     }
 
+    // Corrected: Use weeklyNight as the base price for filtering
     if (filters.minPrice) {
-      result = result.filter(f => f.price >= parseInt(filters.minPrice));
+      result = result.filter(f => f.weeklyNight >= parseInt(filters.minPrice));
     }
     if (filters.maxPrice) {
-      result = result.filter(f => f.price <= parseInt(filters.maxPrice));
+      result = result.filter(f => f.weeklyNight <= parseInt(filters.maxPrice));
     }
 
     if (filters.minCapacity) {
       result = result.filter(f => f.capacity >= parseInt(filters.minCapacity));
     }
 
+    // Corrected: Use weeklyNight for price sorting
     switch (sortBy) {
       case 'price-low':
-        result.sort((a, b) => a.price - b.price);
+        result.sort((a, b) => a.weeklyNight - b.weeklyNight);
         break;
       case 'price-high':
-        result.sort((a, b) => b.price - a.price);
+        result.sort((a, b) => b.weeklyNight - a.weeklyNight);
         break;
       case 'capacity-low':
         result.sort((a, b) => a.capacity - b.capacity);
@@ -139,9 +143,9 @@ export default function ExploreScreen({ navigation }: any) {
       onPress={() => navigation.navigate('FarmhouseDetail', { farmhouse: item })}
     >
       <View style={styles.imageContainer}>
-        <Image 
-          source={{ uri: item.photos?.[0] || 'https://via.placeholder.com/400x300' }} 
-          style={styles.propertyImage} 
+        <Image
+          source={{ uri: item.photos?.[0] || 'https://via.placeholder.com/400x300' }}
+          style={styles.propertyImage}
         />
 
         <View style={styles.imageActions}>
@@ -153,13 +157,13 @@ export default function ExploreScreen({ navigation }: any) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => toggleWishlist(item.id)}
+            onPress={() => toggleWishlist(item)}
             style={styles.actionButton}
           >
-            <Heart 
-              size={18} 
-              color={isInWishlist(item.id) ? "#EF4444" : "#666"} 
-              fill={isInWishlist(item.id) ? "#EF4444" : "transparent"} 
+            <Heart
+              size={18}
+              color={isInWishlist(item.id) ? "#EF4444" : "#666"}
+              fill={isInWishlist(item.id) ? "#EF4444" : "transparent"}
             />
           </TouchableOpacity>
         </View>
@@ -175,8 +179,9 @@ export default function ExploreScreen({ navigation }: any) {
         </View>
         <Text style={[styles.distance, { color: colors.placeholder }]}>{item.location}</Text>
         <View style={styles.priceCapacityRow}>
-          <Text style={[styles.price, { color: colors.buttonBackground }]}>₹{item.price}/night</Text>
-          <Text style={[styles.capacity, { color: colors.placeholder }]}>Up to {item.capacity}</Text>
+          {/* Corrected: Display weekendNight as the primary price */}
+          <Text style={[styles.price, { color: colors.buttonBackground }]}>₹{item.weekendNight}/night</Text>
+          <Text style={[styles.capacity, { color: colors.placeholder }]}>Up to {item.capacity} guests</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -201,7 +206,7 @@ export default function ExploreScreen({ navigation }: any) {
           <Search size={20} color={colors.placeholder} />
           <TextInput
             style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Search farmhouses..."
+            placeholder="Search by name or area..."
             placeholderTextColor={colors.placeholder}
             value={searchText}
             onChangeText={setSearchText}
@@ -242,7 +247,7 @@ export default function ExploreScreen({ navigation }: any) {
           }
         />
       )}
-
+       {/* Modals remain the same */}
       <Modal visible={showSortModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.cardBackground }]}>

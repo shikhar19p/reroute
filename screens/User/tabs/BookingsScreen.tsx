@@ -1,26 +1,34 @@
-import React, { useState, useEffect } from 'react';
-import { Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar, MapPin, Users, CreditCard } from 'lucide-react-native';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../authContext';
-import { getUserBookings, cancelBooking, Booking as BookingType } from '../../../services/bookingService';
+import { getUserBookings, cancelBooking, Booking } from '../../../services/bookingService';
+import { useFocusEffect } from '@react-navigation/native';
 
 export default function BookingsScreen({ navigation }: any) {
   const [activeTab, setActiveTab] = useState('all');
-  const [bookings, setBookings] = useState<BookingType[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const { colors } = useTheme();
   const { user } = useAuth();
 
-  useEffect(() => {
-    if (user) {
-      loadBookings();
-    }
-  }, [user]);
+  // Load bookings when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      if (user) {
+        loadBookings();
+      }
+    }, [user])
+  );
 
   const loadBookings = async () => {
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
@@ -28,10 +36,16 @@ export default function BookingsScreen({ navigation }: any) {
       setBookings(data);
     } catch (error) {
       console.error('Error loading bookings:', error);
-      Alert.alert('Error', 'Failed to load bookings');
+      Alert.alert('Error', 'Failed to load bookings. Please try again.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadBookings();
+    setRefreshing(false);
   };
 
   const getStatusColor = (status: string) => {
@@ -45,26 +59,30 @@ export default function BookingsScreen({ navigation }: any) {
   };
 
   const handleCancelBooking = async (bookingId: string, farmhouseName: string) => {
-    Alert.alert('Cancel Booking', `Cancel booking for ${farmhouseName}?`, [
-      { text: 'No', style: 'cancel' },
-      {
-        text: 'Yes, Cancel',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await cancelBooking(bookingId);
-            Alert.alert('Success', 'Booking cancelled successfully');
-            loadBookings();
-          } catch (error) {
-            console.error('Error cancelling booking:', error);
-            Alert.alert('Error', 'Failed to cancel booking');
+    Alert.alert(
+      'Cancel Booking', 
+      `Are you sure you want to cancel your booking for ${farmhouseName}?`, 
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await cancelBooking(bookingId);
+              Alert.alert('Success', 'Booking cancelled successfully');
+              loadBookings(); // Reload bookings
+            } catch (error) {
+              console.error('Error cancelling booking:', error);
+              Alert.alert('Error', 'Failed to cancel booking. Please try again.');
+            }
           }
         }
-      }
-    ]);
+      ]
+    );
   };
 
-  const getBookingCategory = (booking: BookingType): string => {
+  const getBookingCategory = (booking: Booking): string => {
     const now = new Date();
     const checkIn = new Date(booking.checkInDate);
     const checkOut = new Date(booking.checkOutDate);
@@ -76,79 +94,103 @@ export default function BookingsScreen({ navigation }: any) {
   };
 
   const filteredBookings = () => {
+    let filtered: Booking[] = [];
+    
     switch (activeTab) {
       case 'current':
-        return bookings.filter(b => getBookingCategory(b) === 'present');
+        filtered = bookings.filter(b => getBookingCategory(b) === 'present');
+        break;
       case 'past':
-        return bookings.filter(b => getBookingCategory(b) === 'past');
+        filtered = bookings.filter(b => getBookingCategory(b) === 'past');
+        break;
       case 'cancelled':
-        return bookings.filter(b => b.status === 'cancelled');
+        filtered = bookings.filter(b => b.status === 'cancelled');
+        break;
       default:
-        // Sort all bookings by check-in date, newest first
-        return bookings.sort((a, b) => new Date(b.checkInDate).getTime() - new Date(a.checkInDate).getTime());
+        filtered = [...bookings];
+        break;
     }
+    
+    // Sort by check-in date, newest first
+    return filtered.sort((a, b) => {
+      const dateA = new Date(a.checkInDate).getTime();
+      const dateB = new Date(b.checkInDate).getTime();
+      return dateB - dateA;
+    });
   };
 
-  const renderBooking = ({ item }: { item: BookingType }) => (
-    <View style={[styles.bookingCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-      <View style={styles.bookingHeader}>
-        <Text style={[styles.farmhouseName, { color: colors.text }]} numberOfLines={1}>
-          {item.farmhouseName}
-        </Text>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-          <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
+  const renderBooking = ({ item }: { item: Booking }) => {
+    const category = getBookingCategory(item);
+    const canCancel = (item.status === 'confirmed' || item.status === 'pending') && category === 'future';
+    
+    return (
+      <View style={[styles.bookingCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+        <View style={styles.bookingHeader}>
+          <Text style={[styles.farmhouseName, { color: colors.text }]} numberOfLines={1}>
+            {item.farmhouseName}
+          </Text>
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
+            <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
+          </View>
         </View>
-      </View>
 
-      <View style={styles.infoRow}>
-        <MapPin size={14} color={colors.placeholder} />
-        <Text style={[styles.infoText, { color: colors.placeholder }]}>Location info available in details</Text>
-      </View>
-
-      <View style={styles.infoRow}>
-        <Calendar size={14} color={colors.placeholder} />
-        <Text style={[styles.dateText, { color: colors.text }]}>
-          {new Date(item.checkInDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} - {new Date(item.checkOutDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-        </Text>
-      </View>
-
-      <View style={styles.infoRow}>
-        <Users size={14} color={colors.placeholder} />
-        <Text style={[styles.infoText, { color: colors.placeholder }]}>
-          {item.guests} guests • {item.bookingType === 'dayuse' ? 'Day Use' : 'Overnight'}
-        </Text>
-      </View>
-
-      <View style={styles.amountRow}>
-        <View style={styles.priceContainer}>
-          <CreditCard size={16} color={colors.buttonBackground} />
-          <Text style={[styles.totalAmount, { color: colors.buttonBackground }]}>₹{item.totalPrice}</Text>
-        </View>
-        <View style={[styles.paymentBadge, { backgroundColor: item.paymentStatus === 'paid' ? '#E8F5E9' : '#FFF3E0' }]}>
-          <Text style={[styles.paymentText, { color: item.paymentStatus === 'paid' ? '#4CAF50' : '#FF9800' }]}>
-            {item.paymentStatus === 'paid' ? '✓ Paid' : 'Pending'}
+        <View style={styles.infoRow}>
+          <Calendar size={14} color={colors.placeholder} />
+          <Text style={[styles.dateText, { color: colors.text }]}>
+            {new Date(item.checkInDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} - {new Date(item.checkOutDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
           </Text>
         </View>
-      </View>
 
-      <View style={styles.actionRow}>
-        <TouchableOpacity
-          style={[styles.viewButton, { backgroundColor: colors.buttonBackground }]}
-          onPress={() => navigation.navigate('BookingDetails', { booking: item })}
-        >
-          <Text style={[styles.buttonText, { color: colors.buttonText }]}>View Details</Text>
-        </TouchableOpacity>
-        {(item.status === 'confirmed' || item.status === 'pending') && getBookingCategory(item) === 'future' && (
+        <View style={styles.infoRow}>
+          <Users size={14} color={colors.placeholder} />
+          <Text style={[styles.infoText, { color: colors.placeholder }]}>
+            {item.guests} guest{item.guests !== 1 ? 's' : ''} • {item.bookingType === 'dayuse' ? 'Day Use' : 'Overnight'}
+          </Text>
+        </View>
+
+        <View style={styles.amountRow}>
+          <View style={styles.priceContainer}>
+            <CreditCard size={16} color={colors.buttonBackground} />
+            <Text style={[styles.totalAmount, { color: colors.buttonBackground }]}>₹{item.totalPrice}</Text>
+          </View>
+          <View style={[styles.paymentBadge, { backgroundColor: item.paymentStatus === 'paid' ? '#E8F5E9' : '#FFF3E0' }]}>
+            <Text style={[styles.paymentText, { color: item.paymentStatus === 'paid' ? '#4CAF50' : '#FF9800' }]}>
+              {item.paymentStatus === 'paid' ? '✓ Paid' : 'Pending'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.actionRow}>
           <TouchableOpacity
-            style={[styles.cancelButton, { borderColor: '#F44336' }]}
-            onPress={() => handleCancelBooking(item.id, item.farmhouseName)}
+            style={[styles.viewButton, { backgroundColor: colors.buttonBackground }]}
+            onPress={() => navigation.navigate('BookingDetails', { booking: item })}
           >
-            <Text style={[styles.cancelButtonText, { color: '#F44336' }]}>Cancel</Text>
+            <Text style={[styles.buttonText, { color: colors.buttonText }]}>View Details</Text>
           </TouchableOpacity>
-        )}
+          {canCancel && (
+            <TouchableOpacity
+              style={[styles.cancelButton, { borderColor: '#F44336' }]}
+              onPress={() => handleCancelBooking(item.id, item.farmhouseName)}
+            >
+              <Text style={[styles.cancelButtonText, { color: '#F44336' }]}>Cancel</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
+
+  if (!user) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.emptyContainer}>
+          <Text style={[styles.emptyText, { color: colors.placeholder }]}>
+            Please login to view your bookings
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -188,11 +230,27 @@ export default function BookingsScreen({ navigation }: any) {
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              colors={[colors.buttonBackground]}
+              tintColor={colors.buttonBackground}
+            />
+          }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={[styles.emptyText, { color: colors.placeholder }]}>
-                No bookings found
+                No {activeTab !== 'all' ? activeTab : ''} bookings found
               </Text>
+              <TouchableOpacity
+                style={[styles.browseButton, { backgroundColor: colors.buttonBackground }]}
+                onPress={() => navigation.navigate('Explore')}
+              >
+                <Text style={[styles.browseButtonText, { color: colors.buttonText }]}>
+                  Browse Farmhouses
+                </Text>
+              </TouchableOpacity>
             </View>
           }
         />
@@ -228,7 +286,9 @@ const styles = StyleSheet.create({
   buttonText: { fontSize: 14, fontWeight: '600' },
   cancelButtonText: { fontSize: 14, fontWeight: '600' },
   emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
-  emptyText: { fontSize: 16, textAlign: 'center' },
+  emptyText: { fontSize: 16, textAlign: 'center', marginBottom: 20 },
+  browseButton: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
+  browseButtonText: { fontSize: 14, fontWeight: '600' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
   loadingText: { marginTop: 12, fontSize: 16 },
 });
