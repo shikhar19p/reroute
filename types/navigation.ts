@@ -2,6 +2,55 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { CompositeScreenProps } from '@react-navigation/native';
 
+// This Farmhouse interface now matches the one in your service file.
+export interface Farmhouse {
+  id: string;
+  name: string;
+  location: string;
+  city: string;
+  area: string;
+  mapLink: string;
+  bedrooms: number;
+  capacity: number;
+  description: string;
+  // All 6 pricing fields
+  weeklyDay: number;
+  weeklyNight: number;
+  occasionalDay: number;
+  occasionalNight: number;
+  weekendDay: number;
+  weekendNight: number;
+  customPricing: Array<{ label: string; price: number }>;
+  extraGuestPrice: number;
+  photos: string[];
+  amenities: {
+    tv: number;
+    geyser: number;
+    bonfire: number;
+    chess: number;
+    carroms: number;
+    volleyball: number;
+    pool: boolean;
+  };
+  rules: {
+    unmarriedCouples: boolean;
+    pets: boolean;
+    quietHours: boolean;
+  };
+  ownerId: string;
+  status: 'pending' | 'approved' | 'rejected';
+  rating: number;
+  reviews: number;
+  bookedDates: string[];
+  blockedDates?: string[];
+  coordinates?: {
+    latitude: number;
+    longitude: number;
+  };
+  createdAt: any;
+  approvedAt?: any;
+}
+
 export interface Booking {
   id: string;
   farmhouseId: string;
@@ -22,45 +71,6 @@ export interface Booking {
   paymentStatus: 'pending' | 'paid';
   createdAt: string;
   category?: 'past' | 'present' | 'future' | 'draft';
-}
-
-export interface Farmhouse {
-  id: string;
-  name: string;
-  location: string;
-  price: number;
-  weekendPrice: number;
-  extraGuestPrice?: number; // Added this field
-  rating: number;
-  reviews: number;
-  capacity: number;
-  bedrooms: number;
-  description: string;
-  photos: string[];
-  amenities: {
-    tv: number;
-    geyser: number;
-    bonfire: number;
-    chess: number;
-    carroms: number;
-    volleyball: number;
-    pool: boolean;
-  };
-  rules: {
-    unmarriedCouples: boolean;
-    pets: boolean;
-    quietHours: boolean;
-  };
-  coordinates?: {
-    latitude: number;
-    longitude: number;
-  };
-  mapLink?: string;
-  customPricing?: Array<{
-    label: string;
-    price: number;
-  }>;
-  bookedDates?: string[];
 }
 
 export interface Review {
@@ -135,7 +145,7 @@ export type TabParamList = {
   Profile: undefined;
 };
 
-export type RootStackScreenProps<T extends keyof RootStackParamList> = 
+export type RootStackScreenProps<T extends keyof RootStackParamList> =
   NativeStackScreenProps<RootStackParamList, T>;
 
 export type TabScreenProps<T extends keyof TabParamList> = CompositeScreenProps<

@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import React, { useState, useCallback } from 'react';
+import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Heart, MapPin, Users } from 'lucide-react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { useWishlist } from '../../../context/WishlistContext';
 import { useTheme } from '../../../context/ThemeContext';
-import { getFarmhousesByIds, Farmhouse } from '../../../services/farmhouseService';
+import { getFarmhouseById } from '../../../services/farmhouseService';
+// FIX: Import the definitive Farmhouse type.
+import { Farmhouse } from '../../../types/navigation';
 
 export default function WishlistScreen({ navigation }: any) {
   const { colors } = useTheme();
@@ -12,32 +15,31 @@ export default function WishlistScreen({ navigation }: any) {
   const [wishlistFarmhouses, setWishlistFarmhouses] = useState<Farmhouse[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const loadWishlistFarmhouses = async () => {
+  const loadWishlistFarmhouses = useCallback(async () => {
+    setLoading(true);
+    if (wishlist.length > 0) {
       try {
-        setLoading(true);
-        if (wishlist.length > 0) {
-          const data = await getFarmhousesByIds(wishlist);
-          // Sort data to match the order in the wishlist context
-          const sortedData = data.sort((a, b) => wishlist.indexOf(b.id) - wishlist.indexOf(a.id));
-          setWishlistFarmhouses(sortedData);
-        } else {
-          setWishlistFarmhouses([]); // Clear if wishlist is empty
-        }
+        const farmhousePromises = wishlist.map(id => getFarmhouseById(id));
+        const results = await Promise.all(farmhousePromises);
+        const validFarmhouses = results.filter((f): f is Farmhouse => f !== null);
+        setWishlistFarmhouses(validFarmhouses);
       } catch (error) {
         console.error('Error loading wishlist farmhouses:', error);
-      } finally {
-        setLoading(false);
+        Alert.alert("Error", "Could not load your wishlist.");
       }
-    };
+    } else {
+      setWishlistFarmhouses([]);
+    }
+    setLoading(false);
+  }, [wishlist]);
 
-    loadWishlistFarmhouses();
-  }, [wishlist]); // Re-run this effect whenever the wishlist from the context changes
+  useFocusEffect(
+    useCallback(() => {
+      loadWishlistFarmhouses();
+    }, [loadWishlistFarmhouses])
+  );
 
   const handleRemoveFromWishlist = async (id: string) => {
-    // Optimistically remove from local state for instant UI feedback
-    setWishlistFarmhouses(prev => prev.filter(f => f.id !== id));
-    // Call the context function to update the backend
     await removeFromWishlist(id);
   };
 
@@ -47,7 +49,10 @@ export default function WishlistScreen({ navigation }: any) {
       onPress={() => navigation.navigate('FarmhouseDetail', { farmhouse: item })}
     >
       <View style={styles.imageContainer}>
-        <Image source={{ uri: item.photos?.[0] || 'https://via.placeholder.com/400x300' }} style={styles.image} />
+        <Image
+          source={{ uri: item.photos?.[0] || 'https://via.placeholder.com/400x300' }}
+          style={styles.image}
+        />
         <TouchableOpacity
           style={styles.heartButton}
           onPress={() => handleRemoveFromWishlist(item.id)}
@@ -56,21 +61,32 @@ export default function WishlistScreen({ navigation }: any) {
         </TouchableOpacity>
       </View>
       <View style={styles.cardContent}>
-        <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
+        <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
+          {item.name}
+        </Text>
         <View style={styles.locationRow}>
           <MapPin size={14} color={colors.placeholder} />
-          <Text style={[styles.location, { color: colors.placeholder }]}>{item.location}</Text>
+          <Text style={[styles.location, { color: colors.placeholder }]} numberOfLines={1}>
+            {item.location}
+          </Text>
         </View>
         <View style={styles.row}>
-          <Text style={[styles.price, { color: colors.buttonBackground }]}>₹{item.price}/night</Text>
+          <Text style={[styles.price, { color: colors.buttonBackground }]}>
+            {/* FIX: Changed price properties to weekendNight and weeklyNight */}
+            ₹{item.weekendNight || item.weeklyNight || 0}/night
+          </Text>
           <View style={styles.ratingContainer}>
             <Text style={styles.star}>★</Text>
-            <Text style={[styles.rating, { color: colors.text }]}>{item.rating || 4.5}</Text>
+            <Text style={[styles.rating, { color: colors.text }]}>
+              {item.rating?.toFixed(1) || '4.5'}
+            </Text>
           </View>
         </View>
         <View style={styles.capacityRow}>
           <Users size={14} color={colors.placeholder} />
-          <Text style={[styles.capacity, { color: colors.placeholder }]}>Up to {item.capacity} guests</Text>
+          <Text style={[styles.capacity, { color: colors.placeholder }]}>
+            Up to {item.capacity} guests
+          </Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -131,7 +147,7 @@ const styles = StyleSheet.create({
   cardContent: { padding: 15 },
   title: { fontSize: 17, fontWeight: 'bold', marginBottom: 6 },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  location: { fontSize: 14 },
+  location: { fontSize: 14, flex: 1 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   price: { fontSize: 18, fontWeight: '600' },
   ratingContainer: { flexDirection: 'row', alignItems: 'center', gap: 4 },

@@ -24,6 +24,7 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import { db, auth } from '../../firebaseConfig';
+import { getFarmhouseById, removeBookedDatesFromFarmhouse } from '../../services/farmhouseService'; // Import the new function
 
 type Props = RootStackScreenProps<'BookingDetails'>;
 
@@ -256,6 +257,7 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
       const currentUser = auth.currentUser;
       if (!currentUser) {
         Alert.alert('Error', 'You must be logged in to cancel a booking');
+        setCancelling(false);
         return;
       }
 
@@ -270,8 +272,14 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
         refund_status: 'processing',
         updated_at: serverTimestamp(),
       });
+      
+      // --- NEW LOGIC ---
+      // Free up the dates on the farmhouse document
+      const datesToFree = generateDateRange(bookingDetails.startDate, bookingDetails.endDate);
+      await removeBookedDatesFromFarmhouse(bookingDetails.farmhouse_id, datesToFree);
+      // -----------------
 
-      // Create refund record
+      // Create refund record (this can remain)
       await addDoc(collection(db, 'refunds'), {
         booking_id: bookingDetails.id,
         user_id: currentUser.uid,
@@ -283,31 +291,11 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
         created_at: serverTimestamp(),
       });
 
-      // Remove booked dates from farmhouse
-      try {
-        const farmhouseRef = doc(db, 'farmhouses', bookingDetails.farmhouse_id);
-        const farmhouseDoc = await getDoc(farmhouseRef);
-        
-        if (farmhouseDoc.exists()) {
-          const currentBookedDates = farmhouseDoc.data().booked_dates || [];
-          const datesToRemove = generateDateRange(bookingDetails.startDate, bookingDetails.endDate);
-          const updatedBookedDates = currentBookedDates.filter(
-            (date: string) => !datesToRemove.includes(date)
-          );
-          
-          await updateDoc(farmhouseRef, {
-            booked_dates: updatedBookedDates,
-          });
-        }
-      } catch (error) {
-        console.error('Error updating farmhouse dates:', error);
-      }
-
       setCancelling(false);
 
       Alert.alert(
         'Booking Cancelled', 
-        'Your booking has been cancelled successfully. Refund will be processed within 5-7 business days.',
+        'Your booking has been cancelled successfully. The dates are now available for others. Your refund will be processed within 5-7 business days.',
         [{ text: 'OK', onPress: () => navigation.goBack() }]
       );
     } catch (error) {
@@ -319,18 +307,26 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
 
   const generateDateRange = (start: string, end: string): string[] => {
     const dates: string[] = [];
+    if (!start || !end) return dates;
+    
     const startDate = new Date(start);
     const endDate = new Date(end);
     
-    const currentDate = new Date(startDate);
-    while (currentDate <= endDate) {
-      dates.push(currentDate.toISOString().split('T')[0]);
-      currentDate.setDate(currentDate.getDate() + 1);
+    // For overnight, the range is from start date up to (but not including) end date
+    // For day-use, start and end are the same, so we just add the start date.
+    let currentDate = new Date(startDate);
+    while (currentDate < endDate) {
+        dates.push(currentDate.toISOString().split('T')[0]);
+        currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // if it's a dayuse booking
+    if(dates.length === 0 && start === end) {
+        dates.push(start);
     }
     
     return dates;
   };
-
   const getStatusIcon = () => {
     if (!bookingDetails) return null;
     
