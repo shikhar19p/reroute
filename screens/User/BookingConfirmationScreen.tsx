@@ -14,7 +14,19 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../authContext';
-import { createBooking } from '../../services/bookingService';
+import { createBooking, updatePaymentStatus as updateBookingPayment } from '../../services/bookingService';
+import {
+  initiatePayment,
+  savePaymentRecord,
+  updatePaymentStatus,
+  formatAmountToPaise,
+  generateOrderId,
+} from '../../services/paymentService';
+import {
+  sendBookingConfirmationNotification,
+  sendPaymentSuccessNotification,
+  scheduleBookingReminder,
+} from '../../services/notificationService';
 
 type RootStackParamList = {
   BookingConfirmation: {
@@ -75,11 +87,15 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
       return;
     }
 
+    let bookingId: string = '';
+    let paymentRecordId: string = '';
+
     try {
       setLoading(true);
 
-      // Create booking in Firestore
-      const bookingId = await createBooking({
+      // Step 1: Create booking in Firestore with pending status
+      console.log('📝 Creating booking...');
+      bookingId = await createBooking({
         farmhouseId,
         farmhouseName,
         userId: user.uid,
@@ -94,12 +110,71 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
         status: 'pending',
         paymentStatus: 'pending',
       });
+      console.log('✅ Booking created:', bookingId);
+
+      // Step 2: Create payment record
+      paymentRecordId = await savePaymentRecord(
+        bookingId,
+        user.uid,
+        formatAmountToPaise(totalPrice),
+        'INR'
+      );
+      console.log('✅ Payment record created:', paymentRecordId);
+
+      // Step 3: Initiate Razorpay payment
+      console.log('💳 Initiating Razorpay payment...');
+      const paymentResponse = await initiatePayment({
+        orderId: generateOrderId(bookingId),
+        amount: formatAmountToPaise(totalPrice),
+        currency: 'INR',
+        customerName: user.displayName || 'Guest',
+        customerEmail: user.email || '',
+        customerPhone: userProfile.phone,
+        description: `Booking for ${farmhouseName}`,
+        bookingId,
+      });
+
+      // Step 4: Payment successful - update records
+      console.log('✅ Payment successful:', paymentResponse);
+
+      await Promise.all([
+        updatePaymentStatus(paymentRecordId, 'success'),
+        updateBookingPayment(bookingId, 'paid'),
+      ]);
+
+      // Step 5: Send notifications
+      try {
+        await sendBookingConfirmationNotification(
+          user.uid,
+          bookingId,
+          farmhouseName,
+          startDate
+        );
+        await sendPaymentSuccessNotification(
+          user.uid,
+          bookingId,
+          totalPrice,
+          paymentResponse.razorpay_payment_id
+        );
+        // Schedule reminder 24 hours before check-in
+        await scheduleBookingReminder(
+          user.uid,
+          bookingId,
+          farmhouseName,
+          new Date(startDate)
+        );
+        console.log('✅ Notifications sent successfully');
+      } catch (notifError) {
+        console.error('⚠️ Error sending notifications:', notifError);
+        // Don't fail the booking if notifications fail
+      }
 
       setLoading(false);
 
+      // Show success message
       Alert.alert(
-        'Booking Confirmed! 🎉',
-        `Your booking has been created successfully.\nBooking ID: ${bookingId}\n\nPayment gateway will be integrated soon.`,
+        'Payment Successful! 🎉',
+        `Your booking has been confirmed.\n\nBooking ID: ${bookingId}\nPayment ID: ${paymentResponse.razorpay_payment_id}`,
         [
           {
             text: 'View My Bookings',
@@ -108,14 +183,51 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
                 index: 0,
                 routes: [{ name: 'UserHome' as never, params: { screen: 'Bookings' } as never }],
               });
-            }
-          }
+            },
+          },
         ]
       );
-    } catch (error) {
+    } catch (error: any) {
       setLoading(false);
-      console.error('Booking error:', error);
-      Alert.alert('Error', 'Failed to create booking. Please try again.');
+      console.error('❌ Payment error:', error);
+
+      // Update payment status to failed if payment record was created
+      if (paymentRecordId) {
+        try {
+          await updatePaymentStatus(paymentRecordId, 'failed', error.message);
+        } catch (updateError) {
+          console.error('Error updating payment status:', updateError);
+        }
+      }
+
+      // Handle different error scenarios
+      if (error.message?.includes('cancelled')) {
+        Alert.alert(
+          'Payment Cancelled',
+          'You cancelled the payment. Your booking has been saved and you can complete the payment later from your bookings.',
+          [
+            {
+              text: 'View Bookings',
+              onPress: () => {
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'UserHome' as never, params: { screen: 'Bookings' } as never }],
+                });
+              },
+            },
+            { text: 'Try Again', onPress: () => handleProceedToPayment() },
+          ]
+        );
+      } else {
+        Alert.alert(
+          'Payment Failed',
+          error.message || 'Payment could not be processed. Please try again.',
+          [
+            { text: 'Try Again', onPress: () => handleProceedToPayment() },
+            { text: 'Cancel', style: 'cancel' },
+          ]
+        );
+      }
     }
   };
 

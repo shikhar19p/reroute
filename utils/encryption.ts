@@ -1,0 +1,144 @@
+/**
+ * Encryption Utilities for PII Data
+ * IMPORTANT: This provides hashing for verification only
+ * For production, consider using a proper encryption library with key management
+ */
+
+import * as Crypto from 'expo-crypto';
+
+/**
+ * Hash sensitive data using SHA-256
+ * Used for storing sensitive information like Aadhaar/PAN for verification
+ * Note: This is one-way hashing - data cannot be recovered
+ */
+export async function hashSensitiveData(data: string): Promise<string> {
+  if (!data) {
+    throw new Error('Data to hash cannot be empty');
+  }
+
+  try {
+    const hash = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      data.trim()
+    );
+    return hash;
+  } catch (error) {
+    console.error('Error hashing data:', error);
+    throw new Error('Failed to hash sensitive data');
+  }
+}
+
+/**
+ * Mask sensitive data for display purposes
+ * e.g., "123456789012" becomes "XXXX XXXX 9012"
+ */
+export function maskAadhaar(aadhaar: string): string {
+  const cleaned = aadhaar.replace(/\s/g, '');
+  if (cleaned.length !== 12) {
+    return 'Invalid Aadhaar';
+  }
+  return `XXXX XXXX ${cleaned.slice(-4)}`;
+}
+
+/**
+ * Mask PAN card for display
+ * e.g., "ABCDE1234F" becomes "XXX XX 1234 X"
+ */
+export function maskPAN(pan: string): string {
+  const cleaned = pan.toUpperCase().trim();
+  if (cleaned.length !== 10) {
+    return 'Invalid PAN';
+  }
+  return `XXX XX ${cleaned.slice(5, 9)} X`;
+}
+
+/**
+ * Mask account number for display
+ * Shows only last 4 digits
+ */
+export function maskAccountNumber(accountNumber: string): string {
+  const cleaned = accountNumber.replace(/\D/g, '');
+  if (cleaned.length < 4) {
+    return 'Invalid Account';
+  }
+  return `XXXX XXXX ${cleaned.slice(-4)}`;
+}
+
+/**
+ * Mask phone number for display
+ * e.g., "9876543210" becomes "XXX XXX 3210"
+ */
+export function maskPhone(phone: string): string {
+  const cleaned = phone.replace(/\D/g, '');
+  if (cleaned.length !== 10) {
+    return 'Invalid Phone';
+  }
+  return `XXX XXX ${cleaned.slice(-4)}`;
+}
+
+/**
+ * Mask email for display
+ * e.g., "user@example.com" becomes "u***@example.com"
+ */
+export function maskEmail(email: string): string {
+  const [local, domain] = email.split('@');
+  if (!local || !domain) {
+    return 'Invalid Email';
+  }
+  const maskedLocal = local.length > 1 ? `${local[0]}***` : '***';
+  return `${maskedLocal}@${domain}`;
+}
+
+/**
+ * Generate a random salt for additional security
+ */
+export async function generateSalt(): Promise<string> {
+  const randomBytes = await Crypto.getRandomBytesAsync(16);
+  return Array.from(randomBytes)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
+ * Hash with salt for extra security
+ */
+export async function hashWithSalt(data: string, salt: string): Promise<string> {
+  const salted = `${data}${salt}`;
+  return await hashSensitiveData(salted);
+}
+
+/**
+ * Verify hashed data against plain text
+ * Used for checking if entered data matches stored hash
+ */
+export async function verifyHash(plainText: string, hash: string): Promise<boolean> {
+  try {
+    const newHash = await hashSensitiveData(plainText);
+    return newHash === hash;
+  } catch (error) {
+    console.error('Error verifying hash:', error);
+    return false;
+  }
+}
+
+/**
+ * Sanitize PII data before storage
+ * Removes extra spaces, converts to uppercase where needed
+ */
+export function sanitizePII(data: string, type: 'aadhaar' | 'pan' | 'phone' | 'ifsc' | 'account'): string {
+  let cleaned = data.trim();
+
+  switch (type) {
+    case 'aadhaar':
+      return cleaned.replace(/\s/g, '');
+    case 'pan':
+    case 'ifsc':
+      return cleaned.toUpperCase().replace(/\s/g, '');
+    case 'phone':
+      return cleaned.replace(/\D/g, '');
+    case 'account':
+      return cleaned.replace(/\D/g, '');
+    default:
+      return cleaned;
+  }
+}

@@ -3,15 +3,22 @@ import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 
+// Get Firebase config from environment variables (via expo-constants)
 const firebaseConfig = {
-  apiKey: 'AIzaSyDMLXQjQSSZRPUdlOeNf1afg2WPPQFSTAI',
-  authDomain: 'rustique-6b7c4.firebaseapp.com',
-  projectId: 'rustique-6b7c4',
-  storageBucket: 'rustique-6b7c4.firebasestorage.app',
-  messagingSenderId: '272634614965',
-  appId: '1:272634614965:web:82bb8ef1772cac9c019afc',
+  apiKey: Constants.expoConfig?.extra?.firebaseApiKey || 'AIzaSyDMLXQjQSSZRPUdlOeNf1afg2WPPQFSTAI',
+  authDomain: Constants.expoConfig?.extra?.firebaseAuthDomain || 'rustique-6b7c4.firebaseapp.com',
+  projectId: Constants.expoConfig?.extra?.firebaseProjectId || 'rustique-6b7c4',
+  storageBucket: Constants.expoConfig?.extra?.firebaseStorageBucket || 'rustique-6b7c4.firebasestorage.app',
+  messagingSenderId: Constants.expoConfig?.extra?.firebaseMessagingSenderId || '272634614965',
+  appId: Constants.expoConfig?.extra?.firebaseAppId || '1:272634614965:web:82bb8ef1772cac9c019afc',
 };
+
+// Validate that all required config values are present
+if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
+  console.warn('Firebase configuration is incomplete. Please check your .env file.');
+}
 
 const app = initializeApp(firebaseConfig);
 

@@ -1,126 +1,300 @@
-import React from 'react';
-import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useWishlist } from '../../../context/WishlistContext';
 import { useTheme } from '../../../context/ThemeContext';
-
-interface Farmhouse {
-  id: string;
-  name: string;
-  location: string;
-  price: number;
-  rating: number;
-  reviews: number;
-  image: string;
-  amenities: string[];
-  capacity: number;
-  rooms: number;
-  description: string;
-  images: string[];
-  weekendPrice: number;
-  specialDates: { date: string; price: number }[];
-  extraGuestPrice: number;
-  coordinates: { latitude: number; longitude: number };
-  rules: string[];
-  terms: string[];
-  bookedDates: string[];
-}
-
-const SAMPLE_FARMHOUSES: Farmhouse[] = [
-  { id: '1', name: 'Green Valley Farmhouse', location: 'Bangalore Rural', price: 5000, rating: 4.8, reviews: 73, image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800&h=600&fit=crop', amenities: ['Pool', 'BBQ', 'WiFi', 'Parking'], capacity: 20, rooms: 4, description: 'Beautiful farmhouse with scenic valley views.', images: ['https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800&h=600&fit=crop'], weekendPrice: 7000, specialDates: [], extraGuestPrice: 500, coordinates: { latitude: 12.9716, longitude: 77.5946 }, rules: ['No smoking inside'], terms: ['50% advance required'], bookedDates: [] },
-  { id: '2', name: 'Sunset Hills Resort', location: 'Mysore Outskirts', price: 7500, rating: 4.6, reviews: 45, image: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800&h=600&fit=crop', amenities: ['Lake View', 'Bonfire', 'Kitchen', 'Games'], capacity: 15, rooms: 3, description: 'Luxurious resort with sunset views.', images: ['https://images.unsplash.com/photo-1613490493576-7fde63acd811?w=800&h=600&fit=crop'], weekendPrice: 9000, specialDates: [], extraGuestPrice: 600, coordinates: { latitude: 12.3051, longitude: 76.6553 }, rules: ['Quiet after 10 PM'], terms: ['Full payment on booking'], bookedDates: [] },
-  { id: '3', name: 'Palm Grove Retreat', location: 'Coorg Valley', price: 6200, rating: 4.9, reviews: 102, image: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=800&h=600&fit=crop', amenities: ['Garden', 'Spa', 'Restaurant', 'Nature Walk'], capacity: 25, rooms: 5, description: 'Serene retreat with spa.', images: ['https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=800&h=600&fit=crop'], weekendPrice: 8000, specialDates: [], extraGuestPrice: 400, coordinates: { latitude: 12.4244, longitude: 75.7382 }, rules: ['Check-in 2 PM'], terms: ['Security deposit required'], bookedDates: [] }
-];
+import { getApprovedFarmhouses, Farmhouse } from '../../../services/farmhouseService';
 
 export default function WishlistScreen() {
   const navigation = useNavigation();
-  const { colors } = useTheme();
+  const { colors, typography, shadows } = useTheme();
   const { wishlist, removeFromWishlist } = useWishlist();
-  const wishlistFarmhouses = SAMPLE_FARMHOUSES.filter(f => wishlist.includes(f.id));
+  const [farmhouses, setFarmhouses] = useState<Farmhouse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    loadFarmhouses();
+  }, []);
+
+  const loadFarmhouses = async () => {
+    try {
+      setLoading(true);
+      const data = await getApprovedFarmhouses();
+      setFarmhouses(data);
+    } catch (error) {
+      console.error('Error loading farmhouses:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadFarmhouses();
+    setRefreshing(false);
+  };
+
+  const handleRemove = async (id: string) => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    removeFromWishlist(id);
+  };
+
+  const wishlistFarmhouses = farmhouses.filter(f => wishlist.includes(f.id));
 
   const renderItem = ({ item }: { item: Farmhouse }) => (
     <TouchableOpacity
-      style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
-      onPress={() => (navigation as any).navigate('FarmhouseDetail', { farmhouse: item })}
+      style={[styles.card, { backgroundColor: colors.cardBackground, ...shadows.md }]}
+      onPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        (navigation as any).navigate('FarmhouseDetail', { farmhouse: item });
+      }}
+      activeOpacity={0.9}
     >
       <View style={styles.imageContainer}>
-        <Image source={{ uri: item.image }} style={styles.image} />
+        <Image source={{ uri: item.photos?.[0] || 'https://via.placeholder.com/400x300' }} style={styles.image} />
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.3)']}
+          style={styles.imageGradient}
+        />
         <TouchableOpacity
-          style={styles.heartButton}
-          onPress={() => removeFromWishlist(item.id)}
+          style={[styles.heartButton, { ...shadows.sm }]}
+          onPress={() => handleRemove(item.id)}
         >
-          <Text style={styles.heartIcon}>❤️</Text>
+          <MaterialCommunityIcons name="heart" size={22} color={colors.favorite} />
         </TouchableOpacity>
+        {(item.rating > 0) && (
+          <View style={[styles.ratingBadge, { backgroundColor: colors.primary }]}>
+            <MaterialCommunityIcons name="star" size={14} color="white" />
+            <Text style={[styles.ratingText, { fontFamily: typography.fontFamily.semiBold }]}>
+              {item.rating}
+            </Text>
+          </View>
+        )}
       </View>
       <View style={styles.cardContent}>
-        <Text style={[styles.title, { color: colors.text }]}>{item.name}</Text>
-        <Text style={[styles.location, { color: colors.placeholder }]}>📍 {item.location}</Text>
-        <View style={styles.row}>
-          <Text style={[styles.price, { color: colors.buttonBackground }]}>₹{item.price}/night</Text>
-          <View style={styles.ratingContainer}>
-            <Text style={styles.star}>★</Text>
-            <Text style={[styles.rating, { color: colors.text }]}>{item.rating}</Text>
+        <Text style={[styles.title, { color: colors.text, fontFamily: typography.fontFamily.semiBold }]}>
+          {item.name}
+        </Text>
+        <View style={styles.locationRow}>
+          <MaterialCommunityIcons name="map-marker" size={16} color={colors.textSecondary} />
+          <Text style={[styles.location, { color: colors.textSecondary, fontFamily: typography.fontFamily.regular }]}>
+            {item.location}
+          </Text>
+        </View>
+        <View style={styles.amenitiesRow}>
+          <View style={styles.amenityItem}>
+            <MaterialCommunityIcons name="account-group" size={14} color={colors.primary} />
+            <Text style={[styles.amenityText, { color: colors.textSecondary, fontFamily: typography.fontFamily.regular }]}>
+              {item.capacity}
+            </Text>
           </View>
+          {item.rooms > 0 && (
+            <View style={styles.amenityItem}>
+              <MaterialCommunityIcons name="bed" size={14} color={colors.primary} />
+              <Text style={[styles.amenityText, { color: colors.textSecondary, fontFamily: typography.fontFamily.regular }]}>
+                {item.rooms}
+              </Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.row}>
+          <View>
+            <Text style={[styles.price, { color: colors.primary, fontFamily: typography.fontFamily.bold }]}>
+              ₹{item.price}
+            </Text>
+            <Text style={[styles.perNight, { color: colors.textTertiary, fontFamily: typography.fontFamily.regular }]}>
+              per night
+            </Text>
+          </View>
+          <TouchableOpacity style={[styles.viewButton, { backgroundColor: colors.primary, ...shadows.sm }]}>
+            <Text style={[styles.viewButtonText, { fontFamily: typography.fontFamily.semiBold }]}>
+              View
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
     </TouchableOpacity>
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>My Wishlist</Text>
-        <Text style={[styles.count, { color: colors.placeholder }]}>
-          {wishlist.length} {wishlist.length === 1 ? 'property' : 'properties'}
-        </Text>
+        <View>
+          <Text style={[styles.headerTitle, { color: colors.text, fontFamily: typography.fontFamily.bold }]}>
+            My Wishlist
+          </Text>
+          <Text style={[styles.count, { color: colors.textSecondary, fontFamily: typography.fontFamily.regular }]}>
+            {wishlist.length} {wishlist.length === 1 ? 'property' : 'properties'} saved
+          </Text>
+        </View>
+        <View style={[styles.iconContainer, { backgroundColor: colors.primaryLight }]}>
+          <MaterialCommunityIcons name="heart-multiple" size={24} color={colors.primary} />
+        </View>
       </View>
-      <FlatList
-        data={wishlistFarmhouses}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.list}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={[styles.emptyText, { color: colors.placeholder }]}>
-              No properties in your wishlist yet
-            </Text>
-            <TouchableOpacity
-              style={[styles.browseButton, { backgroundColor: colors.buttonBackground }]}
-              onPress={() => (navigation as any).navigate('Explore')}
-            >
-              <Text style={[styles.browseButtonText, { color: colors.buttonText }]}>
-                Browse Farmhouses
+
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary, fontFamily: typography.fontFamily.regular }]}>
+            Loading wishlist...
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={wishlistFarmhouses}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={[styles.list, wishlistFarmhouses.length === 0 && styles.emptyList]}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.primary]}
+              tintColor={colors.primary}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <View style={[styles.emptyIcon, { backgroundColor: colors.primaryLight }]}>
+                <MaterialCommunityIcons name="heart-outline" size={64} color={colors.primary} />
+              </View>
+              <Text style={[styles.emptyTitle, { color: colors.text, fontFamily: typography.fontFamily.bold }]}>
+                Your wishlist is empty
               </Text>
-            </TouchableOpacity>
-          </View>
-        }
-      />
+              <Text style={[styles.emptyText, { color: colors.textSecondary, fontFamily: typography.fontFamily.regular }]}>
+                Start adding properties you love to save them for later
+              </Text>
+              <TouchableOpacity
+                style={[styles.browseButton, { backgroundColor: colors.primary, ...shadows.md }]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  (navigation as any).navigate('Explore');
+                }}
+              >
+                <MaterialCommunityIcons name="compass" size={20} color="white" />
+                <Text style={[styles.browseButtonText, { fontFamily: typography.fontFamily.semiBold }]}>
+                  Explore Farmhouses
+                </Text>
+              </TouchableOpacity>
+            </View>
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { padding: 20 },
-  headerTitle: { fontSize: 24, fontWeight: 'bold', marginBottom: 5 },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    paddingBottom: 12,
+  },
+  headerTitle: { fontSize: 28, marginBottom: 4 },
   count: { fontSize: 14 },
-  list: { padding: 20 },
-  card: { borderRadius: 15, marginBottom: 15, borderWidth: 1, overflow: 'hidden' },
+  iconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingBottom: 100,
+  },
+  loadingText: { marginTop: 16, fontSize: 16 },
+  list: { padding: 20, paddingBottom: 100 },
+  emptyList: { flex: 1 },
+  card: {
+    borderRadius: 16,
+    marginBottom: 16,
+    overflow: 'hidden'
+  },
   imageContainer: { position: 'relative' },
-  image: { width: '100%', height: 180 },
-  heartButton: { position: 'absolute', top: 12, right: 12, backgroundColor: 'rgba(255,255,255,0.9)', width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  heartIcon: { fontSize: 20 },
-  cardContent: { padding: 15 },
-  title: { fontSize: 16, fontWeight: 'bold', marginBottom: 5 },
-  location: { fontSize: 14, marginBottom: 10 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  price: { fontSize: 16, fontWeight: '600' },
-  ratingContainer: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  star: { color: '#FCD34D', fontSize: 14 },
-  rating: { fontSize: 14, fontWeight: '500' },
-  emptyContainer: { paddingTop: 60, alignItems: 'center' },
-  emptyText: { fontSize: 16, marginBottom: 20 },
-  browseButton: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
-  browseButtonText: { fontSize: 16, fontWeight: '600' },
+  image: { width: '100%', height: 200, resizeMode: 'cover' },
+  imageGradient: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 60,
+  },
+  heartButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  ratingBadge: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 4,
+  },
+  ratingText: { fontSize: 13, color: 'white' },
+  cardContent: { padding: 16 },
+  title: { fontSize: 18, marginBottom: 6 },
+  locationRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 4 },
+  location: { fontSize: 14 },
+  amenitiesRow: { flexDirection: 'row', gap: 16, marginBottom: 12 },
+  amenityItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  amenityText: { fontSize: 13 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  price: { fontSize: 22 },
+  perNight: { fontSize: 12, marginTop: 2 },
+  viewButton: {
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 20
+  },
+  viewButtonText: { color: 'white', fontSize: 14 },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 40,
+    paddingBottom: 80,
+  },
+  emptyIcon: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  emptyTitle: { fontSize: 24, marginBottom: 12, textAlign: 'center' },
+  emptyText: { fontSize: 16, marginBottom: 32, textAlign: 'center', lineHeight: 24 },
+  browseButton: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 24
+  },
+  browseButtonText: { color: 'white', fontSize: 16 },
 });

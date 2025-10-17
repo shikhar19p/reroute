@@ -12,6 +12,7 @@ import {
   Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../../../authContext';
 import { useTheme } from '../../../context/ThemeContext';
@@ -52,6 +53,7 @@ const SAMPLE_USER: UserProfile = {
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
+  const navigation = useNavigation();
   const [profile, setProfile] = useState<UserProfile>(SAMPLE_USER);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [showKycModal, setShowKycModal] = useState(false);

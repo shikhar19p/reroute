@@ -11,6 +11,9 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+import { validators, validateFields } from '../utils/validators';
+import { validateBookingDates } from './availabilityService';
+import { logAuditEvent } from './auditService';
 
 export interface Booking {
   id: string;
@@ -31,13 +34,58 @@ export interface Booking {
   updatedAt?: any;
 }
 
-// Create a new booking
+// Create a new booking with validation and conflict prevention
 export async function createBooking(bookingData: Omit<Booking, 'id' | 'createdAt'>): Promise<string> {
   try {
+    // Validate required fields
+    const validations = [
+      validators.futureDate(bookingData.checkInDate),
+      validators.dateRange(bookingData.checkInDate, bookingData.checkOutDate),
+      validators.price(bookingData.totalPrice),
+      validators.capacity(bookingData.guests),
+    ];
+
+    const errors = validateFields(validations);
+    if (errors.length > 0) {
+      throw new Error(`Validation failed: ${errors.join(', ')}`);
+    }
+
+    // Check for booking conflicts
+    const checkInDate = new Date(bookingData.checkInDate);
+    const checkOutDate = new Date(bookingData.checkOutDate);
+
+    const availabilityCheck = await validateBookingDates(
+      bookingData.farmhouseId,
+      checkInDate,
+      checkOutDate
+    );
+
+    if (!availabilityCheck.valid) {
+      throw new Error(availabilityCheck.error || 'Dates not available');
+    }
+
+    // Create the booking
     const docRef = await addDoc(collection(db, 'bookings'), {
       ...bookingData,
+      status: 'pending',
+      paymentStatus: 'pending',
       createdAt: serverTimestamp(),
     });
+
+    // Log audit event
+    await logAuditEvent(
+      'booking_created',
+      bookingData.userId,
+      'booking',
+      docRef.id,
+      {
+        farmhouseId: bookingData.farmhouseId,
+        totalPrice: bookingData.totalPrice,
+        checkIn: bookingData.checkInDate,
+        checkOut: bookingData.checkOutDate,
+      }
+    );
+
     console.log('Booking created successfully with ID:', docRef.id);
     return docRef.id;
   } catch (error) {

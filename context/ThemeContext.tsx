@@ -1,19 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-interface Colors {
-  text: string;
-  background: string;
-  buttonBackground: string;
-  buttonText: string;
-  cardBackground: string;
-  border: string;
-  placeholder: string;
-}
+import { premiumLightTheme, premiumDarkTheme, PremiumTheme } from '../theme/premiumTheme';
 
 interface ThemeContextType {
-  colors: Colors;
+  theme: PremiumTheme;
+  colors: PremiumTheme['colors'];
+  spacing: PremiumTheme['spacing'];
+  borderRadius: PremiumTheme['borderRadius'];
+  shadows: PremiumTheme['shadows'];
+  typography: PremiumTheme['typography'];
   isDark: boolean;
   toggleTheme: () => Promise<void>;
 }
@@ -51,35 +47,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const colors: { light: Colors; dark: Colors } = {
-    light: {
-      text: '#000000',
-      background: '#ffffff',
-      buttonBackground: '#02444d',
-      buttonText: '#ffffff',
-      cardBackground: '#ffffff',
-      border: '#e0e0e0',
-      placeholder: '#666666',
-    },
-    dark: {
-      text: '#ffffff',
-      background: '#000000',
-      buttonBackground: '#02444d',
-      buttonText: '#ffffff',
-      cardBackground: '#1a1a1a',
-      border: '#333333',
-      placeholder: '#999999',
-    },
-  };
+  const currentTheme = isDark ? premiumDarkTheme : premiumLightTheme;
 
-  const theme: ThemeContextType = {
-    colors: isDark ? colors.dark : colors.light,
+  const themeContext: ThemeContextType = {
+    theme: currentTheme,
+    colors: currentTheme.colors,
+    spacing: currentTheme.spacing,
+    borderRadius: currentTheme.borderRadius,
+    shadows: currentTheme.shadows,
+    typography: currentTheme.typography,
     isDark,
     toggleTheme,
   };
 
   return (
-    <ThemeContext.Provider value={theme}>
+    <ThemeContext.Provider value={themeContext}>
       {children}
     </ThemeContext.Provider>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
 import { getFarmhousesByOwner, Farmhouse } from '../../services/farmhouseService';
@@ -24,16 +26,12 @@ type RootStackParamList = {
 type Props = NativeStackScreenProps<RootStackParamList, 'MyFarmhouses'>;
 
 export default function MyFarmhousesScreen({ navigation }: Props) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { colors, isDark } = useTheme();
   const [farmhouses, setFarmhouses] = useState<Farmhouse[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadFarmhouses();
-  }, []);
-
-  const loadFarmhouses = async () => {
+  const loadFarmhouses = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -46,6 +44,40 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
     } finally {
       setLoading(false);
     }
+  }, [user]);
+
+  // Load farmhouses when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadFarmhouses();
+    }, [loadFarmhouses])
+  );
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              console.log('🚪 Owner logging out...');
+              await logout();
+              console.log('✅ Logout successful');
+            } catch (error) {
+              console.error('❌ Logout error:', error);
+              Alert.alert('Error', 'Failed to logout. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const getStatusColor = (status: string) => {
@@ -145,14 +177,24 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
           </Text>
         </View>
 
-        {farmhouses.length > 0 && (
+        <View style={styles.headerActions}>
           <TouchableOpacity
-            style={[styles.addIconButton, { backgroundColor: colors.buttonBackground }]}
-            onPress={() => navigation.navigate('FarmBasicDetails' as never)}
+            style={[styles.logoutButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+            onPress={handleLogout}
+            activeOpacity={0.7}
           >
-            <Text style={[styles.addIcon, { color: colors.buttonText }]}>+</Text>
+            <MaterialCommunityIcons name="logout" size={20} color={colors.text} />
           </TouchableOpacity>
-        )}
+
+          {farmhouses.length > 0 && (
+            <TouchableOpacity
+              style={[styles.addIconButton, { backgroundColor: colors.buttonBackground }]}
+              onPress={() => navigation.navigate('FarmBasicDetails' as never)}
+            >
+              <Text style={[styles.addIcon, { color: colors.buttonText }]}>+</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       {farmhouses.length === 0 ? (
@@ -193,6 +235,19 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 14,
     marginTop: 4,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  logoutButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
   },
   addIconButton: {
     width: 48,
