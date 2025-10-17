@@ -57,27 +57,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const handleUserSignIn = async (firebaseUser: User) => {
     try {
-      // Get user role from Firestore
-      const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+      console.log('🔄 Auth state changed, loading user data for:', firebaseUser.uid);
 
-      if (!userDoc.exists()) {
-        throw new Error('User profile not found. Please contact support.');
+      // Try to get user role from Firestore first
+      let firestoreRole = undefined;
+      try {
+        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          firestoreRole = userData?.role;
+          console.log('✅ User document found in Firestore, role:', firestoreRole);
+        } else {
+          console.log('⚠️ User document not found in Firestore');
+        }
+      } catch (firestoreError: any) {
+        console.warn('⚠️ Could not read from Firestore:', firestoreError.message);
       }
 
-      const userData = userDoc.data();
+      // Check local storage for role
+      const localSession = await loadSession();
+      const localRole = localSession?.role;
+      const hadLocalSession = localSession !== null;
+      console.log('📱 Local storage role:', localRole, '| Had session:', hadLocalSession);
+
+      // If this is a fresh sign-in (no local session), force role selection
+      // Otherwise, use local role first, then fall back to Firestore
+      let finalRole = undefined;
+      if (hadLocalSession) {
+        // User had a session before, use local or Firestore role
+        finalRole = localRole || firestoreRole;
+        console.log('✅ Using role:', finalRole, '(source:', localRole ? 'LocalStorage' : 'Firestore', ')');
+      } else {
+        // Fresh sign-in, force role selection (ignore Firestore)
+        console.log('🆕 Fresh sign-in detected - forcing role selection');
+        finalRole = undefined;
+      }
+
+      // Create user session
       const userSession: UserSession = {
         uid: firebaseUser.uid,
         email: firebaseUser.email || '',
-        role: userData.role,
+        role: finalRole,
         displayName: firebaseUser.displayName || undefined,
         photoURL: firebaseUser.photoURL || undefined,
       };
+
+      console.log('💾 Saving user session with role:', userSession.role);
 
       // Save session to AsyncStorage
       await saveSession(userSession);
       setUser(userSession);
       setError(null);
+
+      console.log('✅ User session updated in context with role:', userSession.role);
     } catch (err: any) {
+      console.error('❌ Error in handleUserSignIn:', err);
       // Handle user deleted in Firebase
       if (err.code === 'permission-denied' || err.code === 'not-found') {
         await logout();
@@ -89,17 +123,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
+      console.log('🚪 Logging out...');
+
+      // Sign out from Google first
       try {
         await GoogleSignin.signOut();
+        console.log('✅ Signed out from Google');
       } catch (err) {
         // Ignore if GoogleSignin not configured yet
+        console.log('⚠️ Google sign-out skipped (not configured)');
       }
+
+      // Sign out from Firebase
       await auth.signOut();
+      console.log('✅ Signed out from Firebase');
+
+      // Clear local session
       await clearSession();
+      console.log('✅ Cleared local session');
+
       setUser(null);
       setError(null);
+      console.log('✅ Logout complete');
     } catch (err: any) {
-      console.error('Logout error:', err);
+      console.error('❌ Logout error:', err);
       setError('Failed to logout');
     }
   };

@@ -67,7 +67,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [selectedDates, setSelectedDates] = useState<{ start?: string; end?: string }>({});
-  const [guestCount, setGuestCount] = useState(farmhouse.capacity);
+  const [guestCount, setGuestCount] = useState(farmhouse?.capacity || 10);
   const [showPricingInfo, setShowPricingInfo] = useState('overnight');
 
   // Convert amenities object to array for display
@@ -398,10 +398,14 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
-      <ScrollView style={styles.mainScroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.mainScroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.imageSection}>
           <ScrollView
             horizontal
@@ -423,23 +427,44 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
             </Text>
           </View>
 
-          <View style={styles.topActions}>
-            <TouchableOpacity style={styles.actionButton} onPress={() => navigation.goBack()}>
+          <SafeAreaView style={styles.topActions}>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => {
+                console.log('🔙 Back button pressed');
+                navigation.goBack();
+              }}
+              activeOpacity={0.7}
+            >
               <Text style={styles.actionIcon}>←</Text>
             </TouchableOpacity>
 
             <View style={styles.rightActions}>
-              <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => {
+                  console.log('📤 Share button pressed');
+                  handleShare();
+                }}
+                activeOpacity={0.7}
+              >
                 <Text style={styles.actionIconSmall}>📤</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.actionButton} onPress={toggleWishlist}>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => {
+                  console.log('❤️ Wishlist button pressed');
+                  toggleWishlist();
+                }}
+                activeOpacity={0.7}
+              >
                 <Text style={styles.actionIconSmall}>
                   {isInWishlist(farmhouse.id) ? '❤️' : '🤍'}
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </SafeAreaView>
         </View>
 
         <View style={styles.content}>
@@ -790,21 +815,46 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
           <Text style={[styles.bookButtonText, { color: colors.buttonText }]}>Book Now</Text>
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   mainScroll: { flex: 1 },
+  scrollContent: { paddingBottom: 100 },
   imageSection: { position: 'relative', height: 300 },
   image: { width, height: 300 },
   imageCounter: { position: 'absolute', bottom: 15, right: 15, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 15 },
   imageCounterText: { color: '#fff', fontSize: 12, fontWeight: '500' },
-  topActions: { position: 'absolute', top: 16, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16 },
+  topActions: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    zIndex: 10,
+    elevation: 10,
+  },
   rightActions: { flexDirection: 'row', gap: 8 },
-  actionButton: { backgroundColor: 'rgba(255, 255, 255, 0.9)', borderRadius: 20, padding: 8 },
-  actionIcon: { fontSize: 24, color: '#000' },
+  actionButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 24,
+    padding: 12,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  actionIcon: { fontSize: 24, color: '#000', fontWeight: 'bold' },
   actionIconSmall: { fontSize: 20 },
   content: { paddingHorizontal: 20 },
   header: { marginTop: 20 },

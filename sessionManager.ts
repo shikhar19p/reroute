@@ -5,7 +5,7 @@ const SESSION_KEY = '@user_session';
 export interface UserSession {
   uid: string;
   email: string;
-  role: 'owner' | 'customer';
+  role?: 'owner' | 'customer';
   displayName?: string;
   photoURL?: string;
 }
@@ -38,7 +38,7 @@ export async function loadSession(): Promise<UserSession | null> {
     const parsed = JSON.parse(sessionData);
     
     // Validate required fields
-    if (!parsed.uid || !parsed.email || !parsed.role) {
+    if (!parsed.uid || !parsed.email) {
       console.warn('Corrupted session data detected');
       await clearSession();
       return null;

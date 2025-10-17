@@ -85,7 +85,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
       await saveFarmRegistration(farm);
       Alert.alert('Success', 'Farm registration submitted for review!');
       resetFarm();
-      navigation.reset({ index: 0, routes: [{ name: 'RoleChoice' }] });
+      navigation.reset({ index: 0, routes: [{ name: 'MyFarmhouses' }] });
     } catch (error) {
       console.error('Submission error:', error);
       Alert.alert('Error', 'Failed to submit registration. Please try again.');

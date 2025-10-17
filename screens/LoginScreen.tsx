@@ -1,46 +1,104 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  Dimensions,
+  StatusBar
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useGoogleAuth } from '../useGoogleAuth';
+import { useTheme } from '../context/ThemeContext';
+
+const { width, height } = Dimensions.get('window');
 
 export default function LoginScreen({ navigation }: any) {
   const { signIn, loading, error } = useGoogleAuth();
+  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (error) {
       Alert.alert('Login Error', error);
     }
   }, [error]);
 
+  const handleSignIn = async () => {
+    await signIn();
+  };
+
   return (
     <View style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.title}>Sign In</Text>
-        <Text style={styles.subtitle}>Continue with your Google account</Text>
+      <StatusBar barStyle="light-content" />
 
-        <View style={styles.iconContainer}>
-          <Text style={styles.icon}>🔐</Text>
+      {/* Premium gradient background */}
+      <LinearGradient
+        colors={[colors.primaryDark, colors.primary, colors.primaryLight]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFillObject}
+      />
+
+      {/* Decorative circles */}
+      <View style={[styles.decorativeCircle, styles.circle1]} />
+      <View style={[styles.decorativeCircle, styles.circle2]} />
+
+      <View style={styles.content}>
+        {/* Title */}
+        <View style={styles.titleContainer}>
+          <View style={styles.iconWrapper}>
+            <MaterialCommunityIcons
+              name="home-heart"
+              size={80}
+              color="white"
+            />
+          </View>
+          <Text style={[styles.title, { fontFamily: typography.fontFamily.bold }]}>
+            Welcome to Reroute
+          </Text>
+          <Text style={[styles.subtitle, { fontFamily: typography.fontFamily.medium }]}>
+            Your gateway to unforgettable farmhouse experiences
+          </Text>
         </View>
 
-        <TouchableOpacity 
-          style={[styles.googleButton, loading && styles.disabled]}
-          onPress={signIn}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <>
-              <Text style={styles.googleIcon}>G</Text>
-              <Text style={styles.buttonText}>Sign in with Google</Text>
-            </>
-          )}
-        </TouchableOpacity>
+        {/* Google Sign-In Button */}
+        <View style={styles.buttonWrapper}>
+          <BlurView intensity={20} tint="light" style={[styles.glassCard, { borderRadius: borderRadius.lg }]}>
+            <TouchableOpacity
+              style={styles.signInButton}
+              onPress={handleSignIn}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <ActivityIndicator color="white" size="large" />
+              ) : (
+                <>
+                  <View style={styles.googleIconContainer}>
+                    <MaterialCommunityIcons name="google" size={28} color="#4285F4" />
+                  </View>
+                  <Text style={[styles.signInText, { fontFamily: typography.fontFamily.semiBold }]}>
+                    Continue with Google
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </BlurView>
+        </View>
 
-        <TouchableOpacity 
+        {/* Back Button */}
+        <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.backButtonText}>Back</Text>
+          <MaterialCommunityIcons name="arrow-left" size={20} color="white" />
+          <Text style={[styles.backButtonText, { fontFamily: typography.fontFamily.medium }]}>
+            Back to Welcome
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -50,74 +108,94 @@ export default function LoginScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#D4AF37',
   },
   content: {
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 30,
-    width: '100%',
+    paddingHorizontal: 24,
+    paddingVertical: 60,
+  },
+  decorativeCircle: {
+    position: 'absolute',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 999,
+  },
+  circle1: {
+    width: 250,
+    height: 250,
+    top: -80,
+    right: -60,
+  },
+  circle2: {
+    width: 180,
+    height: 180,
+    bottom: 60,
+    left: -40,
+  },
+  titleContainer: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  iconWrapper: {
+    marginBottom: 16,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 10,
+    fontSize: 36,
+    color: 'white',
+    textAlign: 'center',
+    marginBottom: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
+    color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
-    marginBottom: 50,
   },
-  iconContainer: {
-    marginBottom: 40,
+  buttonWrapper: {
+    width: '100%',
+    maxWidth: 400,
+    marginTop: 20,
   },
-  icon: {
-    fontSize: 80,
+  glassCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    overflow: 'hidden',
   },
-  googleButton: {
-    backgroundColor: '#4285F4',
+  signInButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 30,
-    paddingVertical: 15,
-    borderRadius: 8,
-    width: '100%',
-    maxWidth: 300,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    padding: 20,
+    minHeight: 70,
   },
-  disabled: {
-    opacity: 0.6,
-  },
-  googleIcon: {
+  googleIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: 'white',
-    color: '#4285F4',
-    fontSize: 20,
-    fontWeight: 'bold',
-    width: 30,
-    height: 30,
-    textAlign: 'center',
-    lineHeight: 30,
-    borderRadius: 3,
-    marginRight: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
   },
-  buttonText: {
+  signInText: {
+    fontSize: 18,
     color: 'white',
-    fontSize: 16,
-    fontWeight: '600',
   },
   backButton: {
-    marginTop: 30,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
   },
   backButtonText: {
-    color: '#4285F4',
+    color: 'white',
     fontSize: 16,
+    marginLeft: 8,
   },
 });

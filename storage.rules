@@ -1,0 +1,52 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return request.auth.token.admin == true;
+    }
+
+    function isValidImage() {
+      return request.resource.size < 5 * 1024 * 1024 // 5MB limit
+        && request.resource.contentType.matches('image/(jpeg|jpg|png|webp)');
+    }
+
+    function isValidDocument() {
+      return request.resource.size < 10 * 1024 * 1024 // 10MB limit
+        && request.resource.contentType.matches('(image/.*|application/pdf)');
+    }
+
+    // Farmhouse images and KYC documents (new structure)
+    match /farms/{userId}/{timeValue}/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated()
+        && isOwner(userId)
+        && (isValidImage() || isValidDocument());
+      allow delete: if isAuthenticated() && (isOwner(userId) || isAdmin());
+    }
+
+    // Legacy farmhouses path (for backwards compatibility)
+    match /farmhouses/{userId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isOwner(userId) && isValidImage();
+      allow delete: if isAuthenticated() && isOwner(userId);
+    }
+
+    // User profile pictures
+    match /users/{userId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isOwner(userId) && isValidImage();
+      allow delete: if isAuthenticated() && isOwner(userId);
+    }
+  }
+}
