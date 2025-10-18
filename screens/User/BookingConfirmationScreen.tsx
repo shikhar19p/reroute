@@ -1,45 +1,47 @@
+// ==================== BookingConfirmationScreen.tsx ====================
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
-  Image, Alert, ActivityIndicator, TextInput, RefreshControl
+  Image, Alert, ActivityIndicator, TextInput, RefreshControl, Dimensions
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, User, Phone, Mail, Tag, X, CheckCircle } from 'lucide-react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../authContext';
-import { useCoupons } from '../../GlobalDataContext'; // ✅ NEW IMPORT
+import { useCoupons, useGlobalData } from '../../GlobalDataContext';
 import { createBooking } from '../../services/bookingService';
 import { addBookedDatesToFarmhouse } from '../../services/farmhouseService';
+
+const { width } = Dimensions.get('window');
 
 export default function BookingConfirmationScreen({ route, navigation }: any) {
   const {
     farmhouseId, farmhouseName, farmhouseImage, location,
     startDate, endDate, guestCount, totalPrice, numberOfNights,
-    bookingType, capacity, rooms
+    bookingType
   } = route.params;
 
   const { colors, isDark } = useTheme();
   const { user } = useAuth();
+  const { getFarmhouseById } = useGlobalData();
+  const { data: availableCoupons, loading: couponsLoading, refresh: refreshCoupons } = useCoupons();
 
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<{ name: string; email: string; phone: string } | null>(null);
-  
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
   const [couponError, setCouponError] = useState('');
 
-  // ✅ REPLACED: Manual coupon fetching with hook
-  const { data: availableCoupons, loading: couponsLoading } = useCoupons();
+  const [farmhouseDetails, setFarmhouseDetails] = useState<any>(null);
 
   useEffect(() => {
     fetchUserProfile();
-    // ✅ REMOVED: fetchCoupons() - now handled by GlobalDataContext
-  }, [user]);
+    fetchFarmhouseDetails();
+  }, [user, farmhouseId]);
 
   const fetchUserProfile = async () => {
     if (!user) {
@@ -62,22 +64,32 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
     }
   };
 
-  // ✅ REMOVED: fetchCoupons function - now using GlobalDataContext
+  const fetchFarmhouseDetails = () => {
+    try {
+      const farmhouse = getFarmhouseById(farmhouseId);
+      if (farmhouse) {
+        setFarmhouseDetails(farmhouse);
+      }
+    } catch (error) {
+      console.error("Failed to fetch farmhouse details:", error);
+    }
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchUserProfile();
-    // ✅ Coupons refresh automatically via GlobalDataContext
+    await Promise.all([
+      fetchUserProfile(),
+      refreshCoupons(),
+    ]);
+    fetchFarmhouseDetails();
     setRefreshing(false);
   };
 
   const validateCoupon = (code: string) => {
     const coupon = availableCoupons.find(c => c.code.toUpperCase() === code.toUpperCase());
-    
     if (!coupon) return { valid: false, error: 'Invalid coupon code' };
     if (coupon.current_uses >= coupon.max_uses) return { valid: false, error: 'This coupon has reached its usage limit' };
     if (totalPrice < coupon.min_booking_amount) return { valid: false, error: `Requires a minimum spend of ₹${coupon.min_booking_amount}` };
-    
     return { valid: true, coupon };
   };
 
@@ -112,7 +124,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
     }
     return 0;
   };
-  
+
   const discountAmount = calculateDiscount();
   const finalPrice = totalPrice - discountAmount;
 
@@ -148,13 +160,24 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
     setLoading(true);
     try {
       const bookingData = {
-        farmhouseId, farmhouseName, userId: user.uid, userEmail: user.email || '',
-        userName: userProfile.name, userPhone: userProfile.phone,
-        checkInDate: startDate, checkOutDate: endDate,
-        guests: guestCount, totalPrice: finalPrice, originalPrice: totalPrice,
-        discountApplied: discountAmount, couponCode: appliedCoupon?.code || null,
+        farmhouseId, 
+        farmhouseName: farmhouseDetails?.name || farmhouseName, 
+        userId: user.uid, 
+        userEmail: user.email || '',
+        userName: userProfile.name, 
+        userPhone: userProfile.phone,
+        checkInDate: startDate, 
+        checkOutDate: endDate,
+        guests: guestCount, 
+        totalPrice: finalPrice, 
+        originalPrice: totalPrice,
+        discountApplied: discountAmount, 
+        couponCode: appliedCoupon?.code || null,
         bookingType: bookingType === 'day-use' ? 'dayuse' : 'overnight' as 'dayuse' | 'overnight',
-        status: 'confirmed' as 'confirmed', paymentStatus: 'paid' as 'paid',
+        status: 'confirmed' as 'confirmed', 
+        paymentStatus: 'paid' as 'paid',
+        farmhouseImage: farmhouseDetails?.photos?.[0] || farmhouseImage,
+        location: farmhouseDetails?.location || location,
       };
       
       const bookingId = await createBooking(bookingData);
@@ -162,16 +185,32 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
       const datesToBlock = generateDateRange(startDate, endDate, bookingType);
       await addBookedDatesToFarmhouse(farmhouseId, datesToBlock);
 
+      if (appliedCoupon) {
+        const couponRef = doc(db, 'coupons', appliedCoupon.id);
+        await updateDoc(couponRef, {
+          current_uses: increment(1)
+        });
+      }
+
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, {
         totalBookings: increment(1)
       });
 
       setLoading(false);
-      // ✅ AUTOMATIC: Booking will appear in useMyBookings() immediately via real-time listener
       Alert.alert(
-        'Booking Confirmed! 🎉', `Your booking for ${farmhouseName} is confirmed.`,
-        [{ text: 'View Details', onPress: () => navigation.replace('BookingDetails', { booking: { ...bookingData, id: bookingId, createdAt: new Date().toISOString() } }) }]
+        'Booking Confirmed! 🎉', 
+        `Your booking for ${farmhouseDetails?.name || farmhouseName} is confirmed.`,
+        [{ 
+          text: 'View Details', 
+          onPress: () => navigation.replace('BookingDetails', { 
+            booking: { 
+              ...bookingData, 
+              id: bookingId, 
+              createdAt: new Date().toISOString() 
+            } 
+          }) 
+        }]
       );
     } catch (error) {
       setLoading(false);
@@ -179,6 +218,10 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
       Alert.alert('Error', 'Failed to create booking. The dates may have just been taken. Please try again.');
     }
   };
+
+  const displayImage = farmhouseDetails?.photos?.[0] || farmhouseImage;
+  const displayName = farmhouseDetails?.name || farmhouseName;
+  const displayLocation = farmhouseDetails?.location || location;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -204,12 +247,11 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
           />
         }
       >
-        {/* Your existing UI components */}
         <View style={[styles.summaryCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-          <Image source={{ uri: farmhouseImage }} style={styles.farmhouseImage} />
+          <Image source={{ uri: displayImage }} style={styles.farmhouseImage} />
           <View style={styles.farmhouseInfo}>
-            <Text style={[styles.farmhouseName, { color: colors.text }]}>{farmhouseName}</Text>
-            <Text style={[styles.farmhouseLocation, { color: colors.placeholder }]}>{location}</Text>
+            <Text style={[styles.farmhouseName, { color: colors.text }]}>{displayName}</Text>
+            <Text style={[styles.farmhouseLocation, { color: colors.placeholder }]}>{displayLocation}</Text>
           </View>
         </View>
 
@@ -236,7 +278,6 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
           </View>
         </View>
 
-        {/* ✅ AUTOMATIC: Coupons from GlobalDataContext */}
         <View style={[styles.couponCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <View style={styles.couponHeader}>
             <Tag size={20} color={colors.buttonBackground} />
@@ -247,37 +288,45 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
             <>
               <View style={styles.couponInputRow}>
                 <TextInput
-                  style={[styles.couponInput, { backgroundColor: colors.background, color: colors.text, borderColor: couponError ? '#EF4444' : colors.border }]}
+                  style={[styles.couponInput, { 
+                    backgroundColor: colors.background, 
+                    color: colors.text, 
+                    borderColor: couponError ? '#EF4444' : colors.border 
+                  }]}
                   placeholder="Enter coupon code"
                   placeholderTextColor={colors.placeholder}
                   value={couponCode}
-                  onChangeText={(text) => { setCouponCode(text.toUpperCase()); setCouponError(''); }}
+                  onChangeText={(text) => { 
+                    setCouponCode(text.toUpperCase()); 
+                    setCouponError(''); 
+                  }}
                   autoCapitalize="characters"
                 />
                 <TouchableOpacity
                   style={[styles.applyButton, { backgroundColor: colors.buttonBackground }]}
                   onPress={applyCoupon}
+                  disabled={couponsLoading}
                 >
-                  <Text style={[styles.applyButtonText, { color: colors.buttonText }]}>Apply</Text>
+                  {couponsLoading ? (
+                    <ActivityIndicator size="small" color={colors.buttonText} />
+                  ) : (
+                    <Text style={[styles.applyButtonText, { color: colors.buttonText }]}>Apply</Text>
+                  )}
                 </TouchableOpacity>
               </View>
               {couponError ? <Text style={styles.couponError}>{couponError}</Text> : null}
-              {availableCoupons.length > 0 && (
-                <View style={styles.availableCouponsContainer}>
-                  <Text style={[styles.availableCouponsTitle, {color: colors.placeholder}]}>Available Coupons:</Text>
-                  {availableCoupons.map(coupon => (
-                    <TouchableOpacity key={coupon.id} onPress={() => setCouponCode(coupon.code)}>
-                      <Text style={[styles.couponChip, {color: colors.buttonBackground, borderColor: colors.buttonBackground}]}>{coupon.code}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
             </>
           ) : (
-            <View style={[styles.appliedCouponBox, { backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.1)', borderColor: '#10B981' }]}>
+            <View style={[styles.appliedCouponBox, { 
+              backgroundColor: isDark ? 'rgba(16,185,129,0.15)' : 'rgba(16,185,129,0.1)', 
+              borderColor: '#10B981' 
+            }]}>
               <View style={styles.appliedCouponInfo}>
                 <CheckCircle size={20} color="#10B981" />
-                <Text style={[styles.appliedCouponCode, { color: colors.text }]}>{appliedCoupon.code}</Text>
+                <View>
+                  <Text style={[styles.appliedCouponCode, { color: colors.text }]}>{appliedCoupon.code}</Text>
+                  <Text style={[styles.appliedCouponSavings, { color: '#10B981' }]}>You saved ₹{discountAmount}!</Text>
+                </View>
               </View>
               <TouchableOpacity onPress={removeCoupon}>
                 <X size={18} color="#EF4444" />
@@ -286,14 +335,24 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
           )}
         </View>
 
-        {/* Contact card and rest of your UI */}
         <View style={[styles.contactCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Contact Information</Text>
-          {profileLoading ? <ActivityIndicator color={colors.buttonBackground} /> : userProfile && (
+          {profileLoading ? (
+            <ActivityIndicator color={colors.buttonBackground} />
+          ) : userProfile && (
             <>
-              <View style={styles.contactItem}><User size={20} color={colors.buttonBackground} /><Text style={[styles.contactValue, { color: colors.text }]}>{userProfile.name}</Text></View>
-              <View style={styles.contactItem}><Phone size={20} color={colors.buttonBackground} /><Text style={[styles.contactValue, { color: colors.text }]}>{userProfile.phone}</Text></View>
-              <View style={styles.contactItem}><Mail size={20} color={colors.buttonBackground} /><Text style={[styles.contactValue, { color: colors.text }]}>{userProfile.email}</Text></View>
+              <View style={styles.contactItem}>
+                <User size={20} color={colors.buttonBackground} />
+                <Text style={[styles.contactValue, { color: colors.text }]}>{userProfile.name}</Text>
+              </View>
+              <View style={styles.contactItem}>
+                <Phone size={20} color={colors.buttonBackground} />
+                <Text style={[styles.contactValue, { color: colors.text }]}>{userProfile.phone}</Text>
+              </View>
+              <View style={styles.contactItem}>
+                <Mail size={20} color={colors.buttonBackground} />
+                <Text style={[styles.contactValue, { color: colors.text }]}>{userProfile.email}</Text>
+              </View>
             </>
           )}
         </View>
@@ -304,18 +363,28 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
       <View style={[styles.bottomBar, { backgroundColor: colors.cardBackground, borderTopColor: colors.border }]}>
         <View>
           <Text style={[styles.bottomPrice, { color: colors.buttonBackground }]}>₹{finalPrice}</Text>
+          {discountAmount > 0 && (
+            <Text style={[styles.bottomOriginalPrice, { color: colors.placeholder }]}>₹{totalPrice}</Text>
+          )}
         </View>
         <TouchableOpacity 
-          style={[styles.proceedButton, { backgroundColor: colors.buttonBackground }]}
+          style={[styles.proceedButton, { 
+            backgroundColor: (loading || profileLoading) ? colors.border : colors.buttonBackground 
+          }]}
           onPress={handleProceedToPayment}
           disabled={loading || profileLoading}
         >
-          {loading ? <ActivityIndicator color={colors.buttonText} /> : <Text style={[styles.proceedButtonText, { color: colors.buttonText }]}>Confirm Booking</Text>}
+          {loading ? (
+            <ActivityIndicator color={colors.buttonText} />
+          ) : (
+            <Text style={[styles.proceedButtonText, { color: colors.buttonText }]}>Confirm Booking</Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
 }
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16 },
@@ -341,20 +410,19 @@ const styles = StyleSheet.create({
   couponHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
   couponInputRow: { flexDirection: 'row', gap: 10, marginBottom: 8 },
   couponInput: { flex: 1, height: 48, borderRadius: 8, paddingHorizontal: 12, fontSize: 15, fontWeight: '600', borderWidth: 1 },
-  applyButton: { paddingHorizontal: 20, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+  applyButton: { paddingHorizontal: 20, borderRadius: 8, justifyContent: 'center', alignItems: 'center', minWidth: 80 },
   applyButtonText: { fontSize: 15, fontWeight: '600' },
   couponError: { color: '#EF4444', fontSize: 13, marginTop: 4 },
-  availableCouponsContainer: { marginTop: 16, flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  availableCouponsTitle: { width: '100%', fontSize: 13, marginBottom: 4 },
-  couponChip: { borderWidth: 1, borderRadius: 20, paddingVertical: 6, paddingHorizontal: 12, fontSize: 13, fontWeight: '600' },
   appliedCouponBox: { padding: 14, borderRadius: 10, borderWidth: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   appliedCouponInfo: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
   appliedCouponCode: { fontSize: 15, fontWeight: '700' },
+  appliedCouponSavings: { fontSize: 12, fontWeight: '600', marginTop: 2 },
   contactCard: { padding: 20, borderRadius: 12, borderWidth: 1, marginBottom: 16 },
   contactItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 12 },
   contactValue: { fontSize: 15, fontWeight: '500' },
   bottomBar: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1 },
   bottomPrice: { fontSize: 24, fontWeight: 'bold' },
+  bottomOriginalPrice: { fontSize: 14, textDecorationLine: 'line-through', marginTop: 2 },
   proceedButton: { paddingHorizontal: 32, paddingVertical: 14, borderRadius: 8 },
   proceedButtonText: { fontSize: 16, fontWeight: '600' },
 });
