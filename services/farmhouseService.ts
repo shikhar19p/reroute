@@ -9,10 +9,14 @@ import {
   updateDoc,
   arrayUnion,
   arrayRemove,
+  serverTimestamp,
+  orderBy,
+  DocumentData,
+  documentId,
+  deleteDoc,
 } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 import { Farmhouse } from '../types/navigation';
-
-const db = getFirestore();
 
 // Helper function to convert a string to Title Case
 const toTitleCase = (str: string): string => {
@@ -95,7 +99,11 @@ export const convertFarmhouseData = (id: string, data: any): Farmhouse => {
 export async function getApprovedFarmhouses(): Promise<Farmhouse[]> {
   try {
     const farmsCollection = collection(db, 'farmhouses');
-    const q = query(farmsCollection, where('status', '==', 'approved'));
+    const q = query(
+      farmsCollection,
+      where('status', '==', 'approved'),
+      orderBy('createdAt', 'desc')
+    );
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => convertFarmhouseData(doc.id, doc.data()));
   } catch (error) {
@@ -104,11 +112,15 @@ export async function getApprovedFarmhouses(): Promise<Farmhouse[]> {
   }
 }
 
-// NEW FUNCTION: Fetches all farmhouses with a 'pending' status.
+// Fetches all farmhouses with a 'pending' status
 export async function getPendingFarms(): Promise<Farmhouse[]> {
   try {
     const farmsCollection = collection(db, 'farmhouses');
-    const q = query(farmsCollection, where('status', '==', 'pending'));
+    const q = query(
+      farmsCollection,
+      where('status', '==', 'pending'),
+      orderBy('createdAt', 'desc')
+    );
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => convertFarmhouseData(doc.id, doc.data()));
   } catch (error) {
@@ -136,6 +148,50 @@ export async function getFarmhouseById(farmhouseId: string): Promise<Farmhouse |
   }
 }
 
+// Gets multiple farmhouses by their IDs
+export async function getFarmhousesByIds(ids: string[]): Promise<Farmhouse[]> {
+  if (!ids || ids.length === 0) {
+    return [];
+  }
+
+  try {
+    const farmhouses: Farmhouse[] = [];
+    const chunkSize = 30; // Firestore 'in' query limit
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      const chunk = ids.slice(i, i + chunkSize);
+      
+      const q = query(
+        collection(db, 'farmhouses'),
+        where(documentId(), 'in', chunk)
+      );
+      
+      const snapshot = await getDocs(q);
+      const chunkFarmhouses = snapshot.docs.map(doc => convertFarmhouseData(doc.id, doc.data()));
+      farmhouses.push(...chunkFarmhouses);
+    }
+    return farmhouses;
+  } catch (error) {
+    console.error('Error fetching farmhouses by IDs:', error);
+    return [];
+  }
+}
+
+// Gets all farmhouses belonging to a specific owner
+export async function getFarmhousesByOwner(ownerId: string): Promise<Farmhouse[]> {
+  try {
+    const q = query(
+      collection(db, 'farmhouses'),
+      where('ownerId', '==', ownerId),
+      orderBy('createdAt', 'desc')
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => convertFarmhouseData(doc.id, doc.data()));
+  } catch (error) {
+    console.error('Error fetching owner farmhouses:', error);
+    return [];
+  }
+}
+
 // Adds dates to a farmhouse's 'bookedDates' array
 export async function addBookedDatesToFarmhouse(farmhouseId: string, dates: string[]): Promise<void> {
   if (!farmhouseId || !dates || dates.length === 0) return;
@@ -160,6 +216,62 @@ export async function removeBookedDatesFromFarmhouse(farmhouseId: string, dates:
     });
   } catch (error) {
     console.error("Error removing booked dates:", error);
+    throw error;
+  }
+}
+
+// Approves a farmhouse (for admin)
+export async function approveFarmhouse(farmId: string): Promise<void> {
+  try {
+    const farmRef = doc(db, 'farmhouses', farmId);
+    await updateDoc(farmRef, {
+      status: 'approved',
+      approvedAt: serverTimestamp()
+    });
+    console.log('Farmhouse approved:', farmId);
+  } catch (error) {
+    console.error('Error approving farmhouse:', error);
+    throw error;
+  }
+}
+
+// Rejects a farmhouse (for admin)
+export async function rejectFarmhouse(farmId: string): Promise<void> {
+  try {
+    const farmRef = doc(db, 'farmhouses', farmId);
+    await updateDoc(farmRef, {
+      status: 'rejected'
+    });
+    console.log('Farmhouse rejected:', farmId);
+  } catch (error) {
+    console.error('Error rejecting farmhouse:', error);
+    throw error;
+  }
+}
+
+// Deletes a farmhouse document (for admin)
+export async function deleteFarmhouse(farmId: string): Promise<void> {
+  try {
+    const farmRef = doc(db, 'farmhouses', farmId);
+    await deleteDoc(farmRef);
+    console.log('Farmhouse deleted:', farmId);
+  } catch (error) {
+    console.error('Error deleting farmhouse:', error);
+    throw error;
+  }
+}
+
+// Updates farmhouse details (for admin)
+export async function updateFarmhouse(farmId: string, updates: Partial<Farmhouse>): Promise<void> {
+  try {
+    const farmRef = doc(db, 'farmhouses', farmId);
+    await updateDoc(farmRef, {
+      ...updates,
+      updatedAt: serverTimestamp()
+    });
+    console.log('Farmhouse updated:', farmId);
+  } catch (error) {
+    console.error('Error updating farmhouse:', error);
     throw error;
   }
 }

@@ -8,9 +8,9 @@ import { Heart, Search, SlidersHorizontal, ArrowUpDown, LogOut, Share2 } from 'l
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
-import { getApprovedFarmhouses } from '../../services/farmhouseService';
-// This import now correctly aligns with the service
 import { Farmhouse as FarmhouseType } from '../../types/navigation';
+import { collection, query, where, onSnapshot, orderBy as firestoreOrderBy } from 'firebase/firestore';
+import { db } from '../../firebaseConfig';
 
 export default function ExploreScreen({ navigation }: any) {
   const { user, logout } = useAuth();
@@ -31,27 +31,42 @@ export default function ExploreScreen({ navigation }: any) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadFarmhouses();
-  }, []);
+    // Set up real-time listener for approved farmhouses
+    const farmhousesRef = collection(db, 'farmhouses');
+    const q = query(
+      farmhousesRef,
+      where('approvalStatus', '==', 'approved'),
+      firestoreOrderBy('createdAt', 'desc')
+    );
 
-  const loadFarmhouses = async () => {
-    try {
-      setLoading(true);
-      const data = await getApprovedFarmhouses();
-      setFarmhouses(data);
-    } catch (error) {
-      console.error('Error loading farmhouses:', error);
-      Alert.alert('Error', 'Could not load farmhouses');
-    } finally {
-      setLoading(false);
-    }
-  };
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const farmhousesData: FarmhouseType[] = [];
+        snapshot.forEach((doc) => {
+          farmhousesData.push({
+            id: doc.id,
+            ...doc.data()
+          } as FarmhouseType);
+        });
+        setFarmhouses(farmhousesData);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Error loading farmhouses:', error);
+        Alert.alert('Error', 'Could not load farmhouses');
+        setLoading(false);
+      }
+    );
+
+    // Cleanup listener on unmount
+    return () => unsubscribe();
+  }, []);
 
   const toggleWishlist = async (farmhouse: FarmhouseType) => {
     if (isInWishlist(farmhouse.id)) {
       await removeFromWishlist(farmhouse.id);
     } else {
-      // Pass the whole farmhouse object if your context needs it
       await addToWishlist(farmhouse.id);
     }
   };
@@ -90,17 +105,18 @@ export default function ExploreScreen({ navigation }: any) {
     if (searchText) {
       result = result.filter(f =>
         (f.name || '').toLowerCase().includes(searchText.toLowerCase()) ||
-        (f.location || '').toLowerCase().includes(searchText.toLowerCase())
+        (f.location || '').toLowerCase().includes(searchText.toLowerCase()) ||
+        (f.city || '').toLowerCase().includes(searchText.toLowerCase())
       );
     }
 
     if (filters.location) {
       result = result.filter(f =>
-        (f.location || '').toLowerCase().includes(filters.location.toLowerCase())
+        (f.location || '').toLowerCase().includes(filters.location.toLowerCase()) ||
+        (f.city || '').toLowerCase().includes(filters.location.toLowerCase())
       );
     }
 
-    // Corrected: Use weeklyNight as the base price for filtering
     if (filters.minPrice) {
       result = result.filter(f => f.weeklyNight >= parseInt(filters.minPrice));
     }
@@ -112,7 +128,6 @@ export default function ExploreScreen({ navigation }: any) {
       result = result.filter(f => f.capacity >= parseInt(filters.minCapacity));
     }
 
-    // Corrected: Use weeklyNight for price sorting
     switch (sortBy) {
       case 'price-low':
         result.sort((a, b) => a.weeklyNight - b.weeklyNight);
@@ -171,17 +186,26 @@ export default function ExploreScreen({ navigation }: any) {
 
       <View style={styles.propertyDetails}>
         <View style={styles.titleRow}>
-          <Text style={[styles.propertyTitle, { color: colors.text }]}>{item.name}</Text>
+          <Text style={[styles.propertyTitle, { color: colors.text }]} numberOfLines={1}>
+            {item.name}
+          </Text>
           <View style={styles.ratingContainer}>
             <Text style={styles.star}>★</Text>
-            <Text style={[styles.rating, { color: colors.text }]}>{item.rating || 4.5}</Text>
+            <Text style={[styles.rating, { color: colors.text }]}>
+              {item.rating?.toFixed(1) || '4.5'}
+            </Text>
           </View>
         </View>
-        <Text style={[styles.distance, { color: colors.placeholder }]}>{item.location}</Text>
+        <Text style={[styles.distance, { color: colors.placeholder }]} numberOfLines={1}>
+          {item.location}
+        </Text>
         <View style={styles.priceCapacityRow}>
-          {/* Corrected: Display weekendNight as the primary price */}
-          <Text style={[styles.price, { color: colors.buttonBackground }]}>₹{item.weekendNight}/night</Text>
-          <Text style={[styles.capacity, { color: colors.placeholder }]}>Up to {item.capacity} guests</Text>
+          <Text style={[styles.price, { color: colors.buttonBackground }]}>
+            ₹{item.weekendNight}/night
+          </Text>
+          <Text style={[styles.capacity, { color: colors.placeholder }]}>
+            Up to {item.capacity} guests
+          </Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -194,7 +218,9 @@ export default function ExploreScreen({ navigation }: any) {
       <View style={styles.header}>
         <View style={styles.userInfo}>
           <Text style={[styles.greeting, { color: colors.placeholder }]}>Welcome back,</Text>
-          <Text style={[styles.userName, { color: colors.text }]}>{user?.displayName || 'User'}!</Text>
+          <Text style={[styles.userName, { color: colors.text }]}>
+            {user?.displayName || 'User'}!
+          </Text>
         </View>
         <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
           <LogOut size={20} color="#EF4444" />
@@ -247,7 +273,8 @@ export default function ExploreScreen({ navigation }: any) {
           }
         />
       )}
-       {/* Modals remain the same */}
+
+      {/* Sort Modal */}
       <Modal visible={showSortModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.cardBackground }]}>
@@ -289,6 +316,7 @@ export default function ExploreScreen({ navigation }: any) {
         </View>
       </Modal>
 
+      {/* Filter Modal */}
       <Modal visible={showFilterModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <ScrollView style={[styles.filterModalContent, { backgroundColor: colors.cardBackground }]}>
@@ -368,14 +396,14 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 14 },
   iconButton: { width: 44, height: 44, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   listContent: { paddingHorizontal: 16, paddingBottom: 20 },
-  propertyCard: { borderRadius: 16, overflow: 'hidden', marginBottom: 24, borderWidth: 1 },
+  propertyCard: { borderRadius: 16, overflow: 'hidden', marginBottom: 24, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   imageContainer: { position: 'relative' },
   propertyImage: { width: '100%', height: 200 },
   imageActions: { position: 'absolute', top: 12, right: 12, flexDirection: 'row', gap: 8 },
   actionButton: { backgroundColor: 'rgba(255, 255, 255, 0.9)', borderRadius: 20, padding: 8 },
   propertyDetails: { padding: 16 },
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
-  propertyTitle: { flex: 1, fontSize: 16, fontWeight: '600' },
+  propertyTitle: { flex: 1, fontSize: 16, fontWeight: '600', marginRight: 8 },
   ratingContainer: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   star: { color: '#FCD34D', fontSize: 14 },
   rating: { fontSize: 14, fontWeight: '500' },

@@ -1,78 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
-  Image, Alert, ActivityIndicator, TextInput
+  Image, Alert, ActivityIndicator, TextInput, RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, User, Phone, Mail, Tag, X, CheckCircle } from 'lucide-react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { doc, getDoc, collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../authContext';
+import { useCoupons } from '../../GlobalDataContext'; // ✅ NEW IMPORT
 import { createBooking } from '../../services/bookingService';
-import { addBookedDatesToFarmhouse } from '../../services/farmhouseService'; // Import the new function
-import { Booking } from '../../types/navigation';
+import { addBookedDatesToFarmhouse } from '../../services/farmhouseService';
 
-type RootStackParamList = {
-  BookingConfirmation: {
-    farmhouseId: string;
-    farmhouseName: string;
-    farmhouseImage: string;
-    location: string;
-    startDate: string;
-    endDate: string;
-    guestCount: number;
-    totalPrice: number;
-    numberOfNights: number;
-    bookingType: string;
-    capacity: number;
-    rooms: number;
-  };
-  BookingDetails: { booking: Booking };
-  UserHome: { screen: string };
-};
-
-type Props = NativeStackScreenProps<RootStackParamList, 'BookingConfirmation'>;
-
-interface Coupon {
-  id: string;
-  code: string;
-  discount_type: 'percentage' | 'fixed_amount';
-  discount_value: number;
-  valid_from: string;
-  valid_until: string;
-  is_active: boolean;
-  min_booking_amount: number;
-  max_uses: number;
-  current_uses: number;
-}
-
-type ValidationResult =
-  | { valid: true; coupon: Coupon }
-  | { valid: false; error: string };
-  
-// Helper function to generate a date range
-const generateDateRange = (start: string, end: string, bookingType: string): string[] => {
-    const dates: string[] = [];
-    const startDate = new Date(start);
-    const endDate = new Date(end);
-    
-    if (bookingType === 'day-use') {
-        return [start];
-    }
-    
-    // For overnight, block all dates from start up to (but not including) the end date
-    let currentDate = new Date(startDate);
-    while (currentDate < endDate) {
-        dates.push(currentDate.toISOString().split('T')[0]);
-        currentDate.setDate(currentDate.getDate() + 1);
-    }
-    
-    return dates;
-};
-
-export default function BookingConfirmationScreen({ route, navigation }: Props) {
+export default function BookingConfirmationScreen({ route, navigation }: any) {
   const {
     farmhouseId, farmhouseName, farmhouseImage, location,
     startDate, endDate, guestCount, totalPrice, numberOfNights,
@@ -83,75 +25,53 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
   const { user } = useAuth();
 
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<{ name: string; email: string; phone: string } | null>(null);
   
   const [couponCode, setCouponCode] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
+  const [appliedCoupon, setAppliedCoupon] = useState<any>(null);
   const [couponError, setCouponError] = useState('');
-  const [availableCoupons, setAvailableCoupons] = useState<Coupon[]>([]);
+
+  // ✅ REPLACED: Manual coupon fetching with hook
+  const { data: availableCoupons, loading: couponsLoading } = useCoupons();
 
   useEffect(() => {
-    const fetchUserProfile = async () => {
-      if (!user) {
-        setProfileLoading(false);
-        return;
-      }
-      try {
-        const userDocRef = doc(db, 'users', user.uid);
-        const userDoc = await getDoc(userDocRef);
-        const data = userDoc.data();
-        setUserProfile({
-          name: data?.name || user.displayName || 'Guest User',
-          email: user.email || 'guest@example.com',
-          phone: data?.phone || user.phoneNumber || 'Not provided',
-        });
-      } catch (error) {
-        console.error("Failed to fetch user profile:", error);
-      } finally {
-        setProfileLoading(false);
-      }
-    };
     fetchUserProfile();
+    // ✅ REMOVED: fetchCoupons() - now handled by GlobalDataContext
   }, [user]);
 
-  useEffect(() => {
-    const fetchCoupons = async () => {
-      try {
-        const now = new Date();
-        const couponsCol = collection(db, 'coupons');
-        const q = query(
-          couponsCol,
-          where('is_active', '==', true),
-          where('valid_until', '>=', now)
-        );
+  const fetchUserProfile = async () => {
+    if (!user) {
+      setProfileLoading(false);
+      return;
+    }
+    try {
+      const userDocRef = doc(db, 'users', user.uid);
+      const userDoc = await getDoc(userDocRef);
+      const data = userDoc.data();
+      setUserProfile({
+        name: data?.name || user.displayName || 'Guest User',
+        email: user.email || 'guest@example.com',
+        phone: data?.phone || user.phoneNumber || 'Not provided',
+      });
+    } catch (error) {
+      console.error("Failed to fetch user profile:", error);
+    } finally {
+      setProfileLoading(false);
+    }
+  };
 
-        const snapshot = await getDocs(q);
-        const couponsList = snapshot.docs
-          .map(doc => {
-            const data = doc.data();
-            const validFrom = (data.valid_from as Timestamp).toDate();
-            if (validFrom > now) return null;
+  // ✅ REMOVED: fetchCoupons function - now using GlobalDataContext
 
-            return {
-              id: doc.id,
-              ...data,
-              valid_from: validFrom.toISOString(),
-              valid_until: (data.valid_until as Timestamp).toDate().toISOString(),
-            } as Coupon;
-          })
-          .filter((coupon): coupon is Coupon => coupon !== null);
-        
-        setAvailableCoupons(couponsList);
-      } catch (error) {
-        console.error("Failed to fetch coupons:", error);
-      }
-    };
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchUserProfile();
+    // ✅ Coupons refresh automatically via GlobalDataContext
+    setRefreshing(false);
+  };
 
-    fetchCoupons();
-  }, []);
-
-  const validateCoupon = (code: string): ValidationResult => {
+  const validateCoupon = (code: string) => {
     const coupon = availableCoupons.find(c => c.code.toUpperCase() === code.toUpperCase());
     
     if (!coupon) return { valid: false, error: 'Invalid coupon code' };
@@ -196,6 +116,24 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
   const discountAmount = calculateDiscount();
   const finalPrice = totalPrice - discountAmount;
 
+  const generateDateRange = (start: string, end: string, bookingType: string): string[] => {
+    const dates: string[] = [];
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    
+    if (bookingType === 'day-use') {
+      return [start];
+    }
+    
+    let currentDate = new Date(startDate);
+    while (currentDate < endDate) {
+      dates.push(currentDate.toISOString().split('T')[0]);
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    return dates;
+  };
+
   const handleProceedToPayment = async () => {
     if (!user || !userProfile) {
       Alert.alert('Error', 'Please login to continue');
@@ -203,8 +141,8 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
     }
 
     if (!userProfile.phone || userProfile.phone === 'Not provided') {
-        Alert.alert('Phone Number Required', 'Please add a phone number to your profile before booking.');
-        return;
+      Alert.alert('Phone Number Required', 'Please add a phone number to your profile before booking.');
+      return;
     }
 
     setLoading(true);
@@ -221,11 +159,16 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
       
       const bookingId = await createBooking(bookingData);
       
-      // Block the dates on the farmhouse document
       const datesToBlock = generateDateRange(startDate, endDate, bookingType);
       await addBookedDatesToFarmhouse(farmhouseId, datesToBlock);
 
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, {
+        totalBookings: increment(1)
+      });
+
       setLoading(false);
+      // ✅ AUTOMATIC: Booking will appear in useMyBookings() immediately via real-time listener
       Alert.alert(
         'Booking Confirmed! 🎉', `Your booking for ${farmhouseName} is confirmed.`,
         [{ text: 'View Details', onPress: () => navigation.replace('BookingDetails', { booking: { ...bookingData, id: bookingId, createdAt: new Date().toISOString() } }) }]
@@ -249,7 +192,19 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.buttonBackground]}
+            tintColor={colors.buttonBackground}
+          />
+        }
+      >
+        {/* Your existing UI components */}
         <View style={[styles.summaryCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <Image source={{ uri: farmhouseImage }} style={styles.farmhouseImage} />
           <View style={styles.farmhouseInfo}>
@@ -281,6 +236,7 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
           </View>
         </View>
 
+        {/* ✅ AUTOMATIC: Coupons from GlobalDataContext */}
         <View style={[styles.couponCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <View style={styles.couponHeader}>
             <Tag size={20} color={colors.buttonBackground} />
@@ -330,6 +286,7 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
           )}
         </View>
 
+        {/* Contact card and rest of your UI */}
         <View style={[styles.contactCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Contact Information</Text>
           {profileLoading ? <ActivityIndicator color={colors.buttonBackground} /> : userProfile && (
@@ -359,7 +316,6 @@ export default function BookingConfirmationScreen({ route, navigation }: Props) 
     </SafeAreaView>
   );
 }
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16 },
