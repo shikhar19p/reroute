@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, StatusBar,
   Modal, TextInput, FlatList, Share, Alert, ActivityIndicator
@@ -9,13 +9,15 @@ import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
 import { Farmhouse as FarmhouseType } from '../../types/navigation';
-import { collection, query, where, onSnapshot, orderBy as firestoreOrderBy } from 'firebase/firestore';
-import { db } from '../../firebaseConfig';
+import { useAvailableFarmhouses } from '../../GlobalDataContext';
 
 export default function ExploreScreen({ navigation }: any) {
   const { user, logout } = useAuth();
   const { colors, isDark } = useTheme();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
+  
+  // Use the GlobalDataContext hook instead of local state
+  const { data: farmhouses, loading, error } = useAvailableFarmhouses();
 
   const [searchText, setSearchText] = useState('');
   const [sortBy, setSortBy] = useState('name');
@@ -27,41 +29,6 @@ export default function ExploreScreen({ navigation }: any) {
     maxPrice: '',
     minCapacity: '',
   });
-  const [farmhouses, setFarmhouses] = useState<FarmhouseType[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    // Set up real-time listener for approved farmhouses
-    const farmhousesRef = collection(db, 'farmhouses');
-    const q = query(
-      farmhousesRef,
-      where('approvalStatus', '==', 'approved'),
-      firestoreOrderBy('createdAt', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const farmhousesData: FarmhouseType[] = [];
-        snapshot.forEach((doc) => {
-          farmhousesData.push({
-            id: doc.id,
-            ...doc.data()
-          } as FarmhouseType);
-        });
-        setFarmhouses(farmhousesData);
-        setLoading(false);
-      },
-      (error) => {
-        console.error('Error loading farmhouses:', error);
-        Alert.alert('Error', 'Could not load farmhouses');
-        setLoading(false);
-      }
-    );
-
-    // Cleanup listener on unmount
-    return () => unsubscribe();
-  }, []);
 
   const toggleWishlist = async (farmhouse: FarmhouseType) => {
     if (isInWishlist(farmhouse.id)) {
@@ -210,6 +177,17 @@ export default function ExploreScreen({ navigation }: any) {
       </View>
     </TouchableOpacity>
   );
+
+  if (error) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.errorContainer}>
+          <Text style={[styles.errorText, { color: colors.text }]}>Failed to load farmhouses</Text>
+          <Text style={[styles.errorSubText, { color: colors.placeholder }]}>{error}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -413,6 +391,9 @@ const styles = StyleSheet.create({
   capacity: { fontSize: 14 },
   emptyContainer: { alignItems: 'center', marginTop: 50 },
   emptyText: { fontSize: 16 },
+  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
+  errorText: { fontSize: 18, fontWeight: '600', marginBottom: 8 },
+  errorSubText: { fontSize: 14, textAlign: 'center' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
   loadingText: { marginTop: 12, fontSize: 16 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },

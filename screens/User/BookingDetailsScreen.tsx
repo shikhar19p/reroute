@@ -10,11 +10,11 @@ import { useTheme } from '../../context/ThemeContext';
 import { RootStackScreenProps } from '../../types/navigation';
 import { 
   doc, getDoc, updateDoc, addDoc, collection, deleteDoc,
-  serverTimestamp, onSnapshot, increment
+  serverTimestamp, onSnapshot
 } from 'firebase/firestore';
 import { db, auth } from '../../firebaseConfig';
-import { getFarmhouseById, removeBookedDatesFromFarmhouse } from '../../services/farmhouseService';
-import { useGlobalData } from '../../GlobalDataContext'; // ✅ ADD THIS
+import { removeBookedDatesFromFarmhouse } from '../../services/farmhouseService';
+import { useGlobalData } from '../../GlobalDataContext';
 
 const { width } = Dimensions.get('window');
 
@@ -72,7 +72,7 @@ interface BookingDetails {
 export default function BookingDetailsScreen({ route, navigation }: Props) {
   const { booking: initialBooking } = route.params;
   const { colors, isDark } = useTheme();
-    const { getFarmhouseById } = useGlobalData();
+  const { getFarmhouseById } = useGlobalData();
 
   const [bookingDetails, setBookingDetails] = useState<BookingDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -96,9 +96,7 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
           updateBookingDetailsFromFirestore(data);
         }
       },
-      (error) => {
-        console.error('Error listening to booking updates:', error);
-      }
+      (error) => console.error('Error listening to booking updates:', error)
     );
 
     return () => unsubscribe();
@@ -109,7 +107,6 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
       const interval = setInterval(() => {
         const remaining = Math.max(0, bookingDetails.expiresAt! - Date.now());
         setTimeRemaining(remaining);
-        
         if (remaining === 0) {
           clearInterval(interval);
           handleDraftExpiration();
@@ -123,13 +120,11 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
   const fetchBookingDetails = async () => {
     try {
       const bookingDoc = await getDoc(doc(db, 'bookings', initialBooking.id));
-      
       if (!bookingDoc.exists()) {
         Alert.alert('Error', 'Booking not found');
         navigation.goBack();
         return;
       }
-
       const data = bookingDoc.data();
       await updateBookingDetailsFromFirestore(data);
     } catch (error) {
@@ -150,48 +145,53 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
   const updateBookingDetailsFromFirestore = async (data: any) => {
     let category: 'future' | 'past' | 'present' | 'draft' = 'future';
     const now = new Date();
-    const startDate = new Date(data.start_date);
-    const endDate = new Date(data.end_date);
+    const startDate = new Date(data.checkInDate || data.start_date);
+    const endDate = new Date(data.checkOutDate || data.end_date);
 
-    if (data.status === 'draft') {
-      category = 'draft';
-    } else if (data.status === 'completed' || now > endDate) {
-      category = 'past';
-    } else if (now >= startDate && now <= endDate) {
-      category = 'present';
-    }
+    if (data.status === 'draft') category = 'draft';
+    else if (data.status === 'completed' || now > endDate) category = 'past';
+    else if (now >= startDate && now <= endDate) category = 'present';
 
-    // Fetch farmhouse details
+    // Fetch farmhouse details from GlobalDataContext or Firestore
     let farmhouseData: any = {};
     try {
-      const farmhouseDoc = await getDoc(doc(db, 'farmhouses', data.farmhouse_id));
-      if (farmhouseDoc.exists()) {
-        farmhouseData = farmhouseDoc.data();
+      // First try to get from GlobalDataContext
+      const cachedFarmhouse = getFarmhouseById(data.farmhouseId || data.farmhouse_id);
+      if (cachedFarmhouse) {
+        farmhouseData = cachedFarmhouse;
+      } else {
+        // Fallback to direct Firestore fetch
+        const farmhouseDoc = await getDoc(doc(db, 'farmhouses', data.farmhouseId || data.farmhouse_id));
+        if (farmhouseDoc.exists()) {
+          farmhouseData = farmhouseDoc.data();
+        }
       }
     } catch (error) {
       console.error('Error fetching farmhouse details:', error);
     }
 
+    // Calculate number of nights
+    const nights = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+
     const details: BookingDetails = {
       id: initialBooking.id,
-      farmhouse_id: data.farmhouse_id,
-      farmhouseName: data.farmhouse_name,
-      farmhouseImage: data.farmhouse_image || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800',
-      location: data.location,
-      startDate: data.start_date,
-      endDate: data.end_date,
-      guestCount: data.guest_count,
-      numberOfNights: data.number_of_nights,
-      bookingType: data.booking_type || 'overnight',
+      farmhouse_id: data.farmhouseId || data.farmhouse_id,
+      farmhouseName: data.farmhouseName || farmhouseData.name || farmhouseData.basicDetails?.name || 'Unknown Farmhouse',
+      farmhouseImage: farmhouseData.photos?.[0] || farmhouseData.photoUrls?.[0] || data.farmhouseImage || data.farmhouse_image || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800',
+      location: data.location || farmhouseData.location || farmhouseData.basicDetails?.locationText || 'Location not available',
+      startDate: data.checkInDate || data.start_date,
+      endDate: data.checkOutDate || data.end_date,
+      guestCount: data.guests || data.guest_count || 0,
+      numberOfNights: nights || data.number_of_nights || 0,
+      bookingType: (data.bookingType === 'dayuse' || data.booking_type === 'day-use') ? 'day-use' : 'overnight',
       status: data.status,
-      totalAmount: data.final_amount || data.total_amount || data.subtotal,
-      paidAmount: data.paid_amount || data.final_amount || data.total_amount,
+      totalAmount: data.totalPrice || data.final_amount || data.total_amount || data.subtotal || 0,
+      paidAmount: data.totalPrice || data.paid_amount || data.final_amount || data.total_amount || 0,
       paymentMethod: data.payment_method,
-      transactionId: data.transaction_id,
-      bookingDate: data.created_at?.toDate?.()?.toLocaleDateString('en-IN') || 
-                    new Date(data.created_at).toLocaleDateString('en-IN'),
-      checkInTime: data.booking_type === 'day-use' ? '10:00 AM' : '2:00 PM',
-      checkOutTime: data.booking_type === 'day-use' ? '11:00 PM' : '12:00 PM',
+      transactionId: data.transaction_id || `TXN${data.createdAt?.seconds || Date.now()}`,
+      bookingDate: data.createdAt?.toDate?.()?.toLocaleDateString('en-IN') || new Date(data.createdAt).toLocaleDateString('en-IN') || new Date().toLocaleDateString('en-IN'),
+      checkInTime: (data.bookingType === 'dayuse' || data.booking_type === 'day-use') ? '10:00 AM' : '2:00 PM',
+      checkOutTime: (data.bookingType === 'dayuse' || data.booking_type === 'day-use') ? '11:00 PM' : '12:00 PM',
       upiId: data.upi_id,
       cardLast4: data.card_last_4,
       bankName: data.bank_name,
@@ -201,19 +201,19 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
       refundDate: data.refund_date,
       expiresAt: data.expires_at,
       category,
-      base_price: data.base_price,
+      base_price: data.originalPrice || data.base_price,
       extra_guest_charge: data.extra_guest_charge,
-      discount_amount: data.discount_amount,
-      coupon_code: data.coupon_code,
-      farmhouseDescription: farmhouseData.description,
-      farmhousePhotos: farmhouseData.photos || [data.farmhouse_image],
+      discount_amount: data.discountApplied || data.discount_amount || 0,
+      coupon_code: data.couponCode || data.coupon_code,
+      farmhouseDescription: farmhouseData.description || farmhouseData.basicDetails?.description,
+      farmhousePhotos: farmhouseData.photos || farmhouseData.photoUrls || [data.farmhouseImage || data.farmhouse_image],
       farmhouseRules: farmhouseData.rules,
-      farmhouseMapLink: farmhouseData.mapLink,
+      farmhouseMapLink: farmhouseData.mapLink || farmhouseData.basicDetails?.mapLink,
       farmhouseCoordinates: farmhouseData.coordinates,
       farmhouseContactPhone1: farmhouseData.contactPhone1 || farmhouseData.basicDetails?.contactPhone1,
       farmhouseContactPhone2: farmhouseData.contactPhone2 || farmhouseData.basicDetails?.contactPhone2,
-      capacity: farmhouseData.capacity,
-      rooms: farmhouseData.bedrooms,
+      capacity: farmhouseData.capacity || farmhouseData.basicDetails?.capacity,
+      rooms: farmhouseData.bedrooms || farmhouseData.basicDetails?.bedrooms,
     };
 
     setBookingDetails(details);
@@ -222,12 +222,7 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
   const handleDraftExpiration = async () => {
     try {
       await deleteDoc(doc(db, 'bookings', initialBooking.id));
-      
-      Alert.alert(
-        'Reservation Expired',
-        'Your temporary reservation has expired. The dates are now available for others to book.',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+      Alert.alert('Reservation Expired', 'Your temporary reservation has expired. The dates are now available for others to book.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
     } catch (error) {
       console.error('Error deleting expired draft:', error);
       navigation.goBack();
@@ -242,42 +237,21 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
 
   const handleContinueBooking = () => {
     if (!bookingDetails) return;
-
     navigation.navigate('FarmhouseDetail', {
-      farmhouse: {
-        id: bookingDetails.farmhouse_id,
-        name: bookingDetails.farmhouseName,
-        location: bookingDetails.location,
-      } as any,
-      draftData: {
-        bookingId: bookingDetails.id,
-        selectedDates: { 
-          start: bookingDetails.startDate, 
-          end: bookingDetails.endDate 
-        },
-        guestCount: bookingDetails.guestCount
-      }
+      farmhouse: { id: bookingDetails.farmhouse_id, name: bookingDetails.farmhouseName, location: bookingDetails.location } as any,
+      draftData: { bookingId: bookingDetails.id, selectedDates: { start: bookingDetails.startDate, end: bookingDetails.endDate }, guestCount: bookingDetails.guestCount }
     });
   };
 
   const handleCancelBooking = () => {
-    Alert.alert(
-      'Cancel Booking',
-      'Are you sure you want to cancel this booking? You will receive 80% refund of the total amount paid.',
-      [
-        { text: 'No', style: 'cancel' },
-        {
-          text: 'Yes, Cancel',
-          style: 'destructive',
-          onPress: processCancellation
-        }
-      ]
-    );
+    Alert.alert('Cancel Booking', 'Are you sure you want to cancel this booking? You will receive 80% refund of the total amount paid.', [
+      { text: 'No', style: 'cancel' },
+      { text: 'Yes, Cancel', style: 'destructive', onPress: processCancellation }
+    ]);
   };
 
   const processCancellation = async () => {
     if (!bookingDetails) return;
-
     setCancelling(true);
 
     try {
@@ -298,7 +272,7 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
         refund_status: 'processing',
         updated_at: serverTimestamp(),
       });
-      
+
       const datesToFree = generateDateRange(bookingDetails.startDate, bookingDetails.endDate);
       await removeBookedDatesFromFarmhouse(bookingDetails.farmhouse_id, datesToFree);
 
@@ -314,12 +288,7 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
       });
 
       setCancelling(false);
-
-      Alert.alert(
-        'Booking Cancelled', 
-        'Your booking has been cancelled successfully. The dates are now available for others. Your refund will be processed within 5-7 business days.',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+      Alert.alert('Booking Cancelled', 'Your booking has been cancelled successfully. The dates are now available for others. Your refund will be processed within 5-7 business days.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
     } catch (error) {
       console.error('Error cancelling booking:', error);
       setCancelling(false);
@@ -340,55 +309,38 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
         currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    if(dates.length === 0 && start === end) {
-        dates.push(start);
-    }
+    if(dates.length === 0 && start === end) dates.push(start);
     
     return dates;
   };
 
-  const handleCall = (phoneNumber: string) => {
-    Linking.openURL(`tel:${phoneNumber}`);
-  };
+  const handleCall = (phoneNumber: string) => Linking.openURL(`tel:${phoneNumber}`);
 
   const openGoogleMaps = () => {
     if (!bookingDetails) return;
     
     let url = '';
-    if (bookingDetails.farmhouseMapLink) {
-        url = bookingDetails.farmhouseMapLink;
-    } else if (bookingDetails.farmhouseCoordinates) {
-        url = `https://www.google.com/maps/search/?api=1&query=${bookingDetails.farmhouseCoordinates.latitude},${bookingDetails.farmhouseCoordinates.longitude}`;
-    } else {
-        Alert.alert("Location not available", "Map link or coordinates are not available for this farmhouse.");
-        return;
-    }
-    Linking.canOpenURL(url).then(supported => {
-        if (supported) Linking.openURL(url);
-        else Alert.alert('Error', `Could not open the map link.`);
-    }).catch(err => console.error('An error occurred opening the map', err));
+    if (bookingDetails.farmhouseMapLink) url = bookingDetails.farmhouseMapLink;
+    else if (bookingDetails.farmhouseCoordinates) url = `http://maps.google.com/maps?q=$${bookingDetails.farmhouseCoordinates.latitude},${bookingDetails.farmhouseCoordinates.longitude}`;
+    else { Alert.alert("Location not available", "Map link or coordinates are not available for this farmhouse."); return; }
+
+    Linking.canOpenURL(url).then(supported => supported ? Linking.openURL(url) : Alert.alert('Error', `Could not open the map link.`))
+      .catch(err => console.error('An error occurred opening the map', err));
   };
 
   const getStatusIcon = () => {
     if (!bookingDetails) return null;
-    
     switch (bookingDetails.status) {
-      case 'confirmed':
-        return <CheckCircle size={24} color="#4CAF50" />;
-      case 'cancelled':
-        return <XCircle size={24} color="#F44336" />;
-      case 'completed':
-        return <CheckCircle size={24} color="#2196F3" />;
-      case 'draft':
-        return <Clock size={24} color="#FF9800" />;
-      default:
-        return <AlertCircle size={24} color={colors.placeholder} />;
+      case 'confirmed': return <CheckCircle size={24} color="#4CAF50" />;
+      case 'cancelled': return <XCircle size={24} color="#F44336" />;
+      case 'completed': return <CheckCircle size={24} color="#2196F3" />;
+      case 'draft': return <Clock size={24} color="#FF9800" />;
+      default: return <AlertCircle size={24} color={colors.placeholder} />;
     }
   };
 
   const getStatusColor = () => {
     if (!bookingDetails) return colors.placeholder;
-    
     switch (bookingDetails.status) {
       case 'confirmed': return '#4CAF50';
       case 'cancelled': return '#F44336';
@@ -399,37 +351,29 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
   };
 
   const getPaymentMethodIcon = () => {
-    if (!bookingDetails?.paymentMethod) return '💰';
-    
+    if (!bookingDetails?.paymentMethod) return <CreditCard size={20} color={colors.buttonBackground} />;
     switch (bookingDetails.paymentMethod) {
-      case 'UPI': return '📱';
+      case 'UPI': return <Phone size={20} color={colors.buttonBackground} />;
       case 'Credit Card':
-      case 'Debit Card': return '💳';
-      case 'Net Banking': return '🏦';
-      default: return '💰';
+      case 'Debit Card': return <CreditCard size={20} color={colors.buttonBackground} />;
+      case 'Net Banking': return <Home size={20} color={colors.buttonBackground} />;
+      default: return <CreditCard size={20} color={colors.buttonBackground} />;
     }
   };
 
   const getPaymentMethodDetails = () => {
     if (!bookingDetails) return 'Payment Details';
-    
     switch (bookingDetails.paymentMethod) {
-      case 'UPI':
-        return bookingDetails.upiId || 'UPI Payment';
-      case 'Credit Card':
-        return bookingDetails.cardLast4 ? `Credit Card •••• ${bookingDetails.cardLast4}` : 'Credit Card';
-      case 'Debit Card':
-        return bookingDetails.cardLast4 ? `Debit Card •••• ${bookingDetails.cardLast4}` : 'Debit Card';
-      case 'Net Banking':
-        return bookingDetails.bankName || 'Net Banking';
-      default:
-        return 'Online Payment';
+      case 'UPI': return bookingDetails.upiId || 'UPI Payment';
+      case 'Credit Card': return bookingDetails.cardLast4 ? `Credit Card •••• ${bookingDetails.cardLast4}` : 'Credit Card';
+      case 'Debit Card': return bookingDetails.cardLast4 ? `Debit Card •••• ${bookingDetails.cardLast4}` : 'Debit Card';
+      case 'Net Banking': return bookingDetails.bankName || 'Net Banking';
+      default: return 'Online Payment';
     }
   };
 
   const getRefundStatusColor = () => {
     if (!bookingDetails?.refundStatus) return colors.placeholder;
-    
     switch (bookingDetails.refundStatus) {
       case 'completed': return '#4CAF50';
       case 'processing': return '#FF9800';
@@ -441,7 +385,6 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
 
   const getRefundStatusText = () => {
     if (!bookingDetails?.refundStatus) return 'Refund Status';
-    
     switch (bookingDetails.refundStatus) {
       case 'completed': return 'Refund Completed';
       case 'processing': return 'Refund Processing';
@@ -453,18 +396,12 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
 
   const getRefundStatusIcon = () => {
     if (!bookingDetails?.refundStatus) return <AlertCircle size={20} color={colors.placeholder} />;
-    
     switch (bookingDetails.refundStatus) {
-      case 'completed':
-        return <CheckCircle size={20} color="#4CAF50" />;
-      case 'processing':
-        return <Clock size={20} color="#FF9800" />;
-      case 'pending':
-        return <AlertCircle size={20} color="#2196F3" />;
-      case 'failed':
-        return <XCircle size={20} color="#F44336" />;
-      default:
-        return <AlertCircle size={20} color={colors.placeholder} />;
+      case 'completed': return <CheckCircle size={20} color="#4CAF50" />;
+      case 'processing': return <Clock size={20} color="#FF9800" />;
+      case 'pending': return <AlertCircle size={20} color="#2196F3" />;
+      case 'failed': return <XCircle size={20} color="#F44336" />;
+      default: return <AlertCircle size={20} color={colors.placeholder} />;
     }
   };
 
@@ -502,366 +439,347 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
           />
         }
       >
-        {bookingDetails.farmhousePhotos && bookingDetails.farmhousePhotos.length > 0 && (
-          <View style={styles.imageSection}>
-            <ScrollView 
-              horizontal 
-              pagingEnabled 
-              showsHorizontalScrollIndicator={false} 
-              onMomentumScrollEnd={(event) => {
-                const index = Math.floor(event.nativeEvent.contentOffset.x / width);
-                setCurrentImageIndex(index);
-              }}
-            >
-              {bookingDetails.farmhousePhotos.map((img, index) => (
-                <Image key={index} source={{ uri: img }} style={styles.image} />
-              ))}
-            </ScrollView>
+        {/* Farmhouse Images */}
+        <View style={styles.imageSection}>
+          <Image 
+            source={{ uri: bookingDetails.farmhousePhotos?.[currentImageIndex] || bookingDetails.farmhouseImage }} 
+            style={styles.image}
+            resizeMode="cover"
+          />
+          {bookingDetails.farmhousePhotos && bookingDetails.farmhousePhotos.length > 1 && (
             <View style={styles.imageCounter}>
               <Text style={styles.imageCounterText}>
                 {currentImageIndex + 1} / {bookingDetails.farmhousePhotos.length}
               </Text>
             </View>
-          </View>
-        )}
+          )}
+        </View>
 
+        {/* Status Banner */}
         <View style={[styles.statusBanner, { backgroundColor: getStatusColor() }]}>
           <View style={styles.statusContent}>
             {getStatusIcon()}
-            <Text style={styles.statusText}>{bookingDetails.status.toUpperCase()}</Text>
+            <Text style={styles.statusText}>
+              {bookingDetails.status.toUpperCase()}
+            </Text>
           </View>
         </View>
 
+        {/* Draft Timer */}
         {bookingDetails.status === 'draft' && timeRemaining !== null && (
-          <View style={[styles.timerBanner, { backgroundColor: isDark ? 'rgba(255,152,0,0.2)' : 'rgba(255,152,0,0.1)', borderColor: '#FF9800' }]}>
+          <View style={[styles.timerBanner, { backgroundColor: colors.cardBackground, borderColor: '#FF9800' }]}>
             <Clock size={20} color="#FF9800" />
             <Text style={[styles.timerText, { color: colors.text }]}>
-              Reservation expires in: <Text style={{ fontWeight: 'bold', color: '#FF9800' }}>{formatTime(timeRemaining)}</Text>
+              Complete booking in {formatTime(timeRemaining)}
             </Text>
           </View>
         )}
 
         <View style={styles.content}>
+          {/* Farmhouse Info */}
           <View style={[styles.section, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-            <Text style={[styles.farmhouseName, { color: colors.text }]}>{bookingDetails.farmhouseName}</Text>
+            <Text style={[styles.farmhouseName, { color: colors.text }]}>
+              {bookingDetails.farmhouseName}
+            </Text>
             <View style={styles.locationRow}>
               <MapPin size={16} color={colors.placeholder} />
-              <Text style={[styles.locationText, { color: colors.placeholder }]}>{bookingDetails.location}</Text>
+              <Text style={[styles.locationText, { color: colors.placeholder }]}>
+                {bookingDetails.location}
+              </Text>
             </View>
             
-            {(bookingDetails.capacity || bookingDetails.rooms) && (
+            {(bookingDetails.capacity > 0 || bookingDetails.rooms > 0) && (
               <View style={styles.quickInfo}>
-                {bookingDetails.capacity && (
-                  <View style={styles.quickInfoItem}>
-                    <Users size={16} color={colors.buttonBackground} />
-                    <Text style={[styles.quickInfoText, { color: colors.text }]}>
-                      Capacity: {bookingDetails.capacity}
-                    </Text>
-                  </View>
-                )}
-                {bookingDetails.rooms && (
+                {bookingDetails.rooms > 0 && (
                   <View style={styles.quickInfoItem}>
                     <Home size={16} color={colors.buttonBackground} />
                     <Text style={[styles.quickInfoText, { color: colors.text }]}>
-                      Rooms: {bookingDetails.rooms}
+                      {bookingDetails.rooms} Rooms
+                    </Text>
+                  </View>
+                )}
+                {bookingDetails.capacity > 0 && (
+                  <View style={styles.quickInfoItem}>
+                    <Users size={16} color={colors.buttonBackground} />
+                    <Text style={[styles.quickInfoText, { color: colors.text }]}>
+                      Up to {bookingDetails.capacity} guests
                     </Text>
                   </View>
                 )}
               </View>
             )}
-          </View>
 
-          {(bookingDetails.farmhouseContactPhone1 || bookingDetails.farmhouseContactPhone2) && (
-            <View style={[styles.section, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Contact Owner</Text>
+            {/* Contact Buttons */}
+            {(!!bookingDetails.farmhouseContactPhone1 || !!bookingDetails.farmhouseContactPhone2) && (
               <View style={styles.contactRow}>
-                {bookingDetails.farmhouseContactPhone1 && (
+                {!!bookingDetails.farmhouseContactPhone1 && (
                   <TouchableOpacity 
-                    style={[styles.contactButton, { backgroundColor: colors.buttonBackground }]} 
+                    style={[styles.contactButton, { backgroundColor: colors.buttonBackground }]}
                     onPress={() => handleCall(bookingDetails.farmhouseContactPhone1!)}
                   >
-                    <Phone size={18} color={colors.buttonText} />
+                    <Phone size={16} color={colors.buttonText} />
                     <Text style={[styles.contactButtonText, { color: colors.buttonText }]}>
-                      {bookingDetails.farmhouseContactPhone1}
+                      Call Owner
                     </Text>
                   </TouchableOpacity>
                 )}
-                {bookingDetails.farmhouseContactPhone2 && (
+                {!!bookingDetails.farmhouseContactPhone2 && (
                   <TouchableOpacity 
-                    style={[styles.contactButton, { backgroundColor: colors.buttonBackground }]} 
+                    style={[styles.contactButton, { backgroundColor: colors.buttonBackground }]}
                     onPress={() => handleCall(bookingDetails.farmhouseContactPhone2!)}
                   >
-                    <Phone size={18} color={colors.buttonText} />
+                    <Phone size={16} color={colors.buttonText} />
                     <Text style={[styles.contactButtonText, { color: colors.buttonText }]}>
-                      {bookingDetails.farmhouseContactPhone2}
+                      Call (Alt)
                     </Text>
                   </TouchableOpacity>
                 )}
               </View>
-            </View>
-          )}
+            )}
+          </View>
 
+          {/* Booking Information */}
           <View style={[styles.section, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Booking Information</Text>
             
             <View style={styles.infoRow}>
-              <Calendar size={18} color={colors.buttonBackground} />
+              <Calendar size={20} color={colors.buttonBackground} />
               <View style={styles.infoContent}>
                 <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Check-in</Text>
                 <Text style={[styles.infoValue, { color: colors.text }]}>
-                  {bookingDetails.startDate} at {bookingDetails.checkInTime}
+                  {new Date(bookingDetails.startDate).toLocaleDateString('en-IN', { 
+                    day: 'numeric', month: 'short', year: 'numeric' 
+                  })} at {bookingDetails.checkInTime}
                 </Text>
               </View>
             </View>
 
             <View style={styles.infoRow}>
-              <Calendar size={18} color={colors.buttonBackground} />
+              <Calendar size={20} color={colors.buttonBackground} />
               <View style={styles.infoContent}>
                 <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Check-out</Text>
                 <Text style={[styles.infoValue, { color: colors.text }]}>
-                  {bookingDetails.endDate} at {bookingDetails.checkOutTime}
+                  {new Date(bookingDetails.endDate).toLocaleDateString('en-IN', { 
+                    day: 'numeric', month: 'short', year: 'numeric' 
+                  })} at {bookingDetails.checkOutTime}
                 </Text>
               </View>
             </View>
 
             <View style={styles.infoRow}>
-              <Users size={18} color={colors.buttonBackground} />
+              <Users size={20} color={colors.buttonBackground} />
               <View style={styles.infoContent}>
                 <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Guests</Text>
                 <Text style={[styles.infoValue, { color: colors.text }]}>
-                  {bookingDetails.guestCount} guests • {bookingDetails.numberOfNights} {bookingDetails.numberOfNights === 1 ? 'night' : 'nights'}
+                  {bookingDetails.guestCount} {bookingDetails.guestCount === 1 ? 'Guest' : 'Guests'}
                 </Text>
               </View>
             </View>
 
-            {bookingDetails.status !== 'draft' && (
-              <View style={styles.infoRow}>
-                <Clock size={18} color={colors.buttonBackground} />
-                <View style={styles.infoContent}>
-                  <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Booked on</Text>
-                  <Text style={[styles.infoValue, { color: colors.text }]}>{bookingDetails.bookingDate}</Text>
+            <View style={styles.infoRow}>
+              <Clock size={20} color={colors.buttonBackground} />
+              <View style={styles.infoContent}>
+                <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Duration</Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {bookingDetails.bookingType === 'day-use' 
+                    ? 'Day Use' 
+                    : `${bookingDetails.numberOfNights} ${bookingDetails.numberOfNights === 1 ? 'Night' : 'Nights'}`}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.infoRow}>
+              <Calendar size={20} color={colors.buttonBackground} />
+              <View style={styles.infoContent}>
+                <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Booked On</Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {bookingDetails.bookingDate}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Payment Details */}
+          <View style={[styles.section, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Payment Details</Text>
+            
+            {bookingDetails.base_price != null && (
+              <View style={styles.paymentRow}>
+                <Text style={[styles.paymentLabel, { color: colors.placeholder }]}>Base Price</Text>
+                <Text style={[styles.paymentValue, { color: colors.text }]}>₹{bookingDetails.base_price}</Text>
+              </View>
+            )}
+
+            {bookingDetails.discount_amount && bookingDetails.discount_amount > 0 && (
+              <>
+                <View style={styles.paymentRow}>
+                  <Text style={[styles.paymentLabel, { color: '#10B981' }]}>
+                    Discount {bookingDetails.coupon_code ? `(${bookingDetails.coupon_code})` : ''}
+                  </Text>
+                  <Text style={[styles.paymentValue, { color: '#10B981' }]}>
+                    -₹{bookingDetails.discount_amount}
+                  </Text>
                 </View>
+              </>
+            )}
+
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+            <View style={styles.paymentRow}>
+              <Text style={[styles.paymentLabel, { color: colors.text, fontWeight: 'bold', fontSize: 16 }]}>
+                Amount Paid
+              </Text>
+              <Text style={[styles.paymentValue, { color: colors.buttonBackground, fontWeight: 'bold', fontSize: 18 }]}>
+                ₹{bookingDetails.totalAmount}
+              </Text>
+            </View>
+
+            {bookingDetails.status === 'confirmed' && (
+              <View style={[styles.noticeBox, { backgroundColor: isDark ? 'rgba(76,175,80,0.15)' : 'rgba(76,175,80,0.1)', borderColor: '#4CAF50' }]}>
+                <Text style={[styles.noticeText, { color: colors.text }]}>
+                  Payment confirmed. Your booking is secured!
+                </Text>
               </View>
             )}
           </View>
 
-          {bookingDetails.status !== 'draft' && (
-            <View style={[styles.section, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Payment Details</Text>
-              
-              {bookingDetails.base_price && (
-                <View style={styles.paymentRow}>
-                  <Text style={[styles.paymentLabel, { color: colors.placeholder }]}>Base Price</Text>
-                  <Text style={[styles.paymentValue, { color: colors.text }]}>₹{bookingDetails.base_price}</Text>
-                </View>
-              )}
-
-              {bookingDetails.extra_guest_charge && bookingDetails.extra_guest_charge > 0 && (
-                <View style={styles.paymentRow}>
-                  <Text style={[styles.paymentLabel, { color: colors.placeholder }]}>Extra Guest Charge</Text>
-                  <Text style={[styles.paymentValue, { color: colors.text }]}>₹{bookingDetails.extra_guest_charge}</Text>
-                </View>
-              )}
-
-              {bookingDetails.discount_amount && bookingDetails.discount_amount > 0 && (
-                <View style={styles.paymentRow}>
-                  <Text style={[styles.paymentLabel, { color: colors.placeholder }]}>
-                    Discount {bookingDetails.coupon_code ? `(${bookingDetails.coupon_code})` : ''}
-                  </Text>
-                  <Text style={[styles.paymentValue, { color: '#10B981' }]}>-₹{bookingDetails.discount_amount}</Text>
-                </View>
-              )}
-
-              <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-              <View style={styles.paymentRow}>
-                <Text style={[styles.paymentLabel, { color: colors.placeholder }]}>Total Amount</Text>
-                <Text style={[styles.paymentValue, { color: colors.text, fontWeight: 'bold' }]}>₹{bookingDetails.totalAmount}</Text>
-              </View>
-
-              <View style={styles.paymentRow}>
-                <Text style={[styles.paymentLabel, { color: colors.placeholder }]}>Amount Paid</Text>
-                <Text style={[styles.paymentValue, { color: '#4CAF50', fontWeight: 'bold' }]}>₹{bookingDetails.paidAmount}</Text>
-              </View>
-
-              <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
-              {bookingDetails.paymentMethod && (
-                <View style={styles.infoRow}>
-                  <View style={styles.paymentMethodIcon}>
-                    <Text style={styles.paymentIconText}>{getPaymentMethodIcon()}</Text>
-                  </View>
-                  <View style={styles.infoContent}>
-                    <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Payment Method</Text>
-                    <Text style={[styles.infoValue, { color: colors.text }]}>{getPaymentMethodDetails()}</Text>
-                  </View>
-                </View>
-              )}
-
-              {bookingDetails.transactionId && (
-                <View style={[styles.transactionBox, { backgroundColor: isDark ? 'rgba(2,68,77,0.1)' : 'rgba(2,68,77,0.05)' }]}>
-                  <Text style={[styles.transactionLabel, { color: colors.placeholder }]}>Transaction ID</Text>
-                  <Text style={[styles.transactionId, { color: colors.text }]}>{bookingDetails.transactionId}</Text>
-                </View>
-              )}
-
-              {bookingDetails.status === 'confirmed' && (
-                <View style={[styles.noticeBox, { backgroundColor: isDark ? 'rgba(33,150,243,0.15)' : 'rgba(33,150,243,0.1)', borderColor: '#2196F3' }]}>
-                  <Text style={[styles.noticeText, { color: colors.text }]}>
-                    💡 Full payment completed. No remaining balance.
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-
-          {(bookingDetails.farmhouseCoordinates || bookingDetails.farmhouseMapLink) && (
-            <View style={[styles.section, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Location</Text>
-              <TouchableOpacity 
-                onPress={openGoogleMaps} 
-                activeOpacity={0.8}
-                style={[styles.mapContainer, { borderColor: colors.border }]}
-              >
-                {bookingDetails.farmhouseCoordinates ? (
-                  <View style={styles.mapWrapper}>
-                    <MapView 
-                      style={styles.map} 
-                      initialRegion={{ 
-                        latitude: bookingDetails.farmhouseCoordinates.latitude, 
-                        longitude: bookingDetails.farmhouseCoordinates.longitude, 
-                        latitudeDelta: 0.01, 
-                        longitudeDelta: 0.01 
-                      }} 
-                      scrollEnabled={false} 
-                      zoomEnabled={false}
-                      pointerEvents="none"
-                    >
-                      <Marker 
-                        coordinate={bookingDetails.farmhouseCoordinates} 
-                        title={bookingDetails.farmhouseName} 
-                      />
-                    </MapView>
-                    <View style={[styles.mapOverlay, { backgroundColor: 'rgba(255,255,255,0.95)' }]}>
-                      <Navigation size={20} color={colors.buttonBackground} />
-                      <Text style={[styles.mapOverlayText, { color: colors.buttonBackground }]}>
-                        Open in Google Maps
-                      </Text>
-                    </View>
-                  </View>
-                ) : (
-                  <View style={[styles.mapPlaceholder, { backgroundColor: colors.cardBackground }]}>
-                    <MapPin size={32} color={colors.buttonBackground} />
-                    <Text style={[styles.mapPlaceholderText, { color: colors.text }]}>
-                      {bookingDetails.location}
+          {/* Map Section */}
+          {(!!bookingDetails.farmhouseCoordinates || !!bookingDetails.farmhouseMapLink) && (
+            <View style={[styles.section, styles.mapContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+              {bookingDetails.farmhouseCoordinates ? (
+                <View style={styles.mapWrapper}>
+                  <MapView
+                    style={styles.map}
+                    initialRegion={{
+                      latitude: bookingDetails.farmhouseCoordinates.latitude,
+                      longitude: bookingDetails.farmhouseCoordinates.longitude,
+                      latitudeDelta: 0.01,
+                      longitudeDelta: 0.01,
+                    }}
+                    scrollEnabled={false}
+                    zoomEnabled={false}
+                  >
+                    <Marker
+                      coordinate={{
+                        latitude: bookingDetails.farmhouseCoordinates.latitude,
+                        longitude: bookingDetails.farmhouseCoordinates.longitude,
+                      }}
+                      title={bookingDetails.farmhouseName}
+                    />
+                  </MapView>
+                  <TouchableOpacity 
+                    style={[styles.mapOverlay, { backgroundColor: colors.buttonBackground }]}
+                    onPress={openGoogleMaps}
+                  >
+                    <Navigation size={18} color={colors.buttonText} />
+                    <Text style={[styles.mapOverlayText, { color: colors.buttonText }]}>
+                      Open in Maps
                     </Text>
-                    <View style={styles.mapPlaceholderButton}>
-                      <Navigation size={16} color={colors.buttonBackground} />
-                      <Text style={[styles.mapPlaceholderButtonText, { color: colors.buttonBackground }]}>
-                        Open in Google Maps
-                      </Text>
-                    </View>
-                  </View>
-                )}
-              </TouchableOpacity>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={[styles.mapPlaceholder, { backgroundColor: colors.background }]}>
+                  <MapPin size={40} color={colors.placeholder} />
+                  <Text style={[styles.mapPlaceholderText, { color: colors.text }]}>
+                    {bookingDetails.farmhouseName}
+                  </Text>
+                  <TouchableOpacity 
+                    style={styles.mapPlaceholderButton}
+                    onPress={openGoogleMaps}
+                  >
+                    <Navigation size={16} color={colors.buttonBackground} />
+                    <Text style={[styles.mapPlaceholderButtonText, { color: colors.buttonBackground }]}>
+                      View on Map
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           )}
 
-          {bookingDetails.farmhouseDescription && (
+          {/* Description */}
+          {!!bookingDetails.farmhouseDescription && (
             <View style={[styles.section, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>About</Text>
-              <Text style={[styles.description, { color: colors.placeholder }]}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>About this Farmhouse</Text>
+              <Text style={[styles.description, { color: colors.text }]}>
                 {bookingDetails.farmhouseDescription}
               </Text>
             </View>
           )}
 
-          {bookingDetails.farmhouseRules && (
+          {/* Rules */}
+          {!!bookingDetails.farmhouseRules && (
             <View style={[styles.section, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>House Rules</Text>
-              {!bookingDetails.farmhouseRules.unmarriedCouples && (
-                <Text style={[styles.ruleText, { color: colors.placeholder }]}>
-                  • Unmarriedcouples not allowed
-                </Text>
-              )}
               {bookingDetails.farmhouseRules.unmarriedCouples && (
-                <Text style={[styles.ruleText, { color: colors.placeholder }]}>
-                  • Unmarried couples are welcome
+                <Text style={[styles.ruleText, { color: colors.text }]}>
+                  ✓ Unmarried couples allowed
                 </Text>
               )}
-              {bookingDetails.farmhouseRules.pets ? (
-                <Text style={[styles.ruleText, { color: colors.placeholder }]}>• Pets allowed</Text>
-              ) : (
-                <Text style={[styles.ruleText, { color: colors.placeholder }]}>• No pets allowed</Text>
+              {!bookingDetails.farmhouseRules.unmarriedCouples && (
+                <Text style={[styles.ruleText, { color: colors.text }]}>
+                  ✗ Unmarried couples not allowed
+                </Text>
+              )}
+              {bookingDetails.farmhouseRules.pets && (
+                <Text style={[styles.ruleText, { color: colors.text }]}>
+                  ✓ Pets allowed
+                </Text>
+              )}
+              {!bookingDetails.farmhouseRules.pets && (
+                <Text style={[styles.ruleText, { color: colors.text }]}>
+                  ✗ Pets not allowed
+                </Text>
               )}
               {bookingDetails.farmhouseRules.quietHours && (
-                <Text style={[styles.ruleText, { color: colors.placeholder }]}>
-                  • Quiet hours: {typeof bookingDetails.farmhouseRules.quietHours === 'string' 
-                    ? bookingDetails.farmhouseRules.quietHours 
-                    : 'enforced'}
+                <Text style={[styles.ruleText, { color: colors.text }]}>
+                  ✓ Quiet hours: 10 PM - 8 AM
                 </Text>
               )}
             </View>
           )}
 
-          {bookingDetails.status === 'cancelled' && (
-            <View style={[styles.section, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Cancellation Details</Text>
+          {/* Refund Information */}
+          {bookingDetails.status === 'cancelled' && bookingDetails.refundAmount != null && (
+            <View style={[styles.refundBox, { backgroundColor: colors.cardBackground, borderColor: getRefundStatusColor() }]}>
+              <View style={styles.refundHeader}>
+                {getRefundStatusIcon()}
+                <Text style={[styles.refundTitle, { color: colors.text }]}>
+                  {getRefundStatusText()}
+                </Text>
+              </View>
               
-              {bookingDetails.cancellationDate && (
-                <View style={styles.infoRow}>
-                  <XCircle size={18} color="#F44336" />
-                  <View style={styles.infoContent}>
-                    <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Cancelled On</Text>
-                    <Text style={[styles.infoValue, { color: colors.text }]}>{bookingDetails.cancellationDate}</Text>
-                  </View>
+              <View style={styles.refundRow}>
+                <Text style={[styles.refundLabel, { color: colors.placeholder }]}>Refund Amount</Text>
+                <Text style={[styles.refundAmount, { color: getRefundStatusColor() }]}>
+                  ₹{bookingDetails.refundAmount}
+                </Text>
+              </View>
+
+              {!!bookingDetails.cancellationDate && (
+                <View style={styles.refundRow}>
+                  <Text style={[styles.refundLabel, { color: colors.placeholder }]}>Cancelled On</Text>
+                  <Text style={[styles.refundLabel, { color: colors.text }]}>
+                    {new Date(bookingDetails.cancellationDate).toLocaleDateString('en-IN')}
+                  </Text>
                 </View>
               )}
 
-              {bookingDetails.refundAmount && (
-                <View style={[styles.refundBox, { 
-                  backgroundColor: bookingDetails.refundStatus === 'completed' 
-                    ? (isDark ? 'rgba(76,175,80,0.15)' : 'rgba(76,175,80,0.1)')
-                    : (isDark ? 'rgba(255,152,0,0.15)' : 'rgba(255,152,0,0.1)'),
-                  borderColor: getRefundStatusColor()
-                }]}>
-                  <View style={styles.refundHeader}>
-                    {getRefundStatusIcon()}
-                    <Text style={[styles.refundTitle, { color: colors.text }]}>{getRefundStatusText()}</Text>
-                  </View>
-                  <View style={styles.refundRow}>
-                    <Text style={[styles.refundLabel, { color: colors.placeholder }]}>Refund Amount (80%)</Text>
-                    <Text style={[styles.refundAmount, { color: getRefundStatusColor() }]}>₹{bookingDetails.refundAmount}</Text>
-                  </View>
-                  
-                  {bookingDetails.refundStatus === 'processing' && (
-                    <Text style={[styles.refundNote, { color: colors.placeholder }]}>
-                      Your refund is being processed. It will be credited to your original payment method within 5-7 business days.
-                    </Text>
-                  )}
-                  
-                  {bookingDetails.refundStatus === 'completed' && bookingDetails.refundDate && (
-                    <Text style={[styles.refundNote, { color: colors.placeholder }]}>
-                      Refunded on {bookingDetails.refundDate}
-                    </Text>
-                  )}
-
-                  {bookingDetails.refundStatus === 'pending' && (
-                    <Text style={[styles.refundNote, { color: colors.placeholder }]}>
-                      Refund initiated. Processing will begin shortly.
-                    </Text>
-                  )}
-
-                  {bookingDetails.refundStatus === 'failed' && (
-                    <Text style={[styles.refundNote, { color: '#F44336' }]}>
-                      Refund failed. Please contact support for assistance.
-                    </Text>
-                  )}
-                </View>
+              {bookingDetails.refundStatus === 'processing' && (
+                <Text style={[styles.refundNote, { color: colors.placeholder }]}>
+                  Your refund is being processed and will be credited to your original payment method within 5-7 business days.
+                </Text>
+              )}
+              
+              {bookingDetails.refundStatus === 'completed' && !!bookingDetails.refundDate && (
+                <Text style={[styles.refundNote, { color: '#4CAF50' }]}>
+                  Refund completed on {new Date(bookingDetails.refundDate).toLocaleDateString('en-IN')}
+                </Text>
               )}
             </View>
           )}
 
+          {/* Action Buttons */}
           <View style={styles.actionSection}>
             {bookingDetails.status === 'draft' && (
               <TouchableOpacity
@@ -876,9 +794,7 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
 
             {bookingDetails.status === 'confirmed' && bookingDetails.category === 'future' && (
               <TouchableOpacity
-                style={[styles.cancelButton, { 
-                  backgroundColor: cancelling ? '#CCCCCC' : '#F44336' 
-                }]}
+                style={[styles.cancelButton, { backgroundColor: '#F44336' }]}
                 onPress={handleCancelBooking}
                 disabled={cancelling}
               >
@@ -890,18 +806,14 @@ export default function BookingDetailsScreen({ route, navigation }: Props) {
               </TouchableOpacity>
             )}
 
-            {(bookingDetails.status === 'confirmed' || bookingDetails.status === 'completed') && (
-              <TouchableOpacity
-                style={[styles.secondaryButton, { borderColor: colors.border }]}
-                onPress={() => {
-                  Alert.alert('Contact Support', 'Support feature coming soon!');
-                }}
-              >
-                <Text style={[styles.secondaryButtonText, { color: colors.text }]}>
-                  Contact Support
-                </Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={[styles.secondaryButton, { borderColor: colors.buttonBackground }]}
+              onPress={() => navigation.goBack()}
+            >
+              <Text style={[styles.secondaryButtonText, { color: colors.buttonBackground }]}>
+                Go Back
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
@@ -927,10 +839,10 @@ const styles = StyleSheet.create({
   farmhouseName: { fontSize: 20, fontWeight: 'bold', marginBottom: 8 },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
   locationText: { fontSize: 14 },
-  quickInfo: { flexDirection: 'row', gap: 16, marginTop: 8 },
+  quickInfo: { flexDirection: 'row', gap: 16, marginTop: 8, marginBottom: 12 },
   quickInfoItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   quickInfoText: { fontSize: 14, fontWeight: '500' },
-  contactRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap' },
+  contactRow: { flexDirection: 'row', gap: 10, flexWrap: 'wrap', marginTop: 12 },
   contactButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8 },
   contactButtonText: { fontSize: 14, fontWeight: '600' },
   sectionTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 16 },
@@ -943,13 +855,12 @@ const styles = StyleSheet.create({
   paymentValue: { fontSize: 16, fontWeight: '600' },
   divider: { height: 1, marginVertical: 12 },
   paymentMethodIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(2,68,77,0.1)', alignItems: 'center', justifyContent: 'center' },
-  paymentIconText: { fontSize: 20 },
   transactionBox: { padding: 12, borderRadius: 8, marginTop: 12 },
   transactionLabel: { fontSize: 12, marginBottom: 4 },
   transactionId: { fontSize: 14, fontWeight: '600' },
   noticeBox: { padding: 12, borderRadius: 8, marginTop: 12, borderWidth: 1 },
   noticeText: { fontSize: 13, lineHeight: 18 },
-  mapContainer: { borderRadius: 12, overflow: 'hidden', borderWidth: 1 },
+  mapContainer: { borderRadius: 12, overflow: 'hidden', borderWidth: 1, padding: 0 },
   mapWrapper: { position: 'relative' },
   map: { width: '100%', height: 200 },
   mapOverlay: { position: 'absolute', bottom: 16, left: '50%', transform: [{ translateX: -90 }], flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 25, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 },
@@ -960,14 +871,14 @@ const styles = StyleSheet.create({
   mapPlaceholderButtonText: { fontSize: 14, fontWeight: '600' },
   description: { fontSize: 15, lineHeight: 22 },
   ruleText: { fontSize: 14, marginBottom: 8, lineHeight: 20 },
-  refundBox: { padding: 16, borderRadius: 10, borderWidth: 2, marginTop: 12 },
+  refundBox: { padding: 16, borderRadius: 10, borderWidth: 2, marginTop: 12, marginBottom: 16 },
   refundHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   refundTitle: { fontSize: 16, fontWeight: 'bold' },
   refundRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
   refundLabel: { fontSize: 14 },
   refundAmount: { fontSize: 18, fontWeight: 'bold' },
   refundNote: { fontSize: 12, marginTop: 8, lineHeight: 18 },
-  actionSection: { marginTop: 8, gap: 12 },
+  actionSection: { marginTop: 8, gap: 12, marginBottom: 20 },
   primaryButton: { paddingVertical: 16, borderRadius: 10, alignItems: 'center' },
   primaryButtonText: { fontSize: 16, fontWeight: '600' },
   cancelButton: { paddingVertical: 16, borderRadius: 10, alignItems: 'center' },

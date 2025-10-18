@@ -11,6 +11,8 @@ import WelcomeScreen from './screens/WelcomeScreen';
 import LoginScreen from './screens/LoginScreen';
 import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
 import { Home, Calendar, Heart, User } from 'lucide-react-native';
+import { GlobalDataProvider } from './GlobalDataContext';
+
 
 // Farm Registration Screens
 import RoleChoiceScreen from './screens/FarmRegistration/RoleChoiceScreen';
@@ -281,6 +283,7 @@ function AppNavigator() {
 export default function App() {
   return (
     <AuthProvider>
+      <GlobalDataProvider> 
       <ThemeProvider>
         <WishlistProvider>
           <FarmRegistrationProvider>
@@ -290,6 +293,7 @@ export default function App() {
           </FarmRegistrationProvider>
         </WishlistProvider>
       </ThemeProvider>
+      </GlobalDataProvider> 
     </AuthProvider>
   );
 }

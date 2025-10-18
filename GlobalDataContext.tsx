@@ -4,45 +4,13 @@ import {
   query, 
   where, 
   orderBy, 
-  onSnapshot,
-  DocumentData,
-  Unsubscribe,
-  limit
+  onSnapshot
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import { useAuth } from './authContext';
+import { Farmhouse } from './types/navigation';
 
 // ==================== TYPES ====================
-export interface Farmhouse {
-  id: string;
-  name: string;
-  location: string;
-  city: string;
-  area: string;
-  description: string;
-  photos: string[];
-  capacity: number;
-  bedrooms: number;
-  weeklyDay: number;
-  weeklyNight: number;
-  weekendDay: number;
-  weekendNight: number;
-  rating: number;
-  reviews: number;
-  status: 'pending' | 'approved' | 'rejected';
-  ownerId: string;
-  amenities: any;
-  rules: any;
-  coordinates?: { latitude: number; longitude: number };
-  mapLink?: string;
-  contactPhone1?: string;
-  contactPhone2?: string;
-  customPricing?: Array<{ label: string; price: number }>;
-  blockedDates?: string[];
-  bookedDates?: string[];
-  createdAt: string;
-  updatedAt?: string;
-}
 
 export interface Booking {
   id: string;
@@ -95,20 +63,13 @@ export interface Coupon {
 }
 
 interface DataState {
-  // Customer data
   myBookings: Booking[];
   availableFarmhouses: Farmhouse[];
   wishlistFarmhouses: Farmhouse[];
-  
-  // Owner data
   myFarmhouses: Farmhouse[];
   allBookingsForMyFarmhouses: Booking[];
-  
-  // Shared data
   reviews: Review[];
   coupons: Coupon[];
-  
-  // Loading states
   myBookingsLoading: boolean;
   availableFarmhousesLoading: boolean;
   myFarmhousesLoading: boolean;
@@ -116,8 +77,6 @@ interface DataState {
   reviewsLoading: boolean;
   couponsLoading: boolean;
   wishlistLoading: boolean;
-  
-  // Refreshing states
   myBookingsRefreshing: boolean;
   availableFarmhousesRefreshing: boolean;
   myFarmhousesRefreshing: boolean;
@@ -125,8 +84,6 @@ interface DataState {
   reviewsRefreshing: boolean;
   couponsRefreshing: boolean;
   wishlistRefreshing: boolean;
-  
-  // Error states
   myBookingsError: string | null;
   availableFarmhousesError: string | null;
   myFarmhousesError: string | null;
@@ -137,7 +94,6 @@ interface DataState {
 }
 
 interface GlobalDataContextType extends DataState {
-  // Refresh functions
   refreshMyBookings: () => Promise<void>;
   refreshAvailableFarmhouses: () => Promise<void>;
   refreshMyFarmhouses: () => Promise<void>;
@@ -146,8 +102,6 @@ interface GlobalDataContextType extends DataState {
   refreshCoupons: () => Promise<void>;
   refreshWishlist: () => Promise<void>;
   refreshAll: () => Promise<void>;
-  
-  // Helper functions
   getFarmhouseById: (id: string) => Farmhouse | undefined;
   getBookingById: (id: string) => Booking | undefined;
   getFarmhouseBookings: (farmhouseId: string) => Booking[];
@@ -161,7 +115,190 @@ interface GlobalDataContextType extends DataState {
 
 const GlobalDataContext = createContext<GlobalDataContextType | undefined>(undefined);
 
+// ==================== HELPER FUNCTIONS ====================
+
+const createDefaultFarmhouse = (id: string): Farmhouse => {
+  return {
+    id,
+    name: 'Unknown Farmhouse',
+    location: '',
+    city: '',
+    area: '',
+    mapLink: '',
+    bedrooms: 0,
+    capacity: 0,
+    description: '',
+    weeklyDay: 0,
+    weeklyNight: 0,
+    occasionalDay: 0,
+    occasionalNight: 0,
+    weekendDay: 0,
+    weekendNight: 0,
+    customPricing: [],
+    extraGuestPrice: 0,
+    photos: [],
+    amenities: {
+      tv: 0,
+      geyser: 0,
+      bonfire: 0,
+      chess: 0,
+      carroms: 0,
+      volleyball: 0,
+      pool: false,
+    },
+    rules: {
+      unmarriedCouples: false,
+      pets: false,
+      quietHours: false,
+    },
+    ownerId: '',
+    status: 'pending',
+    rating: 0,
+    reviews: 0,
+    bookedDates: [],
+    blockedDates: [],
+    createdAt: new Date().toISOString(),
+    sourceType: 'old',
+  };
+};
+
+const transformFarmhouseData = (doc: any): Farmhouse => {
+  const data = doc.data();
+  
+  // Safety checks for undefined values
+  if (!data) {
+    console.warn(`Farmhouse document ${doc.id} has no data`);
+    return createDefaultFarmhouse(doc.id);
+  }
+  
+  // Check if this is the new structure (has basicDetails)
+  if (data.basicDetails) {
+    return {
+      id: doc.id,
+      name: data.basicDetails?.name || '',
+      location: data.basicDetails?.locationText || data.basicDetails?.area || '',
+      city: data.basicDetails?.city || '',
+      area: data.basicDetails?.area || '',
+      mapLink: data.basicDetails?.mapLink || '',
+      bedrooms: parseInt(data.basicDetails?.bedrooms) || 0,
+      capacity: parseInt(data.basicDetails?.capacity) || 0,
+      description: data.basicDetails?.description || '',
+      
+      // Pricing from new structure - with safety checks
+      weeklyDay: parseInt(data.pricing?.weeklyDay) || 0,
+      weeklyNight: parseInt(data.pricing?.weeklyNight) || 0,
+      occasionalDay: parseInt(data.pricing?.occasionalDay) || 0,
+      occasionalNight: parseInt(data.pricing?.occasionalNight) || 0,
+      weekendDay: parseInt(data.pricing?.weekendDay) || 0,
+      weekendNight: parseInt(data.pricing?.weekendNight) || 0,
+      
+      customPricing: Array.isArray(data.pricing?.customPricing) 
+        ? data.pricing.customPricing.map((cp: any) => ({
+            label: cp?.name || '',
+            price: parseInt(cp?.price) || 0
+          }))
+        : [],
+      
+      extraGuestPrice: 0,
+      
+      photos: Array.isArray(data.photoUrls) ? data.photoUrls : [],
+      
+      amenities: {
+        tv: data.amenities?.tv || 0,
+        geyser: data.amenities?.geyser || 0,
+        bonfire: data.amenities?.bonfire || 0,
+        chess: data.amenities?.chess || 0,
+        carroms: data.amenities?.carroms || 0,
+        volleyball: data.amenities?.volleyball || 0,
+        pool: data.amenities?.pool || false,
+      },
+      
+      rules: {
+        unmarriedCouples: !data.rules?.unmarriedNotAllowed,
+        pets: !data.rules?.petsNotAllowed,
+        quietHours: data.rules?.quietHours || false,
+      },
+      
+      ownerId: data.ownerId || '',
+      status: data.status || 'pending',
+      rating: 0,
+      reviews: 0,
+      bookedDates: Array.isArray(data.bookedDates) ? data.bookedDates : [],
+      blockedDates: Array.isArray(data.blockedDates) ? data.blockedDates : [],
+      
+      coordinates: data.coordinates || undefined,
+      createdAt: data.createdAt,
+      approvedAt: data.approvedAt,
+      
+      contactPhone1: data.basicDetails?.contactPhone1,
+      contactPhone2: data.basicDetails?.contactPhone2,
+      
+      basicDetails: data.basicDetails,
+      sourceType: 'new',
+    };
+  } 
+  
+  // Old structure (flat fields)
+  return {
+    id: doc.id,
+    name: data.name || '',
+    location: data.location || '',
+    city: data.city || '',
+    area: data.area || '',
+    mapLink: data.mapLink || '',
+    bedrooms: data.bedrooms || 0,
+    capacity: data.capacity || 0,
+    description: data.description || '',
+    
+    // Pricing from old structure
+    weeklyDay: data.price || 0,
+    weeklyNight: data.price || 0,
+    occasionalDay: data.price || 0,
+    occasionalNight: data.weekendPrice || 0,
+    weekendDay: data.price || 0,
+    weekendNight: data.weekendPrice || 0,
+    
+    customPricing: [],
+    extraGuestPrice: 0,
+    
+    photos: Array.isArray(data.photos) ? data.photos : [],
+    
+    amenities: data.amenities || {
+      tv: 0,
+      geyser: 0,
+      bonfire: 0,
+      chess: 0,
+      carroms: 0,
+      volleyball: 0,
+      pool: false,
+    },
+    
+    rules: data.rules || {
+      unmarriedCouples: false,
+      pets: false,
+      quietHours: false,
+    },
+    
+    ownerId: data.ownerId || '',
+    status: data.status || 'pending',
+    rating: data.rating || 0,
+    reviews: data.reviews || 0,
+    bookedDates: Array.isArray(data.bookedDates) ? data.bookedDates : [],
+    blockedDates: Array.isArray(data.blockedDates) ? data.blockedDates : [],
+    
+    coordinates: data.coordinates,
+    createdAt: data.createdAt,
+    approvedAt: data.approvedAt,
+    
+    contactPhone1: data.contactPhone1,
+    contactPhone2: data.contactPhone2,
+    
+    sourceType: 'old',
+  };
+};
+
 // ==================== PROVIDER ====================
+
 export function GlobalDataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   
@@ -206,9 +343,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     wishlist: 0,
   });
 
-  // ==================== LISTENERS ====================
-  
-  // My Bookings (Customer)
+  // ==================== MY BOOKINGS ====================
   useEffect(() => {
     if (!user?.uid) {
       setState(prev => ({ ...prev, myBookings: [], myBookingsLoading: false }));
@@ -253,31 +388,48 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, [user?.uid, refreshTriggers.myBookings]);
 
-  // Available Farmhouses (All Customers)
+  // ==================== AVAILABLE FARMHOUSES ====================
   useEffect(() => {
-    setState(prev => ({ ...prev, availableFarmhousesLoading: true, availableFarmhousesError: null }));
+    setState(prev => ({
+      ...prev,
+      availableFarmhousesLoading: true,
+      availableFarmhousesError: null
+    }));
 
     const q = query(
       collection(db, 'farmhouses'),
-      where('status', '==', 'approved'),
-      orderBy('createdAt', 'desc')
+      where('status', '==', 'approved')
     );
 
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const farmhouses = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Farmhouse[];
+        try {
+          let farmhouses = snapshot.docs.map(doc => transformFarmhouseData(doc));
 
-        setState(prev => ({
-          ...prev,
-          availableFarmhouses: farmhouses,
-          availableFarmhousesLoading: false,
-          availableFarmhousesRefreshing: false,
-          availableFarmhousesError: null,
-        }));
+          // Sort client-side by createdAt descending
+          farmhouses.sort((a, b) => {
+            const dateA = new Date(a.createdAt || 0).getTime();
+            const dateB = new Date(b.createdAt || 0).getTime();
+            return dateB - dateA;
+          });
+
+          setState(prev => ({
+            ...prev,
+            availableFarmhouses: farmhouses,
+            availableFarmhousesLoading: false,
+            availableFarmhousesRefreshing: false,
+            availableFarmhousesError: null,
+          }));
+        } catch (error: any) {
+          console.error('Error transforming farmhouses:', error);
+          setState(prev => ({
+            ...prev,
+            availableFarmhousesLoading: false,
+            availableFarmhousesRefreshing: false,
+            availableFarmhousesError: error.message,
+          }));
+        }
       },
       (error) => {
         console.error('Error fetching availableFarmhouses:', error);
@@ -293,7 +445,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, [refreshTriggers.availableFarmhouses]);
 
-  // My Farmhouses (Owner)
+  // ==================== MY FARMHOUSES (OWNER) ====================
   useEffect(() => {
     if (!user?.uid || user.role !== 'owner') {
       setState(prev => ({ ...prev, myFarmhouses: [], myFarmhousesLoading: false }));
@@ -311,18 +463,25 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const farmhouses = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Farmhouse[];
+        try {
+          const farmhouses = snapshot.docs.map(doc => transformFarmhouseData(doc));
 
-        setState(prev => ({
-          ...prev,
-          myFarmhouses: farmhouses,
-          myFarmhousesLoading: false,
-          myFarmhousesRefreshing: false,
-          myFarmhousesError: null,
-        }));
+          setState(prev => ({
+            ...prev,
+            myFarmhouses: farmhouses,
+            myFarmhousesLoading: false,
+            myFarmhousesRefreshing: false,
+            myFarmhousesError: null,
+          }));
+        } catch (error: any) {
+          console.error('Error transforming myFarmhouses:', error);
+          setState(prev => ({
+            ...prev,
+            myFarmhousesLoading: false,
+            myFarmhousesRefreshing: false,
+            myFarmhousesError: error.message,
+          }));
+        }
       },
       (error) => {
         console.error('Error fetching myFarmhouses:', error);
@@ -338,61 +497,13 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, [user?.uid, user?.role, refreshTriggers.myFarmhouses]);
 
-  // All Bookings for My Farmhouses (Owner)
-  useEffect(() => {
-    if (!user?.uid || user.role !== 'owner' || state.myFarmhouses.length === 0) {
-      setState(prev => ({ ...prev, allBookingsForMyFarmhouses: [], allBookingsLoading: false }));
-      return;
-    }
-
-    setState(prev => ({ ...prev, allBookingsLoading: true, allBookingsError: null }));
-
-    const farmhouseIds = state.myFarmhouses.map(f => f.id);
-    
-    const q = query(
-      collection(db, 'bookings'),
-      where('farmhouseId', 'in', farmhouseIds.slice(0, 10)), // Firestore 'in' limit is 10
-      orderBy('createdAt', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const bookings = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Booking[];
-
-        setState(prev => ({
-          ...prev,
-          allBookingsForMyFarmhouses: bookings,
-          allBookingsLoading: false,
-          allBookingsRefreshing: false,
-          allBookingsError: null,
-        }));
-      },
-      (error) => {
-        console.error('Error fetching allBookings:', error);
-        setState(prev => ({
-          ...prev,
-          allBookingsLoading: false,
-          allBookingsRefreshing: false,
-          allBookingsError: error.message,
-        }));
-      }
-    );
-
-    return () => unsubscribe();
-  }, [user?.uid, user?.role, state.myFarmhouses.length, refreshTriggers.allBookings]);
-
-  // Active Coupons
+  // ==================== COUPONS ====================
   useEffect(() => {
     setState(prev => ({ ...prev, couponsLoading: true, couponsError: null }));
 
     const q = query(
       collection(db, 'coupons'),
-      where('is_active', '==', true),
-      orderBy('valid_until', 'desc')
+      where('is_active', '==', true)
     );
 
     const unsubscribe = onSnapshot(
@@ -426,7 +537,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
   }, [refreshTriggers.coupons]);
 
   // ==================== REFRESH FUNCTIONS ====================
-  
+
   const refreshMyBookings = useCallback(async () => {
     setState(prev => ({ ...prev, myBookingsRefreshing: true }));
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -479,25 +590,37 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     ]);
   }, [refreshMyBookings, refreshAvailableFarmhouses, refreshMyFarmhouses, refreshAllBookings, refreshCoupons]);
 
-  // ==================== HELPER FUNCTIONS ====================
-  
-  const getFarmhouseById = useCallback((id: string) => {
-    return state.availableFarmhouses.find(f => f.id === id) || 
-           state.myFarmhouses.find(f => f.id === id);
-  }, [state.availableFarmhouses, state.myFarmhouses]);
+  // ==================== HELPERS ====================
 
-  const getBookingById = useCallback((id: string) => {
-    return state.myBookings.find(b => b.id === id) ||
-           state.allBookingsForMyFarmhouses.find(b => b.id === id);
-  }, [state.myBookings, state.allBookingsForMyFarmhouses]);
+  const getFarmhouseById = useCallback(
+    (id: string) => {
+      return state.availableFarmhouses.find(f => f.id === id) || 
+             state.myFarmhouses.find(f => f.id === id);
+    },
+    [state.availableFarmhouses, state.myFarmhouses]
+  );
 
-  const getFarmhouseBookings = useCallback((farmhouseId: string) => {
-    return state.allBookingsForMyFarmhouses.filter(b => b.farmhouseId === farmhouseId);
-  }, [state.allBookingsForMyFarmhouses]);
+  const getBookingById = useCallback(
+    (id: string) => {
+      return state.myBookings.find(b => b.id === id) ||
+             state.allBookingsForMyFarmhouses.find(b => b.id === id);
+    },
+    [state.myBookings, state.allBookingsForMyFarmhouses]
+  );
 
-  const getFarmhouseReviews = useCallback((farmhouseId: string) => {
-    return state.reviews.filter(r => r.farmhouseId === farmhouseId);
-  }, [state.reviews]);
+  const getFarmhouseBookings = useCallback(
+    (farmhouseId: string) => {
+      return state.allBookingsForMyFarmhouses.filter(b => b.farmhouseId === farmhouseId);
+    },
+    [state.allBookingsForMyFarmhouses]
+  );
+
+  const getFarmhouseReviews = useCallback(
+    (farmhouseId: string) => {
+      return state.reviews.filter(r => r.farmhouseId === farmhouseId);
+    },
+    [state.reviews]
+  );
 
   const getCategorizedBookings = useCallback(() => {
     const now = new Date();
@@ -553,13 +676,10 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
 
 export function useGlobalData() {
   const context = useContext(GlobalDataContext);
-  if (context === undefined) {
-    throw new Error('useGlobalData must be used within a GlobalDataProvider');
-  }
+  if (!context) throw new Error('useGlobalData must be used within a GlobalDataProvider');
   return context;
 }
 
-// Convenience hooks for specific data
 export function useMyBookings() {
   const { myBookings, myBookingsLoading, myBookingsError, myBookingsRefreshing, refreshMyBookings, getCategorizedBookings } = useGlobalData();
   return {
@@ -591,17 +711,6 @@ export function useMyFarmhouses() {
     error: myFarmhousesError,
     refreshing: myFarmhousesRefreshing,
     refresh: refreshMyFarmhouses,
-  };
-}
-
-export function useAllBookingsForOwner() {
-  const { allBookingsForMyFarmhouses, allBookingsLoading, allBookingsError, allBookingsRefreshing, refreshAllBookings } = useGlobalData();
-  return {
-    data: allBookingsForMyFarmhouses,
-    loading: allBookingsLoading,
-    error: allBookingsError,
-    refreshing: allBookingsRefreshing,
-    refresh: refreshAllBookings,
   };
 }
 

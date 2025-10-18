@@ -65,6 +65,7 @@ export interface Farmhouse {
     capacity?: string;
     description?: string;
   };
+  sourceType?: 'old' | 'new';
 }
 
 export interface Booking {
