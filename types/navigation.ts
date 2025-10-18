@@ -35,7 +35,7 @@ export interface Farmhouse {
   rules: {
     unmarriedCouples: boolean;
     pets: boolean;
-    quietHours: boolean;
+    quietHours: boolean | string; // Can be boolean or string (e.g., "11 PM - 6AM")
   };
   ownerId: string;
   status: 'pending' | 'approved' | 'rejected';
@@ -49,6 +49,22 @@ export interface Farmhouse {
   };
   createdAt: any;
   approvedAt?: any;
+  // Contact information - added for direct calling feature
+  contactPhone1?: string;
+  contactPhone2?: string;
+  // For compatibility with database structure
+  basicDetails?: {
+    name?: string;
+    contactPhone1?: string;
+    contactPhone2?: string;
+    city?: string;
+    area?: string;
+    locationText?: string;
+    mapLink?: string;
+    bedrooms?: string;
+    capacity?: string;
+    description?: string;
+  };
 }
 
 export interface Booking {
@@ -79,6 +95,9 @@ export interface Review {
   rating: number;
   comment: string;
   date: string;
+  farmhouseId: string;
+  userId: string;
+  createdAt: any;
 }
 
 export interface UserProfile {

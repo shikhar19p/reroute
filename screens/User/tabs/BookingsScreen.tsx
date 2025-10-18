@@ -4,48 +4,62 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar, MapPin, Users, CreditCard } from 'lucide-react-native';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../authContext';
-import { getUserBookings, cancelBooking, Booking } from '../../../services/bookingService';
+import { cancelBooking, Booking } from '../../../services/bookingService';
 import { useFocusEffect } from '@react-navigation/native';
+import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { db } from '../../../firebaseConfig';
 
 export default function BookingsScreen({ navigation }: any) {
-  const [activeTab, setActiveTab] = useState('all');
+  const [activeTab, setActiveTab] = useState('upcoming');
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const { colors } = useTheme();
   const { user } = useAuth();
-
-  // Load bookings when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      if (user) {
-        loadBookings();
-      }
-    }, [user])
-  );
-
-  const loadBookings = async () => {
+  
+  useEffect(() => {
     if (!user) {
       setLoading(false);
       return;
     }
 
-    try {
-      setLoading(true);
-      const data = await getUserBookings(user.uid);
-      setBookings(data);
-    } catch (error) {
-      console.error('Error loading bookings:', error);
-      Alert.alert('Error', 'Failed to load bookings. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
+    // Set up real-time listener
+    const bookingsRef = collection(db, 'bookings');
+    const q = query(
+      bookingsRef,
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const bookingsData: Booking[] = [];
+        snapshot.forEach((doc) => {
+          bookingsData.push({
+            id: doc.id,
+            ...doc.data()
+          } as Booking);
+        });
+        setBookings(bookingsData);
+        setLoading(false);
+        setRefreshing(false);
+      },
+      (error) => {
+        console.error('Error loading bookings:', error);
+        Alert.alert('Error', 'Failed to load bookings. Please try again.');
+        setLoading(false);
+        setRefreshing(false);
+      }
+    );
+
+    // Cleanup listener on unmount
+    return () => unsubscribe();
+  }, [user]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadBookings();
-    setRefreshing(false);
+    // The real-time listener will automatically update the data
   };
 
   const getStatusColor = (status: string) => {
@@ -71,7 +85,6 @@ export default function BookingsScreen({ navigation }: any) {
             try {
               await cancelBooking(bookingId);
               Alert.alert('Success', 'Booking cancelled successfully');
-              loadBookings(); // Reload bookings
             } catch (error) {
               console.error('Error cancelling booking:', error);
               Alert.alert('Error', 'Failed to cancel booking. Please try again.');
@@ -84,24 +97,30 @@ export default function BookingsScreen({ navigation }: any) {
 
   const getBookingCategory = (booking: Booking): string => {
     const now = new Date();
+    now.setHours(0, 0, 0, 0);
     const checkIn = new Date(booking.checkInDate);
+    checkIn.setHours(0, 0, 0, 0);
     const checkOut = new Date(booking.checkOutDate);
+    checkOut.setHours(23, 59, 59, 999);
 
     if (booking.status === 'cancelled') return 'cancelled';
-    if (now < checkIn) return 'future';
+    if (now < checkIn) return 'upcoming';
     if (now > checkOut) return 'past';
-    return 'present';
+    return 'upcoming';
   };
 
   const filteredBookings = () => {
     let filtered: Booking[] = [];
     
     switch (activeTab) {
-      case 'current':
-        filtered = bookings.filter(b => getBookingCategory(b) === 'present');
+      case 'upcoming':
+        filtered = bookings.filter(b => {
+          const category = getBookingCategory(b);
+          return category === 'upcoming' && b.status !== 'cancelled';
+        });
         break;
       case 'past':
-        filtered = bookings.filter(b => getBookingCategory(b) === 'past');
+        filtered = bookings.filter(b => getBookingCategory(b) === 'past' && b.status !== 'cancelled');
         break;
       case 'cancelled':
         filtered = bookings.filter(b => b.status === 'cancelled');
@@ -111,7 +130,6 @@ export default function BookingsScreen({ navigation }: any) {
         break;
     }
     
-    // Sort by check-in date, newest first
     return filtered.sort((a, b) => {
       const dateA = new Date(a.checkInDate).getTime();
       const dateB = new Date(b.checkInDate).getTime();
@@ -121,7 +139,7 @@ export default function BookingsScreen({ navigation }: any) {
 
   const renderBooking = ({ item }: { item: Booking }) => {
     const category = getBookingCategory(item);
-    const canCancel = (item.status === 'confirmed' || item.status === 'pending') && category === 'future';
+    const canCancel = (item.status === 'confirmed' || item.status === 'pending') && category === 'upcoming';
     
     return (
       <View style={[styles.bookingCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
@@ -199,8 +217,7 @@ export default function BookingsScreen({ navigation }: any) {
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           <View style={styles.tabContainer}>
             {[
-              { key: 'all', label: 'All' },
-              { key: 'current', label: 'Upcoming' },
+              { key: 'upcoming', label: 'Upcoming' },
               { key: 'past', label: 'Past' },
               { key: 'cancelled', label: 'Cancelled' }
             ].map((tab) => (

@@ -200,6 +200,8 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
     pricing: {
       weeklyDay: farmData.pricing.weeklyDay,
       weeklyNight: farmData.pricing.weeklyNight,
+      occasionalDay: farmData.pricing.occasionalDay,
+      occasionalNight: farmData.pricing.occasionalNight,
       weekendDay: farmData.pricing.weekendDay,
       weekendNight: farmData.pricing.weekendNight,
       customPricing: farmData.pricing.customPricing || [],
