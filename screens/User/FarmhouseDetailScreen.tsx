@@ -4,13 +4,13 @@ import {
   Dimensions, Linking, Alert, Share, TextInput, FlatList, RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Heart, MapPin, Users, Home, Star, Clock, Share2, Phone, Navigation, Mail, User } from 'lucide-react-native';
+import { ArrowLeft, Heart, MapPin, Users, Home, Star, Clock, Share2, Phone, Navigation, User } from 'lucide-react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 import MapView, { Marker } from 'react-native-maps';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
 import { RootStackScreenProps, Farmhouse } from '../../types/navigation';
-import { collection, query, where, onSnapshot, orderBy as firestoreOrderBy, limit } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy as firestoreOrderBy, limit, doc } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 
 const { width } = Dimensions.get('window');
@@ -27,21 +27,57 @@ interface Review {
 type Props = RootStackScreenProps<'FarmhouseDetail'>;
 
 export default function FarmhouseDetailScreen({ route, navigation }: Props) {
-  const { farmhouse } = route.params;
+  const initialFarmhouse = route.params.farmhouse;
   const { colors, isDark } = useTheme();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
 
+  // Use state for farmhouse to enable real-time updates
+  const [farmhouse, setFarmhouse] = useState<Farmhouse>(initialFarmhouse);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [selectedDates, setSelectedDates] = useState<{ start?: string; end?: string }>({});
-  const [guestCount, setGuestCount] = useState(farmhouse.capacity);
-  const [guestInputValue, setGuestInputValue] = useState(farmhouse.capacity.toString());
+  const [guestCount, setGuestCount] = useState(initialFarmhouse.capacity);
+  const [guestInputValue, setGuestInputValue] = useState(initialFarmhouse.capacity.toString());
   const [showPricingInfo, setShowPricingInfo] = useState<'overnight' | 'day-use'>('overnight');
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loadingReviews, setLoadingReviews] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Real-time farmhouse updates
   useEffect(() => {
-    // Set up real-time listener for reviews
+    const farmhouseRef = doc(db, 'farmhouses', initialFarmhouse.id);
+    
+    const unsubscribe = onSnapshot(
+      farmhouseRef,
+      (docSnapshot) => {
+        if (docSnapshot.exists()) {
+          const data = docSnapshot.data();
+          // Transform the data to match Farmhouse type
+          const updatedFarmhouse: Farmhouse = {
+            ...farmhouse,
+            bookedDates: data.bookedDates || [],
+            blockedDates: data.blockedDates || [],
+            customPricing: data.pricing?.customPricing || data.customPricing || [],
+            // Update other fields that might change
+            weeklyDay: parseInt(data.pricing?.weeklyDay || data.weeklyDay) || farmhouse.weeklyDay,
+            weeklyNight: parseInt(data.pricing?.weeklyNight || data.weeklyNight) || farmhouse.weeklyNight,
+            weekendDay: parseInt(data.pricing?.weekendDay || data.weekendDay) || farmhouse.weekendDay,
+            weekendNight: parseInt(data.pricing?.weekendNight || data.weekendNight) || farmhouse.weekendNight,
+            occasionalDay: parseInt(data.pricing?.occasionalDay || data.occasionalDay) || farmhouse.occasionalDay,
+            occasionalNight: parseInt(data.pricing?.occasionalNight || data.occasionalNight) || farmhouse.occasionalNight,
+          };
+          setFarmhouse(updatedFarmhouse);
+        }
+      },
+      (error) => {
+        console.error('Error listening to farmhouse updates:', error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [initialFarmhouse.id]);
+
+  // Real-time reviews updates
+  useEffect(() => {
     const reviewsRef = collection(db, 'reviews');
     const q = query(
       reviewsRef,
@@ -68,14 +104,126 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
       }
     );
 
-    // Cleanup listener on unmount
     return () => unsubscribe();
   }, [farmhouse.id]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    // The real-time listener will automatically update the data
+    // The real-time listeners will automatically update the data
   };
+
+  // ========== PRICING HELPER FUNCTIONS ==========
+  
+  /** Convert ISO yyyy-mm-dd -> yyyy/mm/dd (with leading zeros) */
+  const isoToCustomDate = (isoDate: string) => {
+    const [y, m, d] = isoDate.split('-');
+    return `${y}/${m}/${d}`;
+  };
+
+  /** Normalize DB `name` value to comparable form (trim spaces, ensure slashes) */
+  const normalizeCustomName = (name: string | undefined) => {
+    if (!name) return null;
+    return name.trim().replace(/-/g, '/');
+  };
+
+  /** Safely parse price strings/numbers to Number, return null if invalid */
+  const parsePrice = (val: any) => {
+    if (val == null) return null;
+    if (typeof val === 'number') return val;
+    if (typeof val === 'string') {
+      const n = Number(val.replace(/[^\d.-]/g, ''));
+      return Number.isFinite(n) ? n : null;
+    }
+    return null;
+  };
+
+  /** Find custom pricing entry for a given ISO date (yyyy-mm-dd) */
+  const findCustomPricingFor = (isoDate: string) => {
+    const customPricing = farmhouse.customPricing || [];
+    if (!Array.isArray(customPricing)) return null;
+    const key = isoToCustomDate(isoDate);
+    return customPricing.find(cp => {
+      const cpName = normalizeCustomName(cp.label || (cp as any).name);
+      return cpName === key;
+    }) || null;
+  };
+
+  const isWeekend = (dateString: string) => {
+    const date = new Date(dateString);
+    const day = date.getDay();
+    return day === 0 || day === 6;
+  };
+
+  /**
+   * Get custom price for a single date for a "day" or "night".
+   * type: 'day' | 'night'
+   * Returns number or null if no custom price found.
+   */
+  const getCustomPriceForDate = (dateStringIso: string, type: 'day' | 'night' = 'night') => {
+    const custom = findCustomPricingFor(dateStringIso);
+    if (!custom) return null;
+
+    const isWknd = isWeekend(dateStringIso);
+
+    // Helper to try multiple fields
+    const valueFrom = (...fields: (string | null)[]) => {
+      for (const f of fields) {
+        if (!f) continue;
+        const customAny = custom as any;
+        if (customAny[f] !== undefined && customAny[f] !== null) {
+          const p = parsePrice(customAny[f]);
+          if (p != null) return p;
+        }
+      }
+      return null;
+    };
+
+    if (type === 'day') {
+      const v = valueFrom('occasionalDay', isWknd ? 'weekendDay' : null, 'weeklyDay', 'price');
+      if (v != null) return v;
+    } else {
+      const v = valueFrom('occasionalNight', isWknd ? 'weekendNight' : null, 'weeklyNight', 'price');
+      if (v != null) return v;
+    }
+
+    return null;
+  };
+
+  /** 
+   * Get the per-night price for a date (uses customPricing first, then farmhouse fields).
+   * dateString is ISO yyyy-mm-dd
+   */
+  const getPriceForDate = (dateString: string) => {
+    // Check custom pricing per-night
+    const customNight = getCustomPriceForDate(dateString, 'night');
+    if (customNight != null) return Math.floor(customNight);
+
+    // Fallback to farmhouse fields
+    return isWeekend(dateString) 
+      ? parsePrice(farmhouse.weekendNight) || 0 
+      : parsePrice(farmhouse.weeklyNight) || 0;
+  };
+
+  /** 
+   * Get the day-use price for a date (day-use may have separate custom fields).
+   * dateString is ISO yyyy-mm-dd
+   */
+  const getDayUsePrice = (dateString: string) => {
+    // Check custom pricing per-day
+    const customDay = getCustomPriceForDate(dateString, 'day');
+    if (customDay != null) return Math.floor(customDay);
+
+    // Fallback: use weekendDay/weeklyDay if available
+    const baseDayPrice = isWeekend(dateString) 
+      ? parsePrice(farmhouse.weekendDay) 
+      : parsePrice(farmhouse.weeklyDay);
+    if (baseDayPrice) return Math.floor(baseDayPrice);
+
+    // Last resort: fall back to night price for that date
+    return getPriceForDate(dateString);
+  };
+
+  // ========== END PRICING HELPER FUNCTIONS ==========
 
   const amenitiesList = useMemo(() => {
     const amenities = farmhouse.amenities;
@@ -94,7 +242,6 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   const mainImage = images[0] || 'https://via.placeholder.com/400x300';
   const rooms = farmhouse.bedrooms;
   const unavailableDates: string[] = [...new Set([...(farmhouse.blockedDates || []), ...(farmhouse.bookedDates || [])])];
-  const specialDates = farmhouse.customPricing?.map(p => ({ date: p.label, price: p.price })) || [];
   const extraGuestPrice = farmhouse.extraGuestPrice || 500;
 
   const rulesList = useMemo(() => {
@@ -112,9 +259,6 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     return list;
   }, [farmhouse.rules]);
 
-  // Get contact information
-  //const ownerName = farmhouse.ownerName || farmhouse.basicDetails?.ownerName || 'Property Owner';
-  //const ownerEmail = farmhouse.ownerEmail || farmhouse.basicDetails?.ownerEmail;
   const contactPhone1 = farmhouse.contactPhone1 || farmhouse.basicDetails?.contactPhone1;
   const contactPhone2 = farmhouse.contactPhone2 || farmhouse.basicDetails?.contactPhone2;
 
@@ -157,10 +301,6 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     Linking.openURL(`tel:${phoneNumber}`);
   };
 
-  const handleEmail = (email: string) => {
-    Linking.openURL(`mailto:${email}`);
-  };
-
   const getMinimumDate = () => {
     const now = new Date();
     if (now.getHours() < 12) {
@@ -178,30 +318,6 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   };
 
   const isDateBooked = (dateString: string) => unavailableDates.includes(dateString);
-
-  const isWeekend = (dateString: string) => {
-    const date = new Date(dateString);
-    const day = date.getDay();
-    return day === 0 || day === 6;
-  };
-
-  const getSpecialPrice = (dateString: string) => {
-    const special = specialDates.find(s => s.date === dateString);
-    return special ? special.price : null;
-  };
-
-  const getPriceForDate = (dateString: string) => {
-    const specialPrice = getSpecialPrice(dateString);
-    if (specialPrice) return specialPrice;
-    return isWeekend(dateString) ? farmhouse.weekendNight : farmhouse.weeklyNight;
-  };
-
-  const getDayUsePrice = (dateString: string) => {
-    const specialPrice = getSpecialPrice(dateString);
-    if (specialPrice) return Math.floor(specialPrice * 0.6);
-    const basePrice = isWeekend(dateString) ? farmhouse.weekendNight : farmhouse.weeklyNight;
-    return Math.floor(basePrice * 0.6);
-  };
 
   const handleDateSelect = (day: DateData) => {
     const dateString = day.dateString;
@@ -453,43 +569,42 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
             <Text style={[styles.location, { color: colors.placeholder }]}>{farmhouse.location}</Text>
           </View>
 
-          {/* Owner Contact Information Card - Prominently displayed */}
-          <View style={[styles.ownerCard, { backgroundColor: colors.cardBackground, borderColor: colors.buttonBackground }]}>
-            <View style={styles.ownerHeader}>
-              <View style={[styles.ownerAvatar, { backgroundColor: colors.buttonBackground }]}>
-                <User size={24} color={colors.buttonText} />
+          {/* Owner Contact Information Card */}
+          {(contactPhone1 || contactPhone2) && (
+            <View style={[styles.ownerCard, { backgroundColor: colors.cardBackground, borderColor: colors.buttonBackground }]}>
+              <View style={styles.ownerHeader}>
+                <View style={[styles.ownerAvatar, { backgroundColor: colors.buttonBackground }]}>
+                  <User size={24} color={colors.buttonText} />
+                </View>
               </View>
-              
+
+              <View style={styles.contactMethodsContainer}>
+                {contactPhone1 && (
+                  <TouchableOpacity 
+                    style={[styles.contactMethodButton, { backgroundColor: colors.buttonBackground }]} 
+                    onPress={() => handleCall(contactPhone1)}
+                  >
+                    <Phone size={18} color={colors.buttonText} />
+                    <Text style={[styles.contactMethodText, { color: colors.buttonText }]}>{contactPhone1}</Text>
+                  </TouchableOpacity>
+                )}
+                
+                {contactPhone2 && (
+                  <TouchableOpacity 
+                    style={[styles.contactMethodButton, { backgroundColor: colors.buttonBackground }]} 
+                    onPress={() => handleCall(contactPhone2)}
+                  >
+                    <Phone size={18} color={colors.buttonText} />
+                    <Text style={[styles.contactMethodText, { color: colors.buttonText }]}>{contactPhone2}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <Text style={[styles.contactNote, { color: colors.placeholder }]}>
+                💡 Contact the owner directly for inquiries or special requests
+              </Text>
             </View>
-
-            <View style={styles.contactMethodsContainer}>
-              {contactPhone1 && (
-                <TouchableOpacity 
-                  style={[styles.contactMethodButton, { backgroundColor: colors.buttonBackground }]} 
-                  onPress={() => handleCall(contactPhone1)}
-                >
-                  <Phone size={18} color={colors.buttonText} />
-                  <Text style={[styles.contactMethodText, { color: colors.buttonText }]}>{contactPhone1}</Text>
-                </TouchableOpacity>
-              )}
-              
-              {contactPhone2 && (
-                <TouchableOpacity 
-                  style={[styles.contactMethodButton, { backgroundColor: colors.buttonBackground }]} 
-                  onPress={() => handleCall(contactPhone2)}
-                >
-                  <Phone size={18} color={colors.buttonText} />
-                  <Text style={[styles.contactMethodText, { color: colors.buttonText }]}>{contactPhone2}</Text>
-                </TouchableOpacity>
-              )}
-
-              
-            </View>
-
-            <Text style={[styles.contactNote, { color: colors.placeholder }]}>
-              💡 Contact the owner directly for inquiries or special requests
-            </Text>
-          </View>
+          )}
 
           <View style={styles.quickInfo}>
             <View style={[styles.infoCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
@@ -748,19 +863,13 @@ const styles = StyleSheet.create({
   reviews: { fontSize: 14 },
   locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 },
   location: { fontSize: 16 },
-  
-  // Owner Contact Card Styles
   ownerCard: { marginTop: 20, padding: 20, borderRadius: 16, borderWidth: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 5 },
   ownerHeader: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 16 },
   ownerAvatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  ownerInfo: { flex: 1 },
-  ownerLabel: { fontSize: 12, fontWeight: '500', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 },
-  ownerName: { fontSize: 20, fontWeight: 'bold' },
   contactMethodsContainer: { gap: 10, marginBottom: 12 },
-  contactMethodButton: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 12, borderWidth: 1 },
+  contactMethodButton: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 12 },
   contactMethodText: { fontSize: 15, fontWeight: '600', flex: 1 },
   contactNote: { fontSize: 12, fontStyle: 'italic', marginTop: 8, textAlign: 'center' },
-
   quickInfo: { flexDirection: 'row', gap: 12, marginTop: 20 },
   infoCard: { flex: 1, padding: 16, borderRadius: 12, alignItems: 'center', gap: 8, borderWidth: 1 },
   infoLabel: { fontSize: 12 },
