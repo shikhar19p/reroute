@@ -1,20 +1,23 @@
 import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
+import { Home, Calendar, Heart, User } from 'lucide-react-native';
+
+// Contexts
 import { AuthProvider, useAuth } from './authContext';
 import { FarmRegistrationProvider } from './context/FarmRegistrationContext';
 import { AdminProvider } from './context/AdminContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { WishlistProvider } from './context/WishlistContext';
-import WelcomeScreen from './screens/WelcomeScreen';
-import LoginScreen from './screens/LoginScreen';
-import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
-import { Home, Calendar, Heart, User } from 'lucide-react-native';
 import { GlobalDataProvider } from './GlobalDataContext';
 
+// Screens
+import WelcomeScreen from './screens/WelcomeScreen';
+import LoginScreen from './screens/LoginScreen';
 
-// Farm Registration Screens
+// Farm Registration
 import RoleChoiceScreen from './screens/FarmRegistration/RoleChoiceScreen';
 import BasicDetailsScreen from './screens/FarmRegistration/BasicDetailsScreen';
 import PricesScreen from './screens/FarmRegistration/PricesScreen';
@@ -23,11 +26,11 @@ import AmenitiesGamesScreen from './screens/FarmRegistration/AmenitiesGamesScree
 import RulesRestrictionsScreen from './screens/FarmRegistration/RulesRestrictionsScreen';
 import KycScreen from './screens/FarmRegistration/KycScreen';
 
-// Admin Screens
+// Admin
 import AdminScreen from './screens/Admin/AdminScreen';
 import EditFarmScreen from './screens/Admin/EditFarmScreen';
 
-// User Screens
+// User
 import ExploreScreen from './screens/User/ExploreScreen';
 import FarmhouseDetailScreen from './screens/User/FarmhouseDetailScreen';
 import AllAmenitiesScreen from './screens/User/AllAmenitiesScreen';
@@ -39,7 +42,7 @@ import ProfileScreen from './screens/User/tabs/ProfileScreen';
 import EditProfileScreen from './screens/User/EditProfileScreen';
 import BookingDetailsScreen from './screens/User/BookingDetailsScreen';
 
-// Owner Screens
+// Owner
 import MyFarmhousesScreen from './screens/Owner/MyFarmhousesScreen';
 import FarmhouseDetailOwnerScreen from './screens/Owner/FarmhouseDetailOwnerScreen';
 import EditFarmhouseScreen from './screens/Owner/EditFarmhouseScreen';
@@ -47,12 +50,14 @@ import OwnerBookingsScreen from './screens/Owner/BookingsListScreen';
 import OwnerBookingDetailScreen from './screens/Owner/BookingDetailScreen';
 import ManageBlockedDatesScreen from './screens/Owner/ManageBlockedDatesScreen';
 
+// Navigation types
 import { RootStackParamList, TabParamList } from './types/navigation';
 
+// Navigation setup
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
-// Bottom Tab Navigator for User screens
+// Bottom Tab Navigator
 function UserTabs() {
   return (
     <Tab.Navigator
@@ -114,9 +119,11 @@ function UserTabs() {
   );
 }
 
+// App Navigator
 function AppNavigator() {
   const { user, loading } = useAuth();
 
+  // 🔹 Safety: Ensure text is always inside <Text> (prevents RN rendering error)
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -127,7 +134,15 @@ function AppNavigator() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      theme={{
+        ...DefaultTheme,
+        colors: {
+          ...DefaultTheme.colors,
+          background: '#FFFFFF',
+        },
+      }}
+    >
       <Stack.Navigator
         screenOptions={{
           headerShown: true,
@@ -139,6 +154,7 @@ function AppNavigator() {
       >
         {user ? (
           <>
+            {/* Role choice */}
             <Stack.Screen
               name="RoleChoice"
               component={RoleChoiceScreen}
@@ -146,133 +162,38 @@ function AppNavigator() {
             />
 
             {/* Owner Flow */}
-            <Stack.Screen
-              name="MyFarmhouses"
-              component={MyFarmhousesScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="FarmhouseDetailOwner"
-              component={FarmhouseDetailOwnerScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="EditFarmhouse"
-              component={EditFarmhouseScreen}
-              options={{ title: 'Edit Farmhouse' }}
-            />
-            <Stack.Screen
-              name="OwnerBookings"
-              component={OwnerBookingsScreen}
-              options={{ title: 'Bookings' }}
-            />
-            <Stack.Screen
-              name="OwnerBookingDetails"
-              component={OwnerBookingDetailScreen}
-              options={{ title: 'Booking Details' }}
-            />
-            <Stack.Screen
-              name="ManageBlockedDates"
-              component={ManageBlockedDatesScreen}
-              options={{ title: 'Blocked Dates' }}
-            />
+            <Stack.Screen name="MyFarmhouses" component={MyFarmhousesScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="FarmhouseDetailOwner" component={FarmhouseDetailOwnerScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="EditFarmhouse" component={EditFarmhouseScreen} options={{ title: 'Edit Farmhouse' }} />
+            <Stack.Screen name="OwnerBookings" component={OwnerBookingsScreen} options={{ title: 'Bookings' }} />
+            <Stack.Screen name="OwnerBookingDetails" component={OwnerBookingDetailScreen} options={{ title: 'Booking Details' }} />
+            <Stack.Screen name="ManageBlockedDates" component={ManageBlockedDatesScreen} options={{ title: 'Blocked Dates' }} />
 
             {/* Farm Registration Flow */}
-            <Stack.Screen
-              name="FarmBasicDetails"
-              component={BasicDetailsScreen}
-              options={{ 
-                title: 'Basic Details',
-                headerBackTitle: 'Back'
-              }}
-            />
-            <Stack.Screen
-              name="FarmPrices"
-              component={PricesScreen}
-              options={{ title: 'Pricing' }}
-            />
-            <Stack.Screen
-              name="FarmPhotos"
-              component={PhotosScreen}
-              options={{ title: 'Photos' }}
-            />
-            <Stack.Screen
-              name="FarmAmenitiesGames"
-              component={AmenitiesGamesScreen}
-              options={{ title: 'Amenities & Games' }}
-            />
-            <Stack.Screen
-              name="FarmRulesRestrictions"
-              component={RulesRestrictionsScreen}
-              options={{ title: 'Rules & Review' }}
-            />
-            <Stack.Screen
-              name="FarmKyc"
-              component={KycScreen}
-              options={{ title: 'KYC Verification' }}
-            />
+            <Stack.Screen name="FarmBasicDetails" component={BasicDetailsScreen} options={{ title: 'Basic Details', headerBackTitle: 'Back' }} />
+            <Stack.Screen name="FarmPrices" component={PricesScreen} options={{ title: 'Pricing' }} />
+            <Stack.Screen name="FarmPhotos" component={PhotosScreen} options={{ title: 'Photos' }} />
+            <Stack.Screen name="FarmAmenitiesGames" component={AmenitiesGamesScreen} options={{ title: 'Amenities & Games' }} />
+            <Stack.Screen name="FarmRulesRestrictions" component={RulesRestrictionsScreen} options={{ title: 'Rules & Review' }} />
+            <Stack.Screen name="FarmKyc" component={KycScreen} options={{ title: 'KYC Verification' }} />
 
             {/* Admin Flow */}
-            <Stack.Screen
-              name="AdminHome"
-              component={AdminScreen}
-              options={{ title: 'Admin Dashboard' }}
-            />
-            <Stack.Screen
-              name="AdminEditFarm"
-              component={EditFarmScreen}
-              options={{ title: 'Edit Farm' }}
-            />
+            <Stack.Screen name="AdminHome" component={AdminScreen} options={{ title: 'Admin Dashboard' }} />
+            <Stack.Screen name="AdminEditFarm" component={EditFarmScreen} options={{ title: 'Edit Farm' }} />
 
-            {/* User Flow with Tabs */}
-            <Stack.Screen
-              name="UserHome"
-              component={UserTabs}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="FarmhouseDetail"
-              component={FarmhouseDetailScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="AllAmenities"
-              component={AllAmenitiesScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="AllReviews"
-              component={AllReviewsScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="BookingConfirmation"
-              component={BookingConfirmationScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="BookingDetails"
-              component={BookingDetailsScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="EditProfile"
-              component={EditProfileScreen}
-              options={{ headerShown: false }}
-            />
+            {/* User Flow */}
+            <Stack.Screen name="UserHome" component={UserTabs} options={{ headerShown: false }} />
+            <Stack.Screen name="FarmhouseDetail" component={FarmhouseDetailScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="AllAmenities" component={AllAmenitiesScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="AllReviews" component={AllReviewsScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="BookingConfirmation" component={BookingConfirmationScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="BookingDetails" component={BookingDetailsScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ headerShown: false }} />
           </>
         ) : (
           <>
-            <Stack.Screen
-              name="Welcome"
-              component={WelcomeScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="Login"
-              component={LoginScreen}
-              options={{ headerShown: false }}
-            />
+            <Stack.Screen name="Welcome" component={WelcomeScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Login" component={LoginScreen} options={{ headerShown: false }} />
           </>
         )}
       </Stack.Navigator>
@@ -280,24 +201,26 @@ function AppNavigator() {
   );
 }
 
+// Root App Wrapper
 export default function App() {
   return (
     <AuthProvider>
-      <GlobalDataProvider> 
-      <ThemeProvider>
-        <WishlistProvider>
-          <FarmRegistrationProvider>
-            <AdminProvider>
-              <AppNavigator />
-            </AdminProvider>
-          </FarmRegistrationProvider>
-        </WishlistProvider>
-      </ThemeProvider>
-      </GlobalDataProvider> 
+      <GlobalDataProvider>
+        <ThemeProvider>
+          <WishlistProvider>
+            <FarmRegistrationProvider>
+              <AdminProvider>
+                <AppNavigator />
+              </AdminProvider>
+            </FarmRegistrationProvider>
+          </WishlistProvider>
+        </ThemeProvider>
+      </GlobalDataProvider>
     </AuthProvider>
   );
 }
 
+// Styles
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,

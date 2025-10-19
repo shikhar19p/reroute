@@ -1,4 +1,3 @@
-// ==================== BookingConfirmationScreen.tsx ====================
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
@@ -146,7 +145,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
     return dates;
   };
 
-  const handleProceedToPayment = async () => {
+  const handleConfirmBooking = async () => {
     if (!user || !userProfile) {
       Alert.alert('Error', 'Please login to continue');
       return;
@@ -161,7 +160,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
     try {
       const bookingData = {
         farmhouseId, 
-        farmhouseName: farmhouseDetails?.name || farmhouseName, 
+        farmhouseName: farmhouseDetails?.name || farmhouseName,
         userId: user.uid, 
         userEmail: user.email || '',
         userName: userProfile.name, 
@@ -176,8 +175,6 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
         bookingType: bookingType === 'day-use' ? 'dayuse' : 'overnight' as 'dayuse' | 'overnight',
         status: 'confirmed' as 'confirmed', 
         paymentStatus: 'paid' as 'paid',
-        farmhouseImage: farmhouseDetails?.photos?.[0] || farmhouseImage,
-        location: farmhouseDetails?.location || location,
       };
       
       const bookingId = await createBooking(bookingData);
@@ -371,7 +368,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
           style={[styles.proceedButton, { 
             backgroundColor: (loading || profileLoading) ? colors.border : colors.buttonBackground 
           }]}
-          onPress={handleProceedToPayment}
+          onPress={handleConfirmBooking}
           disabled={loading || profileLoading}
         >
           {loading ? (
