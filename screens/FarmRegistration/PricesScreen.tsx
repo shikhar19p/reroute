@@ -24,12 +24,10 @@ type PricesScreenProps = {
 };
 
 const priceFields = [
-  { key: 'weeklyDay', label: 'Day Price*', placeholder: '₹ Enter day price', section: 'Weekly Rates' },
-  { key: 'weeklyNight', label: 'Night Price*', placeholder: '₹ Enter night price', section: 'Weekly Rates' },
-  { key: 'occasionalDay', label: 'Day Price*', placeholder: '₹ Enter day price', section: 'Occasional Rates' },
-  { key: 'occasionalNight', label: 'Night Price*', placeholder: '₹ Enter night price', section: 'Occasional Rates' },
-  { key: 'weekendDay', label: 'Day Price*', placeholder: '₹ Enter day price', section: 'Weekend Rates' },
-  { key: 'weekendNight', label: 'Night Price*', placeholder: '₹ Enter night price', section: 'Weekend Rates' },
+  { key: 'weeklyDay', label: 'Day Price*', placeholder: '₹ Enter weekday day price', section: 'Weekday Rates' },
+  { key: 'weeklyNight', label: 'Night Price*', placeholder: '₹ Enter weekday night price', section: 'Weekday Rates' },
+  { key: 'weekendDay', label: 'Day Price*', placeholder: '₹ Enter weekend day price', section: 'Weekend Rates' },
+  { key: 'weekendNight', label: 'Night Price*', placeholder: '₹ Enter weekend night price', section: 'Weekend Rates' },
 ];
 
 export default function PricesScreen({ navigation }: PricesScreenProps) {
@@ -104,11 +102,11 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.select({ ios: 100, default: 0 })}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
         <ScrollView
           style={styles.scrollView}

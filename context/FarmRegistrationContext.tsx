@@ -65,8 +65,6 @@ interface CustomPricing {
 interface Pricing {
   weeklyDay: string;
   weeklyNight: string;
-  occasionalDay: string;
-  occasionalNight: string;
   weekendDay: string;
   weekendNight: string;
   customPricing: CustomPricing[];
@@ -115,8 +113,6 @@ const createInitialFarm = (): Farm => ({
   pricing: {
     weeklyDay: '',
     weeklyNight: '',
-    occasionalDay: '',
-    occasionalNight: '',
     weekendDay: '',
     weekendNight: '',
     customPricing: [],

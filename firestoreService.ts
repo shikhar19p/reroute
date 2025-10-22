@@ -9,7 +9,9 @@ export async function registerUser(userId: string, role: 'owner' | 'customer', e
   await setDoc(doc(db, 'users', userId), {
     role,
     email,
+    totalBookings: 0, // Initialize totalBookings to 0
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   });
 }
 

@@ -1,46 +1,65 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Alert, FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
+import { Calendar, MapPin, Users, CreditCard } from 'lucide-react-native';
 import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../authContext';
-import { getUserBookings, cancelBooking, Booking as BookingType } from '../../../services/bookingService';
-import { previewCancellationRefund, cancelBookingWithRefund, getCancellationPolicyDescription } from '../../../services/cancellationService';
+import { cancelBooking, Booking } from '../../../services/bookingService';
+import { useFocusEffect } from '@react-navigation/native';
+import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { db } from '../../../firebaseConfig';
 
-export default function BookingsScreen() {
-  const [activeTab, setActiveTab] = useState('all');
-  const [bookings, setBookings] = useState<BookingType[]>([]);
+export default function BookingsScreen({ navigation }: any) {
+  const [activeTab, setActiveTab] = useState('upcoming');
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const { colors, typography, shadows } = useTheme();
+  const { colors } = useTheme();
   const { user } = useAuth();
-  const navigation = useNavigation();
-
+  
   useEffect(() => {
-    if (user) {
-      loadBookings();
+    if (!user) {
+      setLoading(false);
+      return;
     }
+
+    // Set up real-time listener
+    const bookingsRef = collection(db, 'bookings');
+    const q = query(
+      bookingsRef,
+      where('userId', '==', user.uid),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const bookingsData: Booking[] = [];
+        snapshot.forEach((doc) => {
+          bookingsData.push({
+            id: doc.id,
+            ...doc.data()
+          } as Booking);
+        });
+        setBookings(bookingsData);
+        setLoading(false);
+        setRefreshing(false);
+      },
+      (error) => {
+        console.error('Error loading bookings:', error);
+        Alert.alert('Error', 'Failed to load bookings. Please try again.');
+        setLoading(false);
+        setRefreshing(false);
+      }
+    );
+
+    // Cleanup listener on unmount
+    return () => unsubscribe();
   }, [user]);
 
-  const loadBookings = async () => {
-    try {
-      setLoading(true);
-      const data = await getUserBookings(user?.uid || '');
-      setBookings(data);
-    } catch (error) {
-      console.error('Error loading bookings:', error);
-      Alert.alert('Error', 'Failed to load bookings');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const onRefresh = async () => {
+  const handleRefresh = async () => {
     setRefreshing(true);
-    await loadBookings();
-    setRefreshing(false);
+    // The real-time listener will automatically update the data
   };
 
   const getStatusColor = (status: string) => {
@@ -49,293 +68,177 @@ export default function BookingsScreen() {
       case 'pending': return '#FF9800';
       case 'cancelled': return '#F44336';
       case 'completed': return '#2196F3';
-      case 'draft': return '#9E9E9E';
-      default: return colors.textSecondary;
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'confirmed': return 'check-circle';
-      case 'pending': return 'clock-outline';
-      case 'cancelled': return 'close-circle';
-      case 'completed': return 'checkbox-marked-circle';
-      case 'draft': return 'file-document-outline';
-      default: return 'information';
+      default: return colors.placeholder;
     }
   };
 
   const handleCancelBooking = async (bookingId: string, farmhouseName: string) => {
-    try {
-      // Show loading
-      setLoading(true);
-
-      // Get refund preview
-      const preview = await previewCancellationRefund(bookingId);
-      setLoading(false);
-
-      // Show cancellation policy and refund details
-      const refundMessage = preview.refundAmount > 0
-        ? `You will receive a refund of ₹${preview.refundAmount}\n\n${preview.policyDescription}`
-        : `${preview.policyDescription}\n\nNo refund will be processed.`;
-
-      Alert.alert(
-        'Cancel Booking',
-        `Are you sure you want to cancel your booking for ${farmhouseName}?\n\n${refundMessage}`,
-        [
-          { text: 'Keep Booking', style: 'cancel' },
-          {
-            text: 'Confirm Cancellation',
-            style: 'destructive',
-            onPress: async () => {
-              try {
-                setLoading(true);
-                await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-
-                const result = await cancelBookingWithRefund(bookingId, user?.uid || '', 'User requested cancellation');
-
-                setLoading(false);
-
-                if (result.success) {
-                  const successMessage = result.refundAmount > 0
-                    ? `Booking cancelled successfully!\n\nRefund Amount: ₹${result.refundAmount}\nRefunds will be processed in 5-7 business days.`
-                    : 'Booking cancelled successfully!';
-
-                  Alert.alert('Cancellation Confirmed', successMessage);
-                  await loadBookings();
-                } else {
-                  Alert.alert('Error', 'Failed to cancel booking. Please try again.');
-                }
-              } catch (error: any) {
-                setLoading(false);
-                console.error('Error cancelling booking:', error);
-                Alert.alert('Error', error.message || 'Failed to cancel booking');
-              }
+    Alert.alert(
+      'Cancel Booking', 
+      `Are you sure you want to cancel your booking for ${farmhouseName}?`, 
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await cancelBooking(bookingId);
+              Alert.alert('Success', 'Booking cancelled successfully');
+            } catch (error) {
+              console.error('Error cancelling booking:', error);
+              Alert.alert('Error', 'Failed to cancel booking. Please try again.');
             }
           }
-        ]
-      );
-    } catch (error: any) {
-      setLoading(false);
-      console.error('Error previewing cancellation:', error);
-      Alert.alert('Error', 'Failed to load cancellation details. Please try again.');
-    }
+        }
+      ]
+    );
   };
 
-  const handleContinueBooking = (farmhouseId: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    (navigation as any).navigate('FarmhouseDetail', { farmhouseId });
-  };
-
-  const getBookingCategory = (booking: BookingType): string => {
+  const getBookingCategory = (booking: Booking): string => {
     const now = new Date();
+    now.setHours(0, 0, 0, 0);
     const checkIn = new Date(booking.checkInDate);
+    checkIn.setHours(0, 0, 0, 0);
     const checkOut = new Date(booking.checkOutDate);
+    checkOut.setHours(23, 59, 59, 999);
 
     if (booking.status === 'cancelled') return 'cancelled';
-    if (now < checkIn) return 'future';
+    if (now < checkIn) return 'upcoming';
     if (now > checkOut) return 'past';
-    return 'present';
+    return 'upcoming';
   };
 
   const filteredBookings = () => {
+    let filtered: Booking[] = [];
+    
     switch (activeTab) {
-      case 'current':
-        return bookings.filter(b => getBookingCategory(b) === 'present');
+      case 'upcoming':
+        filtered = bookings.filter(b => {
+          const category = getBookingCategory(b);
+          return category === 'upcoming' && b.status !== 'cancelled';
+        });
+        break;
       case 'past':
-        return bookings.filter(b => getBookingCategory(b) === 'past');
+        filtered = bookings.filter(b => getBookingCategory(b) === 'past' && b.status !== 'cancelled');
+        break;
       case 'cancelled':
-        return bookings.filter(b => b.status === 'cancelled');
+        filtered = bookings.filter(b => b.status === 'cancelled');
+        break;
       default:
-        return bookings;
+        filtered = [...bookings];
+        break;
     }
+    
+    return filtered.sort((a, b) => {
+      const dateA = new Date(a.checkInDate).getTime();
+      const dateB = new Date(b.checkInDate).getTime();
+      return dateB - dateA;
+    });
   };
 
-  const renderBooking = ({ item }: { item: BookingType }) => (
-    <TouchableOpacity
-      style={[styles.bookingCard, { backgroundColor: colors.cardBackground, ...shadows.md }]}
-      onPress={() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        (navigation as any).navigate('FarmhouseDetail', { farmhouseId: item.id });
-      }}
-      activeOpacity={0.9}
-    >
-      <View style={styles.bookingHeader}>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.farmhouseName, { color: colors.text, fontFamily: typography.fontFamily.semiBold }]}>
+  const renderBooking = ({ item }: { item: Booking }) => {
+    const category = getBookingCategory(item);
+    const canCancel = (item.status === 'confirmed' || item.status === 'pending') && category === 'upcoming';
+    
+    return (
+      <View style={[styles.bookingCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+        <View style={styles.bookingHeader}>
+          <Text style={[styles.farmhouseName, { color: colors.text }]} numberOfLines={1}>
             {item.farmhouseName}
           </Text>
-          <View style={styles.locationRow}>
-            <MaterialCommunityIcons name="map-marker" size={14} color={colors.textSecondary} />
-            <Text style={[styles.locationText, { color: colors.textSecondary, fontFamily: typography.fontFamily.regular }]}>
-              {item.location || 'Location'}
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
+            <Text style={styles.statusText}>{item.status.toUpperCase()}</Text>
+          </View>
+        </View>
+
+        <View style={styles.infoRow}>
+          <Calendar size={14} color={colors.placeholder} />
+          <Text style={[styles.dateText, { color: colors.text }]}>
+            {new Date(item.checkInDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} - {new Date(item.checkOutDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+          </Text>
+        </View>
+
+        <View style={styles.infoRow}>
+          <Users size={14} color={colors.placeholder} />
+          <Text style={[styles.infoText, { color: colors.placeholder }]}>
+            {item.guests} guest{item.guests !== 1 ? 's' : ''} • {item.bookingType === 'dayuse' ? 'Day Use' : 'Overnight'}
+          </Text>
+        </View>
+
+        <View style={styles.amountRow}>
+          <View style={styles.priceContainer}>
+            <CreditCard size={16} color={colors.buttonBackground} />
+            <Text style={[styles.totalAmount, { color: colors.buttonBackground }]}>₹{item.totalPrice}</Text>
+          </View>
+          <View style={[styles.paymentBadge, { backgroundColor: item.paymentStatus === 'paid' ? '#E8F5E9' : '#FFF3E0' }]}>
+            <Text style={[styles.paymentText, { color: item.paymentStatus === 'paid' ? '#4CAF50' : '#FF9800' }]}>
+              {item.paymentStatus === 'paid' ? '✓ Paid' : 'Pending'}
             </Text>
           </View>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-          <MaterialCommunityIcons name={getStatusIcon(item.status)} size={14} color="white" />
-          <Text style={[styles.statusText, { fontFamily: typography.fontFamily.semiBold }]}>
-            {item.status.toUpperCase()}
-          </Text>
-        </View>
-      </View>
 
-      <View style={styles.dateRow}>
-        <View style={styles.dateItem}>
-          <MaterialCommunityIcons name="calendar-start" size={18} color={colors.primary} />
-          <View style={{ marginLeft: 8 }}>
-            <Text style={[styles.dateLabel, { color: colors.textTertiary, fontFamily: typography.fontFamily.regular }]}>
-              Check-in
-            </Text>
-            <Text style={[styles.dateText, { color: colors.text, fontFamily: typography.fontFamily.semiBold }]}>
-              {new Date(item.checkInDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-            </Text>
-          </View>
-        </View>
-        <MaterialCommunityIcons name="arrow-right" size={20} color={colors.textTertiary} />
-        <View style={styles.dateItem}>
-          <MaterialCommunityIcons name="calendar-end" size={18} color={colors.primary} />
-          <View style={{ marginLeft: 8 }}>
-            <Text style={[styles.dateLabel, { color: colors.textTertiary, fontFamily: typography.fontFamily.regular }]}>
-              Check-out
-            </Text>
-            <Text style={[styles.dateText, { color: colors.text, fontFamily: typography.fontFamily.semiBold }]}>
-              {new Date(item.checkOutDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.infoRow}>
-        <View style={styles.infoItem}>
-          <MaterialCommunityIcons name="account-group" size={16} color={colors.primary} />
-          <Text style={[styles.infoText, { color: colors.textSecondary, fontFamily: typography.fontFamily.regular }]}>
-            {item.guests} guests
-          </Text>
-        </View>
-        <View style={styles.infoItem}>
-          <MaterialCommunityIcons name={item.bookingType === 'dayuse' ? 'weather-sunny' : 'weather-night'} size={16} color={colors.primary} />
-          <Text style={[styles.infoText, { color: colors.textSecondary, fontFamily: typography.fontFamily.regular }]}>
-            {item.bookingType === 'dayuse' ? 'Day Use' : 'Overnight'}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.amountRow}>
-        <View>
-          <Text style={[styles.totalLabel, { color: colors.textTertiary, fontFamily: typography.fontFamily.regular }]}>
-            Total Amount
-          </Text>
-          <Text style={[styles.totalAmount, { color: colors.primary, fontFamily: typography.fontFamily.bold }]}>
-            ₹{item.totalPrice}
-          </Text>
-        </View>
-        <View style={[styles.paymentBadge, { backgroundColor: item.paymentStatus === 'paid' ? '#E8F5E9' : colors.border }]}>
-          <MaterialCommunityIcons
-            name={item.paymentStatus === 'paid' ? 'check-circle' : 'clock-outline'}
-            size={14}
-            color={item.paymentStatus === 'paid' ? '#4CAF50' : colors.textSecondary}
-          />
-          <Text style={[styles.paymentText, {
-            color: item.paymentStatus === 'paid' ? '#4CAF50' : colors.textSecondary,
-            fontFamily: typography.fontFamily.medium
-          }]}>
-            {item.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.actionRow}>
-        <TouchableOpacity
-          style={[styles.detailsButton, { backgroundColor: colors.primary, ...shadows.sm }]}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            (navigation as any).navigate('FarmhouseDetail', { farmhouseId: item.id });
-          }}
-        >
-          <MaterialCommunityIcons name="eye" size={16} color="white" />
-          <Text style={[styles.buttonText, { fontFamily: typography.fontFamily.semiBold }]}>
-            View Details
-          </Text>
-        </TouchableOpacity>
-        {(item.status === 'confirmed' || item.status === 'pending') && getBookingCategory(item) === 'future' && (
+        <View style={styles.actionRow}>
           <TouchableOpacity
-            style={[styles.cancelButton, { backgroundColor: colors.errorLight, ...shadows.sm }]}
-            onPress={() => handleCancelBooking(item.id, item.farmhouseName)}
+            style={[styles.viewButton, { backgroundColor: colors.buttonBackground }]}
+            onPress={() => navigation.navigate('BookingDetails', { booking: item })}
           >
-            <MaterialCommunityIcons name="close-circle" size={16} color={colors.error} />
-            <Text style={[styles.cancelButtonText, { color: colors.error, fontFamily: typography.fontFamily.semiBold }]}>
-              Cancel
-            </Text>
+            <Text style={[styles.buttonText, { color: colors.buttonText }]}>View Details</Text>
           </TouchableOpacity>
-        )}
+          {canCancel && (
+            <TouchableOpacity
+              style={[styles.cancelButton, { borderColor: '#F44336' }]}
+              onPress={() => handleCancelBooking(item.id, item.farmhouseName)}
+            >
+              <Text style={[styles.cancelButtonText, { color: '#F44336' }]}>Cancel</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
-    </TouchableOpacity>
-  );
+    );
+  };
+
+  if (!user) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.emptyContainer}>
+          <Text style={[styles.emptyText, { color: colors.placeholder }]}>
+            Please login to view your bookings
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <View>
-          <Text style={[styles.headerTitle, { color: colors.text, fontFamily: typography.fontFamily.bold }]}>
-            My Bookings
-          </Text>
-          <Text style={[styles.headerSubtitle, { color: colors.textSecondary, fontFamily: typography.fontFamily.regular }]}>
-            {bookings.length} {bookings.length === 1 ? 'booking' : 'bookings'}
-          </Text>
-        </View>
-        <View style={[styles.iconContainer, { backgroundColor: colors.primaryLight }]}>
-          <MaterialCommunityIcons name="calendar-check" size={24} color={colors.primary} />
-        </View>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>My Bookings</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={styles.tabContainer}>
+            {[
+              { key: 'upcoming', label: 'Upcoming' },
+              { key: 'past', label: 'Past' },
+              { key: 'cancelled', label: 'Cancelled' }
+            ].map((tab) => (
+              <TouchableOpacity
+                key={tab.key}
+                style={[styles.tab, activeTab === tab.key && { backgroundColor: colors.buttonBackground }]}
+                onPress={() => setActiveTab(tab.key)}
+              >
+                <Text style={[styles.tabText, { color: activeTab === tab.key ? colors.buttonText : colors.placeholder }]}>
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
       </View>
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScrollView}>
-        <View style={styles.tabContainer}>
-          {[
-            { key: 'all', label: 'All', icon: 'view-grid' },
-            { key: 'current', label: 'Current', icon: 'progress-clock' },
-            { key: 'past', label: 'Past', icon: 'history' },
-            { key: 'cancelled', label: 'Cancelled', icon: 'close-circle-outline' },
-          ].map((tab) => (
-            <TouchableOpacity
-              key={tab.key}
-              style={[
-                styles.tab,
-                {
-                  backgroundColor: activeTab === tab.key ? colors.primary : colors.cardBackground,
-                  ...shadows.sm
-                }
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setActiveTab(tab.key);
-              }}
-            >
-              <MaterialCommunityIcons
-                name={tab.icon}
-                size={16}
-                color={activeTab === tab.key ? 'white' : colors.textSecondary}
-              />
-              <Text style={[
-                styles.tabText,
-                {
-                  color: activeTab === tab.key ? 'white' : colors.textSecondary,
-                  fontFamily: activeTab === tab.key ? typography.fontFamily.semiBold : typography.fontFamily.regular
-                }
-              ]}>
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </ScrollView>
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary, fontFamily: typography.fontFamily.regular }]}>
-            Loading bookings...
-          </Text>
+          <ActivityIndicator size="large" color={colors.buttonBackground} />
+          <Text style={[styles.loadingText, { color: colors.placeholder }]}>Loading bookings...</Text>
         </View>
       ) : (
         <FlatList
@@ -343,36 +246,26 @@ export default function BookingsScreen() {
           renderItem={renderBooking}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.listContainer, filteredBookings().length === 0 && styles.emptyList]}
+          contentContainerStyle={styles.listContainer}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[colors.primary]}
-              tintColor={colors.primary}
+              onRefresh={handleRefresh}
+              colors={[colors.buttonBackground]}
+              tintColor={colors.buttonBackground}
             />
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <View style={[styles.emptyIcon, { backgroundColor: colors.primaryLight }]}>
-                <MaterialCommunityIcons name="calendar-blank" size={64} color={colors.primary} />
-              </View>
-              <Text style={[styles.emptyTitle, { color: colors.text, fontFamily: typography.fontFamily.bold }]}>
-                No bookings found
-              </Text>
-              <Text style={[styles.emptyText, { color: colors.textSecondary, fontFamily: typography.fontFamily.regular }]}>
-                Start exploring farmhouses to make your first booking
+              <Text style={[styles.emptyText, { color: colors.placeholder }]}>
+                No {activeTab !== 'all' ? activeTab : ''} bookings found
               </Text>
               <TouchableOpacity
-                style={[styles.browseButton, { backgroundColor: colors.primary, ...shadows.md }]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  (navigation as any).navigate('Explore');
-                }}
+                style={[styles.browseButton, { backgroundColor: colors.buttonBackground }]}
+                onPress={() => navigation.navigate('Explore')}
               >
-                <MaterialCommunityIcons name="compass" size={20} color="white" />
-                <Text style={[styles.browseButtonText, { fontFamily: typography.fontFamily.semiBold }]}>
-                  Explore Farmhouses
+                <Text style={[styles.browseButtonText, { color: colors.buttonText }]}>
+                  Browse Farmhouses
                 </Text>
               </TouchableOpacity>
             </View>
@@ -385,142 +278,34 @@ export default function BookingsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    paddingBottom: 12,
-  },
-  headerTitle: { fontSize: 28, marginBottom: 4 },
-  headerSubtitle: { fontSize: 14 },
-  iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabScrollView: { maxHeight: 50, marginBottom: 12 },
-  tabContainer: { flexDirection: 'row', gap: 10, paddingHorizontal: 20 },
-  tab: {
-    flexDirection: 'row',
-    gap: 6,
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-  },
-  tabText: { fontSize: 14 },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingBottom: 100,
-  },
-  loadingText: { marginTop: 16, fontSize: 16 },
-  listContainer: { padding: 20, paddingBottom: 100 },
-  emptyList: { flex: 1 },
-  bookingCard: {
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-  },
-  bookingHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
-  farmhouseName: { fontSize: 18, marginBottom: 4 },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-  locationText: { fontSize: 13 },
-  statusBadge: {
-    flexDirection: 'row',
-    gap: 4,
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  statusText: { color: '#fff', fontSize: 10 },
-  dateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    backgroundColor: 'rgba(212, 175, 55, 0.08)',
-    borderRadius: 12,
-  },
-  dateItem: { flexDirection: 'row', alignItems: 'center' },
-  dateLabel: { fontSize: 11, marginBottom: 2 },
-  dateText: { fontSize: 14 },
-  infoRow: { flexDirection: 'row', gap: 20, marginBottom: 16 },
-  infoItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  infoText: { fontSize: 13 },
-  amountRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 0, 0, 0.05)',
-  },
-  totalLabel: { fontSize: 12, marginBottom: 4 },
-  totalAmount: { fontSize: 22 },
-  paymentBadge: {
-    flexDirection: 'row',
-    gap: 4,
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  paymentText: { fontSize: 12 },
-  actionRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10 },
-  detailsButton: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  cancelButton: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  buttonText: { color: 'white', fontSize: 14 },
-  cancelButtonText: { fontSize: 14 },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 40,
-    paddingBottom: 80,
-  },
-  emptyIcon: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-  },
-  emptyTitle: { fontSize: 24, marginBottom: 12, textAlign: 'center' },
-  emptyText: { fontSize: 16, marginBottom: 32, textAlign: 'center', lineHeight: 24 },
-  browseButton: {
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'center',
-    paddingHorizontal: 28,
-    paddingVertical: 14,
-    borderRadius: 24,
-  },
-  browseButtonText: { color: 'white', fontSize: 16 },
+  header: { paddingTop: 10, paddingHorizontal: 20, paddingBottom: 15 },
+  headerTitle: { fontSize: 24, fontWeight: 'bold', marginBottom: 15 },
+  tabContainer: { flexDirection: 'row', gap: 8 },
+  tab: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20 },
+  tabText: { fontSize: 14, fontWeight: '500' },
+  listContainer: { padding: 20, paddingTop: 0 },
+  bookingCard: { borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  bookingHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  farmhouseName: { fontSize: 17, fontWeight: 'bold', flex: 1, marginRight: 8 },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
+  statusText: { color: '#fff', fontSize: 10, fontWeight: 'bold' },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  infoText: { fontSize: 14 },
+  dateText: { fontSize: 14, fontWeight: '500' },
+  amountRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, marginBottom: 12 },
+  priceContainer: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  totalAmount: { fontSize: 18, fontWeight: 'bold' },
+  paymentBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
+  paymentText: { fontSize: 12, fontWeight: '600' },
+  actionRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  viewButton: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+  cancelButton: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1.5 },
+  buttonText: { fontSize: 14, fontWeight: '600' },
+  cancelButtonText: { fontSize: 14, fontWeight: '600' },
+  emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },
+  emptyText: { fontSize: 16, textAlign: 'center', marginBottom: 20 },
+  browseButton: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 },
+  browseButtonText: { fontSize: 14, fontWeight: '600' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
+  loadingText: { marginTop: 12, fontSize: 16 },
 });
