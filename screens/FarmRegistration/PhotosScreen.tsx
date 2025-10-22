@@ -69,13 +69,28 @@ export default function PhotosScreen({ navigation }: PhotosScreenProps) {
     setIsProcessing(true);
 
     try {
+      if (source === 'camera') {
+        const camPerm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!camPerm.granted) {
+          Alert.alert('Permission required', 'Please allow camera access to take photos.');
+          setIsProcessing(false);
+          return;
+        }
+      } else {
+        const libPerm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!libPerm.granted) {
+          Alert.alert('Permission required', 'Please allow photo library access to pick images.');
+          setIsProcessing(false);
+          return;
+        }
+      }
       const result = source === 'camera'
         ? await ImagePicker.launchCameraAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            mediaTypes: ['images'],
             quality: 1,
           })
         : await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            mediaTypes: ['images'],
             quality: 1,
           });
 
@@ -111,7 +126,7 @@ export default function PhotosScreen({ navigation }: PhotosScreenProps) {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['bottom']}>
-      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <Text style={styles.title}>Farm Photos</Text>
           <View style={styles.counterBadge}>

@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Modal, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Modal, Alert, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../authContext';
+import { collection, addDoc, getDocs, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
+import { db } from '../../firebaseConfig';
 
 interface Review {
   id: string;
@@ -11,6 +13,9 @@ interface Review {
   rating: number;
   comment: string;
   date: string;
+  farmhouseId: string;
+  userId: string;
+  createdAt: any;
 }
 
 type RootStackParamList = {
@@ -19,43 +24,91 @@ type RootStackParamList = {
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AllReviews'>;
 
-const SAMPLE_REVIEWS: Review[] = [
-  { id: '1', userName: 'Rajesh Kumar', rating: 5, comment: 'Amazing place for family gatherings. Clean and well-maintained.', date: '2025-09-15' },
-  { id: '2', userName: 'Priya Sharma', rating: 4, comment: 'Good facilities but could improve the kitchen equipment.', date: '2025-09-10' },
-  { id: '3', userName: 'Amit Patel', rating: 5, comment: 'Perfect for corporate events. Highly recommended!', date: '2025-09-08' },
-  { id: '4', userName: 'Sneha Reddy', rating: 4, comment: 'Beautiful location with great amenities.', date: '2025-09-05' },
-  { id: '5', userName: 'Vikram Singh', rating: 5, comment: 'Loved the peaceful environment and hospitality.', date: '2025-09-01' },
-];
-
 export default function AllReviewsScreen({ route, navigation }: Props) {
   const { farmhouseId } = route.params;
   const { colors, isDark } = useTheme();
   const { user } = useAuth();
 
-  const [reviews, setReviews] = useState<Review[]>(SAMPLE_REVIEWS);
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false); // ✅ ADDED
   const [showAddReview, setShowAddReview] = useState(false);
   const [newRating, setNewRating] = useState(5);
   const [newComment, setNewComment] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
-  const handleAddReview = () => {
+  useEffect(() => {
+    fetchReviews();
+  }, [farmhouseId]);
+
+  const fetchReviews = async () => {
+    try {
+      setLoading(true);
+      const reviewsRef = collection(db, 'reviews');
+      const q = query(
+        reviewsRef,
+        where('farmhouseId', '==', farmhouseId),
+        orderBy('createdAt', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      const fetchedReviews = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Review));
+      setReviews(fetchedReviews);
+    } catch (error) {
+      console.error('Error fetching reviews:', error);
+      Alert.alert('Error', 'Could not load reviews');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ ADDED: Pull-to-refresh handler
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchReviews();
+    setRefreshing(false);
+  };
+
+  const handleAddReview = async () => {
     if (!newComment.trim()) {
       Alert.alert('Error', 'Please enter a comment');
       return;
     }
 
-    const review: Review = {
-      id: Date.now().toString(),
-      userName: user?.displayName || 'Anonymous',
-      rating: newRating,
-      comment: newComment,
-      date: new Date().toISOString().split('T')[0]
-    };
+    if (!user) {
+      Alert.alert('Error', 'You must be logged in to add a review');
+      return;
+    }
 
-    setReviews([review, ...reviews]);
-    setNewComment('');
-    setNewRating(5);
-    setShowAddReview(false);
-    Alert.alert('Success', 'Review added successfully!');
+    try {
+      setSubmitting(true);
+      const reviewData = {
+        farmhouseId,
+        userId: user.uid,
+        userName: user.displayName || 'Anonymous',
+        rating: newRating,
+        comment: newComment.trim(),
+        date: new Date().toISOString(),
+        createdAt: serverTimestamp()
+      };
+
+      await addDoc(collection(db, 'reviews'), reviewData);
+      
+      setNewComment('');
+      setNewRating(5);
+      setShowAddReview(false);
+      Alert.alert('Success', 'Review added successfully!');
+      
+      // ✅ AUTOMATIC: Data will refresh automatically if using GlobalDataContext
+      await fetchReviews();
+    } catch (error) {
+      console.error('Error adding review:', error);
+      Alert.alert('Error', 'Could not add review. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const renderStars = (rating: number, onPress?: (star: number) => void) => {
@@ -76,7 +129,9 @@ export default function AllReviewsScreen({ route, navigation }: Props) {
     );
   };
 
-  const averageRating = (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1);
+  const averageRating = reviews.length > 0 
+    ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
+    : '0.0';
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -90,37 +145,71 @@ export default function AllReviewsScreen({ route, navigation }: Props) {
         </TouchableOpacity>
       </View>
 
-      <View style={[styles.summary, { backgroundColor: colors.cardBackground }]}>
-        <Text style={[styles.averageRating, { color: colors.buttonBackground }]}>{averageRating}</Text>
-        {renderStars(Math.round(parseFloat(averageRating)))}
-        <Text style={[styles.reviewCount, { color: colors.placeholder }]}>
-          Based on {reviews.length} reviews
-        </Text>
-      </View>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.buttonBackground} />
+        </View>
+      ) : (
+        <>
+          <View style={[styles.summary, { backgroundColor: colors.cardBackground }]}>
+            <Text style={[styles.averageRating, { color: colors.buttonBackground }]}>{averageRating}</Text>
+            {renderStars(Math.round(parseFloat(averageRating)))}
+            <Text style={[styles.reviewCount, { color: colors.placeholder }]}>
+              Based on {reviews.length} {reviews.length === 1 ? 'review' : 'reviews'}
+            </Text>
+          </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        {reviews.map((review) => (
-          <View
-            key={review.id}
-            style={[styles.reviewCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+          {/* ✅ ADDED: RefreshControl */}
+          <ScrollView 
+            contentContainerStyle={styles.content}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={[colors.buttonBackground]}
+                tintColor={colors.buttonBackground}
+              />
+            }
           >
-            <View style={styles.reviewHeader}>
-              <View style={[styles.avatar, { backgroundColor: colors.buttonBackground }]}>
-                <Text style={[styles.avatarText, { color: colors.buttonText }]}>
-                  {review.userName.charAt(0)}
+            {reviews.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Text style={[styles.emptyText, { color: colors.placeholder }]}>
+                  No reviews yet. Be the first to review!
                 </Text>
               </View>
-              <View style={styles.reviewMeta}>
-                <Text style={[styles.userName, { color: colors.text }]}>{review.userName}</Text>
-                <Text style={[styles.reviewDate, { color: colors.placeholder }]}>{review.date}</Text>
-              </View>
-            </View>
-            {renderStars(review.rating)}
-            <Text style={[styles.reviewComment, { color: colors.text }]}>{review.comment}</Text>
-          </View>
-        ))}
-      </ScrollView>
+            ) : (
+              reviews.map((review) => (
+                <View
+                  key={review.id}
+                  style={[styles.reviewCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+                >
+                  <View style={styles.reviewHeader}>
+                    <View style={[styles.avatar, { backgroundColor: colors.buttonBackground }]}>
+                      <Text style={[styles.avatarText, { color: colors.buttonText }]}>
+                        {review.userName.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={styles.reviewMeta}>
+                      <Text style={[styles.userName, { color: colors.text }]}>{review.userName}</Text>
+                      <Text style={[styles.reviewDate, { color: colors.placeholder }]}>
+                        {new Date(review.date).toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        })}
+                      </Text>
+                    </View>
+                  </View>
+                  {renderStars(review.rating)}
+                  <Text style={[styles.reviewComment, { color: colors.text }]}>{review.comment}</Text>
+                </View>
+              ))
+            )}
+          </ScrollView>
+        </>
+      )}
 
+      {/* Modal stays the same */}
       <Modal visible={showAddReview} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: colors.cardBackground }]}>
@@ -138,6 +227,7 @@ export default function AllReviewsScreen({ route, navigation }: Props) {
               numberOfLines={4}
               value={newComment}
               onChangeText={setNewComment}
+              editable={!submitting}
             />
 
             <View style={styles.modalButtons}>
@@ -148,14 +238,20 @@ export default function AllReviewsScreen({ route, navigation }: Props) {
                   setNewComment('');
                   setNewRating(5);
                 }}
+                disabled={submitting}
               >
                 <Text style={[styles.modalButtonText, { color: colors.text }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, { backgroundColor: colors.buttonBackground }]}
+                style={[styles.modalButton, { backgroundColor: colors.buttonBackground, opacity: submitting ? 0.6 : 1 }]}
                 onPress={handleAddReview}
+                disabled={submitting}
               >
-                <Text style={[styles.modalButtonText, { color: colors.buttonText }]}>Submit</Text>
+                {submitting ? (
+                  <ActivityIndicator size="small" color={colors.buttonText} />
+                ) : (
+                  <Text style={[styles.modalButtonText, { color: colors.buttonText }]}>Submit</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -173,12 +269,15 @@ const styles = StyleSheet.create({
   addButton: { padding: 4 },
   addIcon: { fontSize: 24 },
   title: { fontSize: 20, fontWeight: 'bold' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   summary: { padding: 20, alignItems: 'center', marginVertical: 16, marginHorizontal: 20, borderRadius: 12 },
   averageRating: { fontSize: 48, fontWeight: 'bold', marginBottom: 8 },
   starsContainer: { flexDirection: 'row', gap: 4, marginVertical: 8 },
   starIcon: { fontSize: 24 },
   reviewCount: { fontSize: 14, marginTop: 8 },
   content: { padding: 20 },
+  emptyContainer: { paddingVertical: 40, alignItems: 'center' },
+  emptyText: { fontSize: 16, textAlign: 'center' },
   reviewCard: { padding: 16, borderRadius: 12, marginBottom: 16, borderWidth: 1 },
   reviewHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12 },
   avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },

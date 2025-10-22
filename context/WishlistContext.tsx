@@ -1,121 +1,119 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { db } from '../firebaseConfig';
 import { useAuth } from '../authContext';
-import {
-  getUserFavorites,
-  addToFavorites,
-  removeFromFavorites,
-  toggleFavorite as toggleFavoriteService
-} from '../services/favoriteService';
+
+// --- Firestore Helper Functions ---
+
+/**
+ * Fetches the wishlist array for a given user from Firestore.
+ * Creates a user document with an empty wishlist if one doesn't exist.
+ * @param userId - The UID of the user.
+ * @returns An array of farmhouse IDs.
+ */
+const getUserWishlist = async (userId: string): Promise<string[]> => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    if (userSnap.exists()) {
+      return userSnap.data().wishlist || [];
+    }
+    // If user document doesn't exist, create it.
+    await setDoc(userRef, { wishlist: [] });
+    return [];
+  } catch (error) {
+    console.error("Error fetching user wishlist:", error);
+    return [];
+  }
+};
+
+/**
+ * Adds a farmhouse ID to the user's wishlist array in Firestore.
+ * @param userId - The UID of the user.
+ * @param farmhouseId - The ID of the farmhouse to add.
+ */
+const addToUserWishlist = async (userId: string, farmhouseId: string): Promise<void> => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+      wishlist: arrayUnion(farmhouseId),
+    });
+  } catch (error) {
+    // If the document doesn't exist, create it first then add.
+    if ((error as any).code === 'not-found') {
+      await setDoc(doc(db, 'users', userId), { wishlist: [farmhouseId] });
+    } else {
+      console.error("Error adding to wishlist:", error);
+      throw error;
+    }
+  }
+};
+
+/**
+ * Removes a farmhouse ID from the user's wishlist array in Firestore.
+ * @param userId - The UID of the user.
+ * @param farmhouseId - The ID of the farmhouse to remove.
+ */
+const removeFromUserWishlist = async (userId: string, farmhouseId: string): Promise<void> => {
+  try {
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+      wishlist: arrayRemove(farmhouseId),
+    });
+  } catch (error) {
+    console.error("Error removing from wishlist:", error);
+    // Don't throw error if doc doesn't exist, as it means the item isn't there anyway.
+  }
+};
+
+
+// --- Wishlist Context ---
 
 interface WishlistContextType {
   wishlist: string[];
   addToWishlist: (id: string) => Promise<void>;
   removeFromWishlist: (id: string) => Promise<void>;
-  toggleWishlist: (id: string) => Promise<boolean>;
   isInWishlist: (id: string) => boolean;
-  loading: boolean;
-  refreshWishlist: () => Promise<void>;
 }
 
 const WishlistContext = createContext<WishlistContextType | undefined>(undefined);
 
 export function WishlistProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [wishlist, setWishlist] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
 
-  // Get auth context - this hook must always be called
-  const authContext = useAuth();
-  const user = authContext?.user || null;
-
-  // Load wishlist from Firebase when user logs in
   useEffect(() => {
-    if (user?.uid) {
-      loadWishlist();
-    } else {
-      setWishlist([]);
-      setLoading(false);
-    }
-  }, [user?.uid]);
-
-  const loadWishlist = async () => {
-    if (!user?.uid) return;
-
-    try {
-      setLoading(true);
-      const favorites = await getUserFavorites(user.uid);
-      setWishlist(favorites);
-    } catch (error) {
-      console.error('Error loading wishlist:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const refreshWishlist = async () => {
-    await loadWishlist();
-  };
+    const loadWishlist = async () => {
+      if (user) {
+        const userWishlist = await getUserWishlist(user.uid);
+        setWishlist(userWishlist);
+      } else {
+        setWishlist([]); // Clear wishlist on logout
+      }
+    };
+    loadWishlist();
+  }, [user]);
 
   const addToWishlist = async (id: string) => {
-    if (!user?.uid) {
-      console.warn('User not authenticated');
-      return;
-    }
-
-    // Optimistic update
-    setWishlist(prev => [...prev, id]);
-
+    if (!user) return;
+    setWishlist(prev => [...prev, id]); // Optimistic update
     try {
-      await addToFavorites(user.uid, id);
+      await addToUserWishlist(user.uid, id);
     } catch (error) {
-      console.error('Error adding to wishlist:', error);
-      // Rollback on error
-      setWishlist(prev => prev.filter(item => item !== id));
-      throw error;
+      console.error('Failed to add to wishlist:', error);
+      setWishlist(prev => prev.filter(item => item !== id)); // Revert on failure
     }
   };
 
   const removeFromWishlist = async (id: string) => {
-    if (!user?.uid) {
-      console.warn('User not authenticated');
-      return;
-    }
-
-    // Optimistic update
-    setWishlist(prev => prev.filter(item => item !== id));
-
+    if (!user) return;
+    const originalWishlist = [...wishlist];
+    setWishlist(prev => prev.filter(item => item !== id)); // Optimistic update
     try {
-      await removeFromFavorites(user.uid, id);
+      await removeFromUserWishlist(user.uid, id);
     } catch (error) {
-      console.error('Error removing from wishlist:', error);
-      // Rollback on error
-      setWishlist(prev => [...prev, id]);
-      throw error;
-    }
-  };
-
-  const toggleWishlist = async (id: string): Promise<boolean> => {
-    if (!user?.uid) {
-      console.warn('User not authenticated');
-      return false;
-    }
-
-    const wasInWishlist = wishlist.includes(id);
-
-    // Optimistic update
-    if (wasInWishlist) {
-      setWishlist(prev => prev.filter(item => item !== id));
-    } else {
-      setWishlist(prev => [...prev, id]);
-    }
-
-    try {
-      const isNowFavorite = await toggleFavoriteService(user.uid, id);
-      return isNowFavorite;
-    } catch (error) {
-      console.error('Error toggling wishlist:', error);
-      // Rollback on error
-      setWishlist(prev => wasInWishlist ? [...prev, id] : prev.filter(item => item !== id));
-      throw error;
+      console.error('Failed to remove from wishlist:', error);
+      setWishlist(originalWishlist); // Revert on failure
     }
   };
 
@@ -124,15 +122,7 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <WishlistContext.Provider value={{
-      wishlist,
-      addToWishlist,
-      removeFromWishlist,
-      toggleWishlist,
-      isInWishlist,
-      loading,
-      refreshWishlist
-    }}>
+    <WishlistContext.Provider value={{ wishlist, addToWishlist, removeFromWishlist, isInWishlist }}>
       {children}
     </WishlistContext.Provider>
   );

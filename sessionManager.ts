@@ -8,6 +8,7 @@ export interface UserSession {
   role?: 'owner' | 'customer';
   displayName?: string;
   photoURL?: string;
+  phoneNumber?: string | null; // Added phoneNumber
 }
 
 export async function saveSession(user: UserSession): Promise<void> {
@@ -50,6 +51,7 @@ export async function loadSession(): Promise<UserSession | null> {
       role: parsed.role,
       displayName: parsed.displayName,
       photoURL: parsed.photoURL,
+      phoneNumber: parsed.phoneNumber, // Added phoneNumber
     };
   } catch (error) {
     console.error('Failed to load session:', error);

@@ -19,6 +19,8 @@ export interface Booking {
   id: string;
   farmhouseId: string;
   farmhouseName: string;
+  farmhouseImage?: string;
+  location?: string;
   userId: string;
   userEmail: string;
   userName: string;
@@ -27,9 +29,21 @@ export interface Booking {
   checkOutDate: string;
   guests: number;
   totalPrice: number;
+  originalPrice?: number;
+  discountApplied?: number;
+  couponCode?: string | null;
   bookingType: 'dayuse' | 'overnight';
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
   paymentStatus: 'pending' | 'paid' | 'refunded';
+  paymentMethod?: 'UPI' | 'Credit Card' | 'Debit Card' | 'Net Banking';
+  transactionId?: string;
+  upiId?: string;
+  cardLast4?: string;
+  bankName?: string;
+  cancellationDate?: string;
+  refundAmount?: number;
+  refundStatus?: 'pending' | 'processing' | 'completed' | 'failed';
+  refundDate?: string;
   createdAt: any;
   updatedAt?: any;
 }
@@ -205,6 +219,33 @@ export async function updatePaymentStatus(
     console.log('Payment status updated:', bookingId, paymentStatus);
   } catch (error) {
     console.error('Error updating payment status:', error);
+    throw error;
+  }
+}
+
+// Update refund status
+export async function updateRefundStatus(
+  bookingId: string,
+  refundStatus: 'pending' | 'processing' | 'completed' | 'failed',
+  refundDate?: string
+): Promise<void> {
+  try {
+    const bookingRef = doc(db, 'bookings', bookingId);
+    const updateData: any = {
+      refundStatus,
+      refund_status: refundStatus,
+      updatedAt: serverTimestamp(),
+    };
+    
+    if (refundDate) {
+      updateData.refundDate = refundDate;
+      updateData.refund_date = refundDate;
+    }
+    
+    await updateDoc(bookingRef, updateData);
+    console.log('Refund status updated:', bookingId, refundStatus);
+  } catch (error) {
+    console.error('Error updating refund status:', error);
     throw error;
   }
 }

@@ -1,65 +1,23 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  View,
-  Text,
-  Image,
-  TouchableOpacity,
-  ScrollView,
-  StyleSheet,
-  StatusBar,
-  Modal,
-  TextInput,
-  FlatList,
-  Share,
-  Alert,
-  ActivityIndicator,
-  Dimensions,
-  RefreshControl
+  View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, StatusBar,
+  Modal, TextInput, FlatList, Share, Alert, ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Heart, Search, SlidersHorizontal, ArrowUpDown, LogOut, Share2 } from 'lucide-react-native';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
-import { getApprovedFarmhouses, Farmhouse as FarmhouseType } from '../../services/farmhouseService';
+import { Farmhouse as FarmhouseType } from '../../types/navigation';
+import { useAvailableFarmhouses } from '../../GlobalDataContext';
 
-const { width, height } = Dimensions.get('window');
-
-interface Farmhouse {
-  id: string;
-  name: string;
-  location: string;
-  price: number;
-  rating: number;
-  reviews: number;
-  image: string;
-  amenities: string[];
-  capacity: number;
-  rooms: number;
-  description: string;
-  images: string[];
-  weekendPrice: number;
-  specialDates: { date: string; price: number }[];
-  extraGuestPrice: number;
-  coordinates: { latitude: number; longitude: number };
-  rules: string[];
-  terms: string[];
-  bookedDates: string[];
-}
-
-type RootStackParamList = {
-  FarmhouseDetail: { farmhouse: Farmhouse };
-};
-
-type Props = NativeStackScreenProps<RootStackParamList>;
-
-export default function ExploreScreen({ navigation }: Props) {
+export default function ExploreScreen({ navigation }: any) {
   const { user, logout } = useAuth();
-  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
+  const { colors, isDark } = useTheme();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
+  
+  // Use the GlobalDataContext hook instead of local state
+  const { data: farmhouses, loading, error } = useAvailableFarmhouses();
 
   const [searchText, setSearchText] = useState('');
   const [sortBy, setSortBy] = useState('name');
@@ -71,48 +29,19 @@ export default function ExploreScreen({ navigation }: Props) {
     maxPrice: '',
     minCapacity: '',
   });
-  const [farmhouses, setFarmhouses] = useState<FarmhouseType[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [currentSlide, setCurrentSlide] = useState(0);
 
-  useEffect(() => {
-    loadFarmhouses();
-  }, []);
-
-  const loadFarmhouses = async () => {
-    try {
-      setLoading(true);
-      console.log('📍 Loading farmhouses from Firebase...');
-      const data = await getApprovedFarmhouses();
-      console.log(`✅ Loaded ${data.length} farmhouses:`, data.map(f => f.name));
-      setFarmhouses(data);
-    } catch (error) {
-      console.error('❌ Error loading farmhouses:', error);
-      Alert.alert('Error', 'Could not load farmhouses');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadFarmhouses();
-    setRefreshing(false);
-  };
-
-  const toggleWishlist = (id: string) => {
-    if (isInWishlist(id)) {
-      removeFromWishlist(id);
+  const toggleWishlist = async (farmhouse: FarmhouseType) => {
+    if (isInWishlist(farmhouse.id)) {
+      await removeFromWishlist(farmhouse.id);
     } else {
-      addToWishlist(id);
+      await addToWishlist(farmhouse.id);
     }
   };
 
-  const handleShare = async (farmhouse: Farmhouse) => {
+  const handleShare = async (farmhouse: FarmhouseType) => {
     try {
       await Share.share({
-        message: `Check out ${farmhouse.name} in ${farmhouse.location}! Starting from ₹${farmhouse.price}/night. Book now!`,
+        message: `Check out ${farmhouse.name} in ${farmhouse.location}! Starting from ₹${farmhouse.weeklyNight}/night.`,
         title: farmhouse.name,
       });
     } catch (error) {
@@ -120,27 +49,46 @@ export default function ExploreScreen({ navigation }: Props) {
     }
   };
 
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Logout', style: 'destructive', onPress: async () => {
+          try {
+            await logout();
+          } catch (error) {
+            Alert.alert('Error', 'Failed to logout');
+          }
+        }}
+      ]
+    );
+  };
+
   const filteredAndSortedFarmhouses = useMemo(() => {
     let result = [...farmhouses];
 
     if (searchText) {
       result = result.filter(f =>
-        f.name.toLowerCase().includes(searchText.toLowerCase()) ||
-        f.location.toLowerCase().includes(searchText.toLowerCase())
+        (f.name || '').toLowerCase().includes(searchText.toLowerCase()) ||
+        (f.location || '').toLowerCase().includes(searchText.toLowerCase()) ||
+        (f.city || '').toLowerCase().includes(searchText.toLowerCase())
       );
     }
 
     if (filters.location) {
       result = result.filter(f =>
-        f.location.toLowerCase().includes(filters.location.toLowerCase())
+        (f.location || '').toLowerCase().includes(filters.location.toLowerCase()) ||
+        (f.city || '').toLowerCase().includes(filters.location.toLowerCase())
       );
     }
 
     if (filters.minPrice) {
-      result = result.filter(f => f.price >= parseInt(filters.minPrice));
+      result = result.filter(f => f.weeklyNight >= parseInt(filters.minPrice));
     }
     if (filters.maxPrice) {
-      result = result.filter(f => f.price <= parseInt(filters.maxPrice));
+      result = result.filter(f => f.weeklyNight <= parseInt(filters.maxPrice));
     }
 
     if (filters.minCapacity) {
@@ -149,10 +97,10 @@ export default function ExploreScreen({ navigation }: Props) {
 
     switch (sortBy) {
       case 'price-low':
-        result.sort((a, b) => a.price - b.price);
+        result.sort((a, b) => a.weeklyNight - b.weeklyNight);
         break;
       case 'price-high':
-        result.sort((a, b) => b.price - a.price);
+        result.sort((a, b) => b.weeklyNight - a.weeklyNight);
         break;
       case 'capacity-low':
         result.sort((a, b) => a.capacity - b.capacity);
@@ -171,351 +119,177 @@ export default function ExploreScreen({ navigation }: Props) {
     return result;
   }, [searchText, filters, sortBy, farmhouses]);
 
-  const handleLogout = async () => {
-    try {
-      await logout();
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-  };
-
-  const renderCarouselItem = ({ item }: { item: Farmhouse }) => (
+  const renderFarmhouse = ({ item }: { item: FarmhouseType }) => (
     <TouchableOpacity
-      style={styles.carouselCard}
+      style={[styles.propertyCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
       onPress={() => navigation.navigate('FarmhouseDetail', { farmhouse: item })}
-      activeOpacity={0.95}
-    >
-      <Image
-        source={{ uri: item.photos?.[0] || 'https://via.placeholder.com/400x300' }}
-        style={styles.carouselImage}
-      />
-      <LinearGradient
-        colors={colors.overlayGradient}
-        style={styles.carouselOverlay}
-      >
-        <View style={styles.carouselContent}>
-          <View style={styles.featuredBadge}>
-            <MaterialCommunityIcons name="star" size={14} color={colors.primary} />
-            <Text style={[styles.featuredText, { fontFamily: typography.fontFamily.semiBold }]}>
-              Featured
-            </Text>
-          </View>
-          <Text style={[styles.carouselTitle, { fontFamily: typography.fontFamily.bold }]}>
-            {item.name}
-          </Text>
-          <View style={styles.carouselMeta}>
-            <MaterialCommunityIcons name="map-marker" size={16} color="white" />
-            <Text style={[styles.carouselLocation, { fontFamily: typography.fontFamily.regular }]}>
-              {item.location}
-            </Text>
-          </View>
-          <View style={styles.carouselPrice}>
-            <Text style={[styles.priceLabel, { fontFamily: typography.fontFamily.regular }]}>
-              Starting from
-            </Text>
-            <Text style={[styles.priceAmount, { fontFamily: typography.fontFamily.bold }]}>
-              ₹{item.price}
-            </Text>
-            <Text style={[styles.priceNight, { fontFamily: typography.fontFamily.regular }]}>
-              /night
-            </Text>
-          </View>
-        </View>
-      </LinearGradient>
-    </TouchableOpacity>
-  );
-
-  const renderSkeletonCard = () => (
-    <View style={[styles.propertyCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-      <View style={[styles.propertyImage, { backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-      <View style={styles.propertyDetails}>
-        <View style={{ width: '70%', height: 20, marginBottom: 8, borderRadius: 4, backgroundColor: colors.border }} />
-        <View style={{ width: '50%', height: 16, marginBottom: 8, borderRadius: 4, backgroundColor: colors.border }} />
-        <View style={{ width: '40%', height: 18, borderRadius: 4, backgroundColor: colors.border }} />
-      </View>
-    </View>
-  );
-
-  const renderFarmhouse = ({ item }: { item: Farmhouse }) => (
-    <TouchableOpacity
-      style={[styles.propertyCard, { backgroundColor: colors.cardBackground, borderColor: colors.border, ...shadows.md }]}
-      onPress={() => navigation.navigate('FarmhouseDetail', { farmhouse: item })}
-      activeOpacity={0.9}
     >
       <View style={styles.imageContainer}>
-        <Image source={{ uri: item.photos?.[0] || 'https://via.placeholder.com/400x300' }} style={styles.propertyImage} />
+        <Image
+          source={{ uri: item.photos?.[0] || 'https://via.placeholder.com/400x300' }}
+          style={styles.propertyImage}
+        />
 
         <View style={styles.imageActions}>
           <TouchableOpacity
             onPress={() => handleShare(item)}
-            style={[styles.actionButton, { ...shadows.sm }]}
+            style={styles.actionButton}
           >
-            <MaterialCommunityIcons name="share-variant" size={20} color={colors.primary} />
+            <Share2 size={18} color="#666" />
           </TouchableOpacity>
 
           <TouchableOpacity
-            onPress={() => toggleWishlist(item.id)}
-            style={[styles.actionButton, { ...shadows.sm }]}
+            onPress={() => toggleWishlist(item)}
+            style={styles.actionButton}
           >
-            <MaterialCommunityIcons
-              name={isInWishlist(item.id) ? 'heart' : 'heart-outline'}
-              size={20}
-              color={isInWishlist(item.id) ? colors.favorite : colors.text}
+            <Heart
+              size={18}
+              color={isInWishlist(item.id) ? "#EF4444" : "#666"}
+              fill={isInWishlist(item.id) ? "#EF4444" : "transparent"}
             />
           </TouchableOpacity>
         </View>
-
-        {(item.rating > 0) && (
-          <View style={[styles.ratingBadge, { backgroundColor: colors.primary }]}>
-            <MaterialCommunityIcons name="star" size={14} color="white" />
-            <Text style={[styles.ratingText, { fontFamily: typography.fontFamily.semiBold }]}>
-              {item.rating}
-            </Text>
-          </View>
-        )}
       </View>
 
       <View style={styles.propertyDetails}>
-        <Text style={[styles.propertyTitle, { color: colors.text, fontFamily: typography.fontFamily.semiBold }]}>
-          {item.name}
-        </Text>
-
-        <View style={styles.locationRow}>
-          <MaterialCommunityIcons name="map-marker" size={16} color={colors.textSecondary} />
-          <Text style={[styles.distance, { color: colors.textSecondary, fontFamily: typography.fontFamily.regular }]}>
-            {item.location}
+        <View style={styles.titleRow}>
+          <Text style={[styles.propertyTitle, { color: colors.text }]} numberOfLines={1}>
+            {item.name}
           </Text>
-        </View>
-
-        <View style={styles.amenitiesRow}>
-          <View style={styles.amenityItem}>
-            <MaterialCommunityIcons name="account-group" size={16} color={colors.primary} />
-            <Text style={[styles.amenityText, { color: colors.textSecondary, fontFamily: typography.fontFamily.regular }]}>
-              {item.capacity} guests
+          <View style={styles.ratingContainer}>
+            <Text style={styles.star}>★</Text>
+            <Text style={[styles.rating, { color: colors.text }]}>
+              {item.rating?.toFixed(1) || '4.5'}
             </Text>
           </View>
-          {item.rooms > 0 && (
-            <View style={styles.amenityItem}>
-              <MaterialCommunityIcons name="bed" size={16} color={colors.primary} />
-              <Text style={[styles.amenityText, { color: colors.textSecondary, fontFamily: typography.fontFamily.regular }]}>
-                {item.rooms} rooms
-              </Text>
-            </View>
-          )}
         </View>
-
+        <Text style={[styles.distance, { color: colors.placeholder }]} numberOfLines={1}>
+          {item.location}
+        </Text>
         <View style={styles.priceCapacityRow}>
-          <View>
-            <Text style={[styles.price, { color: colors.primary, fontFamily: typography.fontFamily.bold }]}>
-              ₹{item.price}
-            </Text>
-            <Text style={[styles.perNight, { color: colors.textTertiary, fontFamily: typography.fontFamily.regular }]}>
-              per night
-            </Text>
-          </View>
-          <TouchableOpacity style={[styles.bookButton, { backgroundColor: colors.primary, ...shadows.sm }]}>
-            <Text style={[styles.bookButtonText, { fontFamily: typography.fontFamily.semiBold }]}>
-              View Details
-            </Text>
-          </TouchableOpacity>
+          <Text style={[styles.price, { color: colors.buttonBackground }]}>
+            ₹{item.weekendNight}/night
+          </Text>
+          <Text style={[styles.capacity, { color: colors.placeholder }]}>
+            Up to {item.capacity} guests
+          </Text>
         </View>
       </View>
     </TouchableOpacity>
   );
 
-  return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+  if (error) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={styles.errorContainer}>
+          <Text style={[styles.errorText, { color: colors.text }]}>Failed to load farmhouses</Text>
+          <Text style={[styles.errorSubText, { color: colors.placeholder }]}>{error}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
-      {/* Header */}
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.background} />
+
       <View style={styles.header}>
         <View style={styles.userInfo}>
-          <Text style={[styles.greeting, { color: colors.textSecondary, fontFamily: typography.fontFamily.regular }]}>
-            Welcome back,
-          </Text>
-          <Text style={[styles.userName, { color: colors.text, fontFamily: typography.fontFamily.bold }]}>
+          <Text style={[styles.greeting, { color: colors.placeholder }]}>Welcome back,</Text>
+          <Text style={[styles.userName, { color: colors.text }]}>
             {user?.displayName || 'User'}!
           </Text>
         </View>
-        <TouchableOpacity
-          onPress={handleLogout}
-          style={[styles.logoutButton, { backgroundColor: colors.errorLight, ...shadows.sm }]}
-        >
-          <MaterialCommunityIcons name="logout" size={20} color={colors.error} />
+        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+          <LogOut size={20} color="#EF4444" />
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 100 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[colors.primary]}
-            tintColor={colors.primary}
+      <View style={styles.searchFilterRow}>
+        <View style={[styles.searchBar, { backgroundColor: isDark ? colors.cardBackground : '#F3F4F6', borderColor: colors.border }]}>
+          <Search size={20} color={colors.placeholder} />
+          <TextInput
+            style={[styles.searchInput, { color: colors.text }]}
+            placeholder="Search by name or area..."
+            placeholderTextColor={colors.placeholder}
+            value={searchText}
+            onChangeText={setSearchText}
           />
-        }
-      >
-        {/* Hero Carousel */}
-        {loading ? (
-          <View style={styles.carouselContainer}>
-            <View style={[styles.carouselSkeleton, { backgroundColor: colors.border, alignItems: 'center', justifyContent: 'center' }]}>
-              <ActivityIndicator size="large" color={colors.primary} />
-            </View>
-          </View>
-        ) : farmhouses.length > 0 ? (
-          <View style={styles.carouselContainer}>
-            <FlatList
-              data={farmhouses.slice(0, 5)}
-              renderItem={renderCarouselItem}
-              keyExtractor={(item) => `carousel-${item.id}`}
-              horizontal
-              pagingEnabled
-              showsHorizontalScrollIndicator={false}
-              onMomentumScrollEnd={(event) => {
-                const index = Math.round(event.nativeEvent.contentOffset.x / (width - 32));
-                setCurrentSlide(index);
-              }}
-              snapToAlignment="center"
-              decelerationRate="fast"
-            />
-            <View style={styles.pagination}>
-              {farmhouses.slice(0, 5).map((_, index) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.paginationDot,
-                    {
-                      backgroundColor: currentSlide === index ? colors.primary : 'rgba(255,255,255,0.5)',
-                      width: currentSlide === index ? 24 : 8,
-                    }
-                  ]}
-                />
-              ))}
-            </View>
-          </View>
-        ) : null}
-
-        {/* Search and Filters */}
-        <View style={styles.searchSection}>
-          <View style={[styles.searchBar, { backgroundColor: colors.cardBackground, borderColor: colors.border, ...shadows.sm }]}>
-            <MaterialCommunityIcons name="magnify" size={22} color={colors.textSecondary} />
-            <TextInput
-              style={[styles.searchInput, { color: colors.text, fontFamily: typography.fontFamily.regular }]}
-              placeholder="Search farmhouses..."
-              placeholderTextColor={colors.textTertiary}
-              value={searchText}
-              onChangeText={setSearchText}
-            />
-            {searchText.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchText('')}>
-                <MaterialCommunityIcons name="close-circle" size={20} color={colors.textSecondary} />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <View style={styles.filterRow}>
-            <TouchableOpacity
-              style={[styles.filterButton, { backgroundColor: colors.cardBackground, borderColor: colors.border, ...shadows.sm }]}
-              onPress={() => setShowSortModal(true)}
-            >
-              <MaterialCommunityIcons name="sort" size={20} color={colors.text} />
-              <Text style={[styles.filterButtonText, { color: colors.text, fontFamily: typography.fontFamily.medium }]}>
-                Sort
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.filterButton, { backgroundColor: colors.cardBackground, borderColor: colors.border, ...shadows.sm }]}
-              onPress={() => setShowFilterModal(true)}
-            >
-              <MaterialCommunityIcons name="filter-variant" size={20} color={colors.text} />
-              <Text style={[styles.filterButtonText, { color: colors.text, fontFamily: typography.fontFamily.medium }]}>
-                Filter
-              </Text>
-            </TouchableOpacity>
-          </View>
         </View>
+        <TouchableOpacity
+          style={[styles.iconButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+          onPress={() => setShowSortModal(true)}
+        >
+          <ArrowUpDown size={20} color={colors.text} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.iconButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+          onPress={() => setShowFilterModal(true)}
+        >
+          <SlidersHorizontal size={20} color={colors.text} />
+        </TouchableOpacity>
+      </View>
 
-        {/* Properties List */}
-        <View style={styles.listSection}>
-          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: typography.fontFamily.bold }]}>
-            Available Properties
-          </Text>
-          {loading ? (
-            <>
-              {[1, 2, 3].map((i) => (
-                <View key={i}>{renderSkeletonCard()}</View>
-              ))}
-            </>
-          ) : filteredAndSortedFarmhouses.length > 0 ? (
-            filteredAndSortedFarmhouses.map((item) => (
-              <View key={item.id}>{renderFarmhouse({ item })}</View>
-            ))
-          ) : (
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.buttonBackground} />
+          <Text style={[styles.loadingText, { color: colors.placeholder }]}>Loading farmhouses...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredAndSortedFarmhouses}
+          renderItem={renderFarmhouse}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <MaterialCommunityIcons name="home-search" size={64} color={colors.textTertiary} />
-              <Text style={[styles.emptyText, { color: colors.textSecondary, fontFamily: typography.fontFamily.medium }]}>
+              <Text style={[styles.emptyText, { color: colors.placeholder }]}>
                 No farmhouses found
               </Text>
-              <Text style={[styles.emptySubtext, { color: colors.textTertiary, fontFamily: typography.fontFamily.regular }]}>
-                Try adjusting your filters
-              </Text>
             </View>
-          )}
-        </View>
-      </ScrollView>
+          }
+        />
+      )}
 
       {/* Sort Modal */}
       <Modal visible={showSortModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
-          <View style={[styles.modalContent, { backgroundColor: colors.cardBackground, borderRadius: borderRadius.xl }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text, fontFamily: typography.fontFamily.bold }]}>
-                Sort By
-              </Text>
-              <TouchableOpacity onPress={() => setShowSortModal(false)}>
-                <MaterialCommunityIcons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
+          <View style={[styles.modalContent, { backgroundColor: colors.cardBackground }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Sort By</Text>
             {[
-              { label: 'Name (A-Z)', value: 'name', icon: 'sort-alphabetical-ascending' },
-              { label: 'Price: Low to High', value: 'price-low', icon: 'currency-inr' },
-              { label: 'Price: High to Low', value: 'price-high', icon: 'currency-inr' },
-              { label: 'Capacity: Low to High', value: 'capacity-low', icon: 'account-group' },
-              { label: 'Capacity: High to Low', value: 'capacity-high', icon: 'account-group' },
-              { label: 'Rating', value: 'rating', icon: 'star' },
+              { label: 'Name (A-Z)', value: 'name' },
+              { label: 'Price: Low to High', value: 'price-low' },
+              { label: 'Price: High to Low', value: 'price-high' },
+              { label: 'Capacity: Low to High', value: 'capacity-low' },
+              { label: 'Capacity: High to Low', value: 'capacity-high' },
+              { label: 'Rating', value: 'rating' },
             ].map((option) => (
               <TouchableOpacity
                 key={option.value}
                 style={[
                   styles.modalOption,
-                  sortBy === option.value && { backgroundColor: colors.primaryLight }
+                  sortBy === option.value && { backgroundColor: colors.buttonBackground }
                 ]}
                 onPress={() => {
                   setSortBy(option.value);
                   setShowSortModal(false);
                 }}
               >
-                <MaterialCommunityIcons
-                  name={option.icon as any}
-                  size={20}
-                  color={sortBy === option.value ? colors.primary : colors.textSecondary}
-                />
                 <Text style={[
                   styles.modalOptionText,
-                  { color: sortBy === option.value ? colors.primary : colors.text, fontFamily: typography.fontFamily.medium }
+                  { color: sortBy === option.value ? colors.buttonText : colors.text }
                 ]}>
                   {option.label}
                 </Text>
-                {sortBy === option.value && (
-                  <MaterialCommunityIcons name="check" size={20} color={colors.primary} />
-                )}
               </TouchableOpacity>
             ))}
+            <TouchableOpacity
+              style={[styles.closeButton, { backgroundColor: colors.border }]}
+              onPress={() => setShowSortModal(false)}
+            >
+              <Text style={[styles.closeButtonText, { color: colors.text }]}>Close</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -523,66 +297,43 @@ export default function ExploreScreen({ navigation }: Props) {
       {/* Filter Modal */}
       <Modal visible={showFilterModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
-          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
-          <ScrollView style={[styles.filterModalContent, { backgroundColor: colors.cardBackground, borderRadius: borderRadius.xl }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: colors.text, fontFamily: typography.fontFamily.bold }]}>
-                Filters
-              </Text>
-              <TouchableOpacity onPress={() => setShowFilterModal(false)}>
-                <MaterialCommunityIcons name="close" size={24} color={colors.text} />
-              </TouchableOpacity>
-            </View>
+          <ScrollView style={[styles.filterModalContent, { backgroundColor: colors.cardBackground }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Filters</Text>
 
-            <View style={styles.filterLabelContainer}>
-              <MaterialCommunityIcons name="map-marker" size={16} color={colors.text} />
-              <Text style={[styles.filterLabel, { color: colors.text, fontFamily: typography.fontFamily.semiBold }]}>
-                Location
-              </Text>
-            </View>
+            <Text style={[styles.filterLabel, { color: colors.text }]}>Location</Text>
             <TextInput
-              style={[styles.filterInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border, fontFamily: typography.fontFamily.regular }]}
-              placeholder="e.g. Bangalore"
-              placeholderTextColor={colors.textTertiary}
+              style={[styles.filterInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+              placeholder="e.g. Hyderabad"
+              placeholderTextColor={colors.placeholder}
               value={filters.location}
               onChangeText={(text) => setFilters({...filters, location: text})}
             />
 
-            <View style={styles.filterLabelContainer}>
-              <MaterialCommunityIcons name="currency-inr" size={16} color={colors.text} />
-              <Text style={[styles.filterLabel, { color: colors.text, fontFamily: typography.fontFamily.semiBold }]}>
-                Price Range
-              </Text>
-            </View>
+            <Text style={[styles.filterLabel, { color: colors.text }]}>Price Range</Text>
             <View style={styles.priceRow}>
               <TextInput
-                style={[styles.filterInputHalf, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border, fontFamily: typography.fontFamily.regular }]}
+                style={[styles.filterInputHalf, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
                 placeholder="Min"
-                placeholderTextColor={colors.textTertiary}
+                placeholderTextColor={colors.placeholder}
                 keyboardType="numeric"
                 value={filters.minPrice}
                 onChangeText={(text) => setFilters({...filters, minPrice: text})}
               />
               <TextInput
-                style={[styles.filterInputHalf, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border, fontFamily: typography.fontFamily.regular }]}
+                style={[styles.filterInputHalf, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
                 placeholder="Max"
-                placeholderTextColor={colors.textTertiary}
+                placeholderTextColor={colors.placeholder}
                 keyboardType="numeric"
                 value={filters.maxPrice}
                 onChangeText={(text) => setFilters({...filters, maxPrice: text})}
               />
             </View>
 
-            <View style={styles.filterLabelContainer}>
-              <MaterialCommunityIcons name="account-group" size={16} color={colors.text} />
-              <Text style={[styles.filterLabel, { color: colors.text, fontFamily: typography.fontFamily.semiBold }]}>
-                Minimum Capacity
-              </Text>
-            </View>
+            <Text style={[styles.filterLabel, { color: colors.text }]}>Minimum Capacity</Text>
             <TextInput
-              style={[styles.filterInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border, fontFamily: typography.fontFamily.regular }]}
+              style={[styles.filterInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
               placeholder="e.g. 15"
-              placeholderTextColor={colors.textTertiary}
+              placeholderTextColor={colors.placeholder}
               keyboardType="numeric"
               value={filters.minCapacity}
               onChangeText={(text) => setFilters({...filters, minCapacity: text})}
@@ -595,19 +346,13 @@ export default function ExploreScreen({ navigation }: Props) {
                   setFilters({ location: '', minPrice: '', maxPrice: '', minCapacity: '' });
                 }}
               >
-                <MaterialCommunityIcons name="close" size={20} color={colors.text} />
-                <Text style={[styles.filterButtonTextModal, { color: colors.text, fontFamily: typography.fontFamily.semiBold }]}>
-                  Clear
-                </Text>
+                <Text style={[styles.filterButtonText, { color: colors.text }]}>Clear</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.applyButton, { backgroundColor: colors.primary, ...shadows.md }]}
+                style={[styles.applyButton, { backgroundColor: colors.buttonBackground }]}
                 onPress={() => setShowFilterModal(false)}
               >
-                <MaterialCommunityIcons name="check" size={20} color="white" />
-                <Text style={[styles.filterButtonTextModal, { color: 'white', fontFamily: typography.fontFamily.semiBold }]}>
-                  Apply
-                </Text>
+                <Text style={[styles.filterButtonText, { color: colors.buttonText }]}>Apply</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -619,72 +364,52 @@ export default function ExploreScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 16 },
   userInfo: { flex: 1 },
-  greeting: { fontSize: 14, marginBottom: 2 },
-  userName: { fontSize: 22, letterSpacing: 0.3 },
-  logoutButton: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
-  carouselContainer: { marginBottom: 20, paddingHorizontal: 16 },
-  carouselCard: { width: width - 32, height: 240, borderRadius: 20, overflow: 'hidden', marginRight: 0 },
-  carouselImage: { width: '100%', height: '100%' },
-  carouselOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingVertical: 20 },
-  carouselContent: { },
-  featuredBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20, alignSelf: 'flex-start', marginBottom: 8 },
-  featuredText: { fontSize: 12, color: '#D4AF37', marginLeft: 4 },
-  carouselTitle: { fontSize: 24, color: 'white', marginBottom: 6 },
-  carouselMeta: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  carouselLocation: { fontSize: 14, color: 'white', marginLeft: 4, opacity: 0.9 },
-  carouselPrice: { flexDirection: 'row', alignItems: 'baseline' },
-  priceLabel: { fontSize: 12, color: 'white', opacity: 0.8, marginRight: 6 },
-  priceAmount: { fontSize: 28, color: 'white' },
-  priceNight: { fontSize: 14, color: 'white', opacity: 0.8, marginLeft: 2 },
-  carouselSkeleton: { width: width - 32, height: 240, borderRadius: 20 },
-  pagination: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 12, gap: 6 },
-  paginationDot: { height: 8, borderRadius: 4, transition: 'all 0.3s' },
-  searchSection: { paddingHorizontal: 16, marginBottom: 20 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 12, borderWidth: 1, marginBottom: 12 },
-  searchInput: { flex: 1, fontSize: 15, marginLeft: 10 },
-  filterRow: { flexDirection: 'row', gap: 10 },
-  filterButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12, borderWidth: 1, gap: 6 },
-  filterButtonText: { fontSize: 14 },
-  listSection: { paddingHorizontal: 16, paddingBottom: 20 },
-  sectionTitle: { fontSize: 20, marginBottom: 16 },
-  propertyCard: { borderRadius: 16, overflow: 'hidden', marginBottom: 20, borderWidth: 1 },
+  greeting: { fontSize: 14 },
+  userName: { fontSize: 18, fontWeight: '600' },
+  logoutButton: { padding: 8 },
+  searchFilterRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingBottom: 16 },
+  searchBar: { flex: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1 },
+  searchInput: { flex: 1, fontSize: 14 },
+  iconButton: { width: 44, height: 44, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  listContent: { paddingHorizontal: 16, paddingBottom: 20 },
+  propertyCard: { borderRadius: 16, overflow: 'hidden', marginBottom: 24, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   imageContainer: { position: 'relative' },
-  propertyImage: { width: '100%', height: 220 },
+  propertyImage: { width: '100%', height: 200 },
   imageActions: { position: 'absolute', top: 12, right: 12, flexDirection: 'row', gap: 8 },
-  actionButton: { backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: 20, width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  ratingBadge: { position: 'absolute', top: 12, left: 12, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20, gap: 4 },
-  ratingText: { fontSize: 13, color: 'white' },
+  actionButton: { backgroundColor: 'rgba(255, 255, 255, 0.9)', borderRadius: 20, padding: 8 },
   propertyDetails: { padding: 16 },
-  propertyTitle: { fontSize: 18, marginBottom: 6 },
-  locationRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 4 },
-  distance: { fontSize: 14 },
-  amenitiesRow: { flexDirection: 'row', gap: 16, marginBottom: 12 },
-  amenityItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  amenityText: { fontSize: 13 },
-  priceCapacityRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
-  price: { fontSize: 22 },
-  perNight: { fontSize: 12, marginTop: 2 },
-  bookButton: { paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
-  bookButtonText: { color: 'white', fontSize: 14 },
-  emptyContainer: { alignItems: 'center', marginTop: 60, paddingHorizontal: 40 },
-  emptyText: { fontSize: 18, marginTop: 16, textAlign: 'center' },
-  emptySubtext: { fontSize: 14, marginTop: 8, textAlign: 'center' },
-  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-  modalContent: { padding: 24, maxHeight: '70%' },
-  filterModalContent: { padding: 24, maxHeight: '80%', borderTopLeftRadius: 24, borderTopRightRadius: 24 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle: { fontSize: 22 },
-  modalOption: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 12, marginBottom: 8, gap: 12 },
-  modalOptionText: { flex: 1, fontSize: 16 },
-  filterLabelContainer: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  filterLabel: { fontSize: 15, marginTop: 16, marginBottom: 8 },
-  filterInput: { height: 48, borderRadius: 12, paddingHorizontal: 16, fontSize: 15, borderWidth: 1 },
-  priceRow: { flexDirection: 'row', gap: 12 },
-  filterInputHalf: { flex: 1, height: 48, borderRadius: 12, paddingHorizontal: 16, fontSize: 15, borderWidth: 1 },
-  filterButtons: { flexDirection: 'row', gap: 12, marginTop: 24, marginBottom: 16 },
-  clearButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, gap: 6 },
-  applyButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 12, gap: 6 },
-  filterButtonTextModal: { fontSize: 16 },
+  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
+  propertyTitle: { flex: 1, fontSize: 16, fontWeight: '600', marginRight: 8 },
+  ratingContainer: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  star: { color: '#FCD34D', fontSize: 14 },
+  rating: { fontSize: 14, fontWeight: '500' },
+  distance: { fontSize: 14, marginBottom: 8 },
+  priceCapacityRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  price: { fontSize: 16, fontWeight: '600' },
+  capacity: { fontSize: 14 },
+  emptyContainer: { alignItems: 'center', marginTop: 50 },
+  emptyText: { fontSize: 16 },
+  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
+  errorText: { fontSize: 18, fontWeight: '600', marginBottom: 8 },
+  errorSubText: { fontSize: 14, textAlign: 'center' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
+  loadingText: { marginTop: 12, fontSize: 16 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
+  filterModalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '80%' },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 20 },
+  modalOption: { padding: 15, borderRadius: 8, marginBottom: 10 },
+  modalOptionText: { fontSize: 16, fontWeight: '500' },
+  closeButton: { padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 10 },
+  closeButtonText: { fontSize: 16, fontWeight: '600' },
+  filterLabel: { fontSize: 14, fontWeight: '600', marginTop: 15, marginBottom: 8 },
+  filterInput: { height: 45, borderRadius: 8, paddingHorizontal: 12, fontSize: 14, borderWidth: 1 },
+  priceRow: { flexDirection: 'row', gap: 10 },
+  filterInputHalf: { flex: 1, height: 45, borderRadius: 8, paddingHorizontal: 12, fontSize: 14, borderWidth: 1 },
+  filterButtons: { flexDirection: 'row', gap: 10, marginTop: 20, marginBottom: 10 },
+  clearButton: { flex: 1, padding: 15, borderRadius: 8, alignItems: 'center' },
+  applyButton: { flex: 1, padding: 15, borderRadius: 8, alignItems: 'center' },
+  filterButtonText: { fontSize: 16, fontWeight: '600' },
 });

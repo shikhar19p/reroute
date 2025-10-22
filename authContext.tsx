@@ -100,6 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: finalRole,
         displayName: firebaseUser.displayName || undefined,
         photoURL: firebaseUser.photoURL || undefined,
+        phoneNumber: firebaseUser.phoneNumber || undefined, // <-- Added phone number
       };
 
       console.log('💾 Saving user session with role:', userSession.role);
