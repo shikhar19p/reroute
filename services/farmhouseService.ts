@@ -192,6 +192,21 @@ export async function getFarmhousesByOwner(ownerId: string): Promise<Farmhouse[]
   }
 }
 
+// Checks if an owner has any farmhouses
+export async function ownerHasFarmhouses(ownerId: string): Promise<boolean> {
+  try {
+    const q = query(
+      collection(db, 'farmhouses'),
+      where('ownerId', '==', ownerId)
+    );
+    const snapshot = await getDocs(q);
+    return !snapshot.empty;
+  } catch (error) {
+    console.error('Error checking owner farmhouses:', error);
+    return false;
+  }
+}
+
 // Adds dates to a farmhouse's 'bookedDates' array
 export async function addBookedDatesToFarmhouse(farmhouseId: string, dates: string[]): Promise<void> {
   if (!farmhouseId || !dates || dates.length === 0) return;
