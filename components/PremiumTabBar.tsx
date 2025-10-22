@@ -42,11 +42,11 @@ export default function PremiumTabBar({ state, descriptors, navigation }: Bottom
   return (
     <View style={styles.container}>
       <BlurView
-        intensity={80}
+        intensity={60}
         tint="light"
         style={styles.blurContainer}
       >
-        <View style={[styles.tabBar, { backgroundColor: 'rgba(255, 255, 255, 0.6)' }]}>
+        <View style={[styles.tabBar, { backgroundColor: 'rgba(255, 255, 255, 0.3)' }]}>
           {state.routes.map((route, index) => {
             const { options } = descriptors[route.key];
             const label = options.tabBarLabel !== undefined
@@ -142,9 +142,9 @@ const styles = StyleSheet.create({
   blurContainer: {
     borderRadius: 28,
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.08)',
+    borderColor: 'rgba(0, 0, 0, 0.05)',
     overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.5)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   tabBar: {
     flexDirection: 'row',
@@ -165,6 +165,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
+    overflow: 'hidden',
   },
   tabLabel: {
     fontSize: 11,
