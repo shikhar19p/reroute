@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Linking } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTheme } from '../../context/ThemeContext';
 import { Booking, updateBookingStatus, updatePaymentStatus } from '../../services/bookingService';
+import { useDialog } from '../../components/CustomDialog';
 
 type RootStackParamList = {
   OwnerBookingDetails: { booking: Booking };
@@ -13,6 +14,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'OwnerBookingDetails'>;
 
 export default function OwnerBookingDetailScreen({ route, navigation }: Props) {
   const { colors } = useTheme();
+  const { showDialog } = useDialog();
   const { booking } = route.params;
 
   const statusColor = (status: Booking['status']) => {
@@ -26,14 +28,30 @@ export default function OwnerBookingDetailScreen({ route, navigation }: Props) {
   };
 
   const confirmAction = (title: string, message: string, action: () => Promise<void>) => {
-    Alert.alert(title, message, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'OK', onPress: async () => { try { await action(); navigation.goBack(); } catch { Alert.alert('Error', 'Action failed'); } } }
-    ]);
+    showDialog({
+      title,
+      message,
+      type: 'confirm',
+      buttons: [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'OK', style: 'default', onPress: async () => {
+          try {
+            await action();
+            navigation.goBack();
+          } catch {
+            showDialog({
+              title: 'Error',
+              message: 'Action failed',
+              type: 'error'
+            });
+          }
+        }}
+      ]
+    });
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
         <View style={styles.rowBetween}>
           <Text style={[styles.title, { color: colors.text }]}>{booking.farmhouseName}</Text>

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Modal, Alert, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Modal, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../authContext';
+import { useDialog } from '../../components/CustomDialog';
 import { collection, addDoc, getDocs, query, where, orderBy, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 
@@ -28,6 +29,7 @@ export default function AllReviewsScreen({ route, navigation }: Props) {
   const { farmhouseId } = route.params;
   const { colors, isDark } = useTheme();
   const { user } = useAuth();
+  const { showDialog } = useDialog();
 
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,7 +60,11 @@ export default function AllReviewsScreen({ route, navigation }: Props) {
       setReviews(fetchedReviews);
     } catch (error) {
       console.error('Error fetching reviews:', error);
-      Alert.alert('Error', 'Could not load reviews');
+      showDialog({
+        title: 'Error',
+        message: 'Could not load reviews',
+        type: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -73,12 +79,20 @@ export default function AllReviewsScreen({ route, navigation }: Props) {
 
   const handleAddReview = async () => {
     if (!newComment.trim()) {
-      Alert.alert('Error', 'Please enter a comment');
+      showDialog({
+        title: 'Error',
+        message: 'Please enter a comment',
+        type: 'warning'
+      });
       return;
     }
 
     if (!user) {
-      Alert.alert('Error', 'You must be logged in to add a review');
+      showDialog({
+        title: 'Error',
+        message: 'You must be logged in to add a review',
+        type: 'error'
+      });
       return;
     }
 
@@ -99,13 +113,21 @@ export default function AllReviewsScreen({ route, navigation }: Props) {
       setNewComment('');
       setNewRating(5);
       setShowAddReview(false);
-      Alert.alert('Success', 'Review added successfully!');
-      
+      showDialog({
+        title: 'Success',
+        message: 'Review added successfully!',
+        type: 'success'
+      });
+
       // ✅ AUTOMATIC: Data will refresh automatically if using GlobalDataContext
       await fetchReviews();
     } catch (error) {
       console.error('Error adding review:', error);
-      Alert.alert('Error', 'Could not add review. Please try again.');
+      showDialog({
+        title: 'Error',
+        message: 'Could not add review. Please try again.',
+        type: 'error'
+      });
     } finally {
       setSubmitting(false);
     }
@@ -134,7 +156,7 @@ export default function AllReviewsScreen({ route, navigation }: Props) {
     : '0.0';
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Text style={[styles.backIcon, { color: colors.text }]}>←</Text>

@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTheme } from '../../context/ThemeContext';
 import { getFarmhouseById } from '../../services/farmhouseService';
 import { db } from '../../firebaseConfig';
 import { doc, updateDoc } from 'firebase/firestore';
+import { useDialog } from '../../components/CustomDialog';
 
 type RootStackParamList = {
   ManageBlockedDates: { farmhouseId: string };
@@ -15,6 +16,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'ManageBlockedDates'>;
 
 export default function ManageBlockedDatesScreen({ route, navigation }: Props) {
   const { colors } = useTheme();
+  const { showDialog } = useDialog();
   const { farmhouseId } = route.params;
   const [loading, setLoading] = useState(true);
   const [blockedDatesInput, setBlockedDatesInput] = useState('');
@@ -30,7 +32,11 @@ export default function ManageBlockedDatesScreen({ route, navigation }: Props) {
       const blocked = (farm as any)?.blockedDates || [];
       setBlockedDatesInput(Array.isArray(blocked) ? blocked.join(', ') : '');
     } catch (e) {
-      Alert.alert('Error', 'Failed to load farmhouse');
+      showDialog({
+        title: 'Error',
+        message: 'Failed to load farmhouse',
+        type: 'error'
+      });
       navigation.goBack();
     } finally {
       setLoading(false);
@@ -44,15 +50,23 @@ export default function ManageBlockedDatesScreen({ route, navigation }: Props) {
         .map(s => s.trim())
         .filter(Boolean);
       await updateDoc(doc(db, 'farmhouses', farmhouseId), { blockedDates: arr });
-      Alert.alert('Saved', 'Blocked dates updated');
+      showDialog({
+        title: 'Saved',
+        message: 'Blocked dates updated',
+        type: 'success'
+      });
       navigation.goBack();
     } catch (e) {
-      Alert.alert('Error', 'Failed to save blocked dates');
+      showDialog({
+        title: 'Error',
+        message: 'Failed to save blocked dates',
+        type: 'error'
+      });
     }
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       {loading ? (
         <View style={styles.loading}><ActivityIndicator size="large" color={colors.buttonBackground} /></View>
       ) : (

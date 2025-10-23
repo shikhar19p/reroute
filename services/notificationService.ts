@@ -45,17 +45,23 @@ export async function registerForPushNotifications(): Promise<string | null> {
     }
 
     if (finalStatus !== 'granted') {
-      console.log('❌ Failed to get push token for push notification!');
+      console.log('⚠️ Push notification permissions not granted');
       return null;
     }
 
     // Get the Expo push token
     const token = (await Notifications.getExpoPushTokenAsync()).data;
-    console.log('✅ Push token:', token);
+    console.log('✅ Push notification token obtained');
 
     return token;
   } catch (error) {
-    console.error('Error registering for push notifications:', error);
+    // Suppress FCM configuration errors - they're optional for development
+    if (error instanceof Error && error.message.includes('FirebaseApp')) {
+      console.log('ℹ️ Push notifications disabled (FCM not configured - optional for development)');
+      // To enable: https://docs.expo.dev/push-notifications/fcm-credentials/
+    } else {
+      console.log('⚠️ Push notification registration skipped:', error instanceof Error ? error.message : 'Unknown error');
+    }
     return null;
   }
 }

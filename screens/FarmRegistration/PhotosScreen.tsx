@@ -1,6 +1,5 @@
 import React, { useCallback, useState } from 'react';
 import {
-  Alert,
   Image,
   ScrollView,
   StyleSheet,
@@ -13,6 +12,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { useFarmRegistration } from '../../context/FarmRegistrationContext';
+import { useDialog } from '../../components/CustomDialog';
 
 type RootStackParamList = {
   FarmAmenitiesGames: undefined;
@@ -27,6 +27,7 @@ const MAX_DIMENSION = 1600;
 
 export default function PhotosScreen({ navigation }: PhotosScreenProps) {
   const { farm, addPhoto, removePhoto } = useFarmRegistration();
+  const { showDialog } = useDialog();
   const [isProcessing, setIsProcessing] = useState(false);
 
   const processImage = useCallback(async (uri: string, width: number, height: number) => {
@@ -62,7 +63,11 @@ export default function PhotosScreen({ navigation }: PhotosScreenProps) {
 
   const handlePickImage = useCallback(async (source: 'camera' | 'library') => {
     if (isProcessing || farm.photos.length >= MAX_PHOTOS) {
-      Alert.alert('Limit reached', `You can upload up to ${MAX_PHOTOS} photos.`);
+      showDialog({
+        title: 'Limit reached',
+        message: `You can upload up to ${MAX_PHOTOS} photos.`,
+        type: 'warning'
+      });
       return;
     }
 
@@ -72,14 +77,22 @@ export default function PhotosScreen({ navigation }: PhotosScreenProps) {
       if (source === 'camera') {
         const camPerm = await ImagePicker.requestCameraPermissionsAsync();
         if (!camPerm.granted) {
-          Alert.alert('Permission required', 'Please allow camera access to take photos.');
+          showDialog({
+            title: 'Permission required',
+            message: 'Please allow camera access to take photos.',
+            type: 'warning'
+          });
           setIsProcessing(false);
           return;
         }
       } else {
         const libPerm = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!libPerm.granted) {
-          Alert.alert('Permission required', 'Please allow photo library access to pick images.');
+          showDialog({
+            title: 'Permission required',
+            message: 'Please allow photo library access to pick images.',
+            type: 'warning'
+          });
           setIsProcessing(false);
           return;
         }
@@ -103,29 +116,43 @@ export default function PhotosScreen({ navigation }: PhotosScreenProps) {
         }
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to pick image');
+      showDialog({
+        title: 'Error',
+        message: 'Failed to pick image',
+        type: 'error'
+      });
     } finally {
       setIsProcessing(false);
     }
-  }, [isProcessing, farm.photos.length, processImage, addPhoto]);
+  }, [isProcessing, farm.photos.length, processImage, addPhoto, showDialog]);
 
   const handleAddPhoto = () => {
-    Alert.alert('Add Photo', 'Choose source', [
-      { text: 'Camera', onPress: () => handlePickImage('camera') },
-      { text: 'Photo Library', onPress: () => handlePickImage('library') },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    showDialog({
+      title: 'Add Photo',
+      message: 'Choose source',
+      type: 'confirm',
+      buttons: [
+        { text: 'Camera', style: 'default', onPress: () => handlePickImage('camera') },
+        { text: 'Photo Library', style: 'default', onPress: () => handlePickImage('library') },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    });
   };
 
   const handleRemovePhoto = (index: number) => {
-    Alert.alert('Remove Photo', 'Are you sure you want to remove this photo?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => removePhoto(index) },
-    ]);
+    showDialog({
+      title: 'Remove Photo',
+      message: 'Are you sure you want to remove this photo?',
+      type: 'confirm',
+      buttons: [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: () => removePhoto(index) },
+      ]
+    });
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={['bottom']} edges={['top', 'left', 'right']}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <Text style={styles.title}>Farm Photos</Text>

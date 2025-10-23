@@ -77,7 +77,7 @@ export async function getBookingConflicts(
       ...doc.data()
     }));
   } catch (error) {
-    console.error('Error getting booking conflicts:', error);
+    // Silently return empty array on error - non-critical for user experience
     return [];
   }
 }

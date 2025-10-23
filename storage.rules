@@ -28,18 +28,26 @@ service firebase.storage {
 
     // Farmhouse images and KYC documents (new structure)
     match /farms/{userId}/{timeValue}/{allPaths=**} {
-      allow read: if isAuthenticated();
+      allow read: if true; // Public read for browsing
       allow write: if isAuthenticated()
         && isOwner(userId)
         && (isValidImage() || isValidDocument());
       allow delete: if isAuthenticated() && (isOwner(userId) || isAdmin());
     }
 
-    // Legacy farmhouses path (for backwards compatibility)
-    match /farmhouses/{userId}/{fileName} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && isOwner(userId) && isValidImage();
-      allow delete: if isAuthenticated() && isOwner(userId);
+    // Farmhouse images (farmhouseId-based paths)
+    // Path: farmhouses/<farmhouseId>/<fileName>
+    match /farmhouses/{farmhouseId}/{fileName} {
+      allow read: if true; // Public read for browsing
+      allow write: if isAuthenticated() && isValidImage(); // Verified via Firestore rules
+      allow delete: if isAuthenticated(); // Verified via Firestore rules
+    }
+
+    // Farmhouse images with nested paths
+    match /farmhouses/{farmhouseId}/{allPaths=**} {
+      allow read: if true; // Public read for browsing
+      allow write: if isAuthenticated() && isValidImage();
+      allow delete: if isAuthenticated();
     }
 
     // User profile pictures

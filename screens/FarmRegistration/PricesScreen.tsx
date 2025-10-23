@@ -1,6 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -14,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { pricesSchema } from '../../utils/validation';
 import { useFarmRegistration } from '../../context/FarmRegistrationContext';
+import { useDialog } from '../../components/CustomDialog';
 
 type RootStackParamList = {
   FarmPhotos: undefined;
@@ -32,6 +32,7 @@ const priceFields = [
 
 export default function PricesScreen({ navigation }: PricesScreenProps) {
   const { farm, setField } = useFarmRegistration();
+  const { showDialog } = useDialog();
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const formValues = useMemo(() => farm.pricing, [farm.pricing]);
@@ -62,10 +63,15 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
 
   const showHighPriceConfirm = () =>
     new Promise<boolean>((resolve) => {
-      Alert.alert('High Price Detected', 'One or more prices exceed ₹50,000. Please confirm this is correct.', [
-        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-        { text: 'Confirm', onPress: () => resolve(true) },
-      ]);
+      showDialog({
+        title: 'High Price Detected',
+        message: 'One or more prices exceed ₹50,000. Please confirm this is correct.',
+        type: 'warning',
+        buttons: [
+          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Confirm', style: 'default', onPress: () => resolve(true) },
+        ]
+      });
     });
 
   const handleSubmit = async () => {
@@ -102,7 +108,7 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={['top']} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -126,7 +132,7 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
                 <Text style={styles.label}>{label}</Text>
                 <TextInput
                   value={(farm.pricing as any)[key] ?? ''}
-                  onChangeText={(text) => updateField(key, text)}
+                  onChangeText={(text) => updateField(key, text.replace(/[^0-9]/g, ''))}
                   placeholder={placeholder}
                   placeholderTextColor="#9CA3AF"
                   style={[styles.input, errors[key] && styles.inputError]}
@@ -156,7 +162,7 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
                 />
                 <TextInput
                   value={item.price}
-                  onChangeText={(text) => updateCustomPrice(index, 'price', text)}
+                  onChangeText={(text) => updateCustomPrice(index, 'price', text.replace(/[^0-9]/g, ''))}
                   placeholder="₹ Price"
                   placeholderTextColor="#9CA3AF"
                   style={[styles.input, styles.customPriceInput]}

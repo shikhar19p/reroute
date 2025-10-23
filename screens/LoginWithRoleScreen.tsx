@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StatusBar,
-  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -15,10 +14,12 @@ import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
 import { useTheme } from '../context/ThemeContext';
+import { useDialog } from '../components/CustomDialog';
 import Constants from 'expo-constants';
 
 export default function LoginWithRoleScreen({ navigation }: any) {
   const { colors, typography, borderRadius } = useTheme();
+  const { showDialog } = useDialog();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,9 +35,13 @@ export default function LoginWithRoleScreen({ navigation }: any) {
 
   useEffect(() => {
     if (error) {
-      Alert.alert('Login Error', error);
+      showDialog({
+        title: 'Login Error',
+        message: error,
+        type: 'error'
+      });
     }
-  }, [error]);
+  }, [error, showDialog]);
 
   const handleGoogleSignIn = async () => {
     try {

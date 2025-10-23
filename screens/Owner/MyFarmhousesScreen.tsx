@@ -8,15 +8,17 @@ import {
   StatusBar,
   Image,
   ActivityIndicator,
-  Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
+import { LogOut } from 'lucide-react-native';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
 import { getFarmhousesByOwner, Farmhouse } from '../../services/farmhouseService';
+import { getResponsivePadding, isSmallDevice } from '../../utils/responsive';
+import { useDialog } from '../../components/CustomDialog';
 
 type RootStackParamList = {
   MyFarmhouses: undefined;
@@ -27,8 +29,9 @@ type RootStackParamList = {
 type Props = NativeStackScreenProps<RootStackParamList, 'MyFarmhouses'>;
 
 export default function MyFarmhousesScreen({ navigation }: Props) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { colors, isDark } = useTheme();
+  const { showDialog } = useDialog();
   const [farmhouses, setFarmhouses] = useState<Farmhouse[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -52,7 +55,11 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
       setFarmhouses(data);
     } catch (error) {
       console.error('Error loading farmhouses:', error);
-      Alert.alert('Error', 'Failed to load your farmhouses');
+      showDialog({
+        title: 'Error',
+        message: 'Failed to load your farmhouses',
+        type: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -73,6 +80,32 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
 
   const getStatusText = (status: string) => {
     return status.charAt(0).toUpperCase() + status.slice(1);
+  };
+
+  const handleLogout = () => {
+    showDialog({
+      title: 'Logout',
+      message: 'Are you sure you want to logout?',
+      type: 'confirm',
+      buttons: [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await logout();
+            } catch (error) {
+              showDialog({
+                title: 'Error',
+                message: 'Failed to logout',
+                type: 'error'
+              });
+            }
+          }
+        }
+      ]
+    });
   };
 
   const renderFarmhouse = ({ item }: { item: Farmhouse }) => (
@@ -140,33 +173,41 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
       <View style={styles.header}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={[styles.headerTitle, { color: colors.text }]}>My Farmhouses</Text>
           <Text style={[styles.headerSubtitle, { color: colors.placeholder }]}>
             {farmhouses.length} {farmhouses.length === 1 ? 'property' : 'properties'}
           </Text>
         </View>
 
-        {farmhouses.length > 0 && (
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <TouchableOpacity
-              style={[styles.smallPillButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
-              onPress={() => navigation.navigate('OwnerBookings' as never)}
-            >
-              <Text style={[styles.smallPillText, { color: colors.text }]}>All Bookings</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.addIconButton, { backgroundColor: colors.buttonBackground }]}
-              onPress={() => navigation.navigate('FarmBasicDetails' as never)}
-            >
-              <Text style={[styles.addIcon, { color: colors.buttonText }]}>+</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+          {farmhouses.length > 0 && (
+            <>
+              <TouchableOpacity
+                style={[styles.smallPillButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+                onPress={() => navigation.navigate('OwnerBookings' as never)}
+              >
+                <Text style={[styles.smallPillText, { color: colors.text }]}>Bookings</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.addIconButton, { backgroundColor: colors.buttonBackground }]}
+                onPress={() => navigation.navigate('FarmBasicDetails' as never)}
+              >
+                <Text style={[styles.addIcon, { color: colors.buttonText }]}>+</Text>
+              </TouchableOpacity>
+            </>
+          )}
+          <TouchableOpacity
+            style={[styles.logoutButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+            onPress={handleLogout}
+          >
+            <LogOut size={20} color="#EF4444" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {farmhouses.length === 0 ? (
@@ -197,37 +238,49 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: getResponsivePadding(20),
     paddingVertical: 16,
+    minHeight: 80, // Ensure minimum height
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: isSmallDevice() ? 24 : 28,
     fontWeight: 'bold',
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: isSmallDevice() ? 12 : 14,
     marginTop: 4,
   },
   addIconButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: isSmallDevice() ? 44 : 48,
+    height: isSmallDevice() ? 44 : 48,
+    borderRadius: isSmallDevice() ? 22 : 24,
     justifyContent: 'center',
     alignItems: 'center',
+    flexShrink: 0, // Prevent shrinking
   },
   addIcon: {
-    fontSize: 28,
+    fontSize: isSmallDevice() ? 24 : 28,
     fontWeight: '300',
   },
   smallPillButton: {
     borderWidth: 1,
     borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: isSmallDevice() ? 8 : 12,
+    paddingVertical: isSmallDevice() ? 6 : 8,
     justifyContent: 'center',
     alignItems: 'center',
+    flexShrink: 0, // Prevent shrinking
   },
-  smallPillText: { fontSize: 12, fontWeight: '700' },
+  smallPillText: { fontSize: isSmallDevice() ? 11 : 12, fontWeight: '700' },
+  logoutButton: {
+    width: isSmallDevice() ? 40 : 44,
+    height: isSmallDevice() ? 40 : 44,
+    borderRadius: isSmallDevice() ? 20 : 22,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
   listContent: {
     padding: 20,
     paddingTop: 8,

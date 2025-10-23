@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   Dimensions,
   StatusBar
 } from 'react-native';
@@ -14,18 +13,24 @@ import { BlurView } from 'expo-blur';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useGoogleAuth } from '../useGoogleAuth';
 import { useTheme } from '../context/ThemeContext';
+import { useDialog } from '../components/CustomDialog';
 
 const { width, height } = Dimensions.get('window');
 
 export default function LoginScreen({ navigation }: any) {
   const { signIn, loading, error } = useGoogleAuth();
   const { colors, typography, spacing, borderRadius, shadows } = useTheme();
+  const { showDialog } = useDialog();
 
   useEffect(() => {
     if (error) {
-      Alert.alert('Login Error', error);
+      showDialog({
+        title: 'Login Error',
+        message: error,
+        type: 'error'
+      });
     }
-  }, [error]);
+  }, [error, showDialog]);
 
   const handleSignIn = async () => {
     await signIn();
@@ -37,7 +42,7 @@ export default function LoginScreen({ navigation }: any) {
 
       {/* Premium gradient background */}
       <LinearGradient
-        colors={[colors.primaryDark, colors.primary, colors.primaryLight]}
+        colors={['#0F766E', '#0D9488', '#14B8A6']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFillObject}
@@ -67,27 +72,25 @@ export default function LoginScreen({ navigation }: any) {
 
         {/* Google Sign-In Button */}
         <View style={styles.buttonWrapper}>
-          <BlurView intensity={20} tint="light" style={[styles.glassCard, { borderRadius: borderRadius.lg }]}>
-            <TouchableOpacity
-              style={styles.signInButton}
-              onPress={handleSignIn}
-              disabled={loading}
-              activeOpacity={0.8}
-            >
-              {loading ? (
-                <ActivityIndicator color="white" size="large" />
-              ) : (
-                <>
-                  <View style={styles.googleIconContainer}>
-                    <MaterialCommunityIcons name="google" size={28} color="#4285F4" />
-                  </View>
-                  <Text style={[styles.signInText, { fontFamily: typography.fontFamily.semiBold }]}>
-                    Continue with Google
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
-          </BlurView>
+          <TouchableOpacity
+            style={[styles.whiteSignInButton, { borderRadius: borderRadius.lg, ...shadows.lg }]}
+            onPress={handleSignIn}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator color="#0D9488" size="large" />
+            ) : (
+              <>
+                <View style={styles.googleIconContainer}>
+                  <MaterialCommunityIcons name="google" size={28} color="#4285F4" />
+                </View>
+                <Text style={[styles.signInText, styles.signInTextDark, { fontFamily: typography.fontFamily.semiBold }]}>
+                  Continue with Google
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
 
         {/* Back Button */}
@@ -108,7 +111,7 @@ export default function LoginScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#D4AF37',
+    backgroundColor: '#0D9488',
   },
   content: {
     flex: 1,
@@ -160,13 +163,8 @@ const styles = StyleSheet.create({
     maxWidth: 400,
     marginTop: 20,
   },
-  glassCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    overflow: 'hidden',
-  },
-  signInButton: {
+  whiteSignInButton: {
+    backgroundColor: 'white',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -185,6 +183,9 @@ const styles = StyleSheet.create({
   signInText: {
     fontSize: 18,
     color: 'white',
+  },
+  signInTextDark: {
+    color: '#0D9488',
   },
   backButton: {
     flexDirection: 'row',

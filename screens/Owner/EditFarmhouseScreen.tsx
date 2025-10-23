@@ -6,7 +6,6 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   Switch,
   KeyboardAvoidingView,
@@ -22,6 +21,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { db, storage } from '../../firebaseConfig';
 import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { useDialog } from '../../components/CustomDialog';
 
 type RootStackParamList = {
   MyFarmhouses: undefined;
@@ -34,6 +34,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'EditFarmhouse'>;
 export default function EditFarmhouseScreen({ route, navigation }: Props) {
   const { farmhouse } = route.params;
   const { colors, isDark } = useTheme();
+  const { showDialog } = useDialog();
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
 
@@ -97,7 +98,11 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert('Permission required', 'Please allow photo library access to pick images.');
+        showDialog({
+          title: 'Permission required',
+          message: 'Please allow photo library access to pick images.',
+          type: 'warning'
+        });
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -125,7 +130,11 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to upload images');
+      showDialog({
+        title: 'Error',
+        message: 'Failed to upload images',
+        type: 'error'
+      });
       setUploadingImage(false);
     }
   };
@@ -134,7 +143,11 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
-        Alert.alert('Permission required', 'Please allow camera access to take photos.');
+        showDialog({
+          title: 'Permission required',
+          message: 'Please allow camera access to take photos.',
+          type: 'warning'
+        });
         return;
       }
       const result = await ImagePicker.launchCameraAsync({
@@ -158,24 +171,34 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
       }
     } catch (error) {
       console.error('Error taking photo:', error);
-      Alert.alert('Error', 'Failed to capture image');
+      showDialog({
+        title: 'Error',
+        message: 'Failed to capture image',
+        type: 'error'
+      });
       setUploadingImage(false);
     }
   };
 
   const choosePhotoSource = async () => {
-    Alert.alert('Add Photo', 'Choose source', [
-      { text: 'Camera', onPress: takePhotoWithCamera },
-      { text: 'Photo Library', onPress: pickImageFromLibrary },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
+    showDialog({
+      title: 'Add Photo',
+      message: 'Choose source',
+      type: 'confirm',
+      buttons: [
+        { text: 'Camera', style: 'default', onPress: takePhotoWithCamera },
+        { text: 'Photo Library', style: 'default', onPress: pickImageFromLibrary },
+        { text: 'Cancel', style: 'cancel' },
+      ]
+    });
   };
 
   const deleteImage = async (index: number) => {
-    Alert.alert(
-      'Delete Image',
-      'Are you sure you want to delete this image?',
-      [
+    showDialog({
+      title: 'Delete Image',
+      message: 'Are you sure you want to delete this image?',
+      type: 'confirm',
+      buttons: [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
@@ -186,28 +209,48 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
           },
         },
       ]
-    );
+    });
   };
 
   const validateForm = () => {
     if (!formData.name.trim()) {
-      Alert.alert('Validation Error', 'Farmhouse name is required');
+      showDialog({
+        title: 'Validation Error',
+        message: 'Farmhouse name is required',
+        type: 'error'
+      });
       return false;
     }
     if (!formData.description.trim()) {
-      Alert.alert('Validation Error', 'Description is required');
+      showDialog({
+        title: 'Validation Error',
+        message: 'Description is required',
+        type: 'error'
+      });
       return false;
     }
     if (!formData.city.trim() || !formData.area.trim()) {
-      Alert.alert('Validation Error', 'Location details are required');
+      showDialog({
+        title: 'Validation Error',
+        message: 'Location details are required',
+        type: 'error'
+      });
       return false;
     }
     if (parseInt(formData.bedrooms) <= 0) {
-      Alert.alert('Validation Error', 'Number of bedrooms must be greater than 0');
+      showDialog({
+        title: 'Validation Error',
+        message: 'Number of bedrooms must be greater than 0',
+        type: 'error'
+      });
       return false;
     }
     if (parseInt(formData.capacity) <= 0) {
-      Alert.alert('Validation Error', 'Capacity must be greater than 0');
+      showDialog({
+        title: 'Validation Error',
+        message: 'Capacity must be greater than 0',
+        type: 'error'
+      });
       return false;
     }
     return true;
@@ -257,21 +300,28 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
 
       await updateDoc(farmhouseRef, updateData);
 
-      Alert.alert(
-        'Success',
-        'Farmhouse details updated successfully',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+      showDialog({
+        title: 'Success',
+        message: 'Farmhouse details updated successfully',
+        type: 'success',
+        buttons: [
+          { text: 'OK', style: 'default', onPress: () => navigation.goBack() }
+        ]
+      });
     } catch (error) {
       console.error('Error updating farmhouse:', error);
-      Alert.alert('Error', 'Failed to update farmhouse. Please try again.');
+      showDialog({
+        title: 'Error',
+        message: 'Failed to update farmhouse. Please try again.',
+        type: 'error'
+      });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

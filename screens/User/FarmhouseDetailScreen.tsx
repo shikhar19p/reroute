@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
-  Dimensions, Linking, Alert, Share, TextInput, FlatList, RefreshControl
+  Dimensions, Linking, Share, TextInput, FlatList, RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Heart, MapPin, Users, Home, Star, Clock, Share2, Phone, Navigation, User } from 'lucide-react-native';
@@ -9,6 +9,8 @@ import { Calendar, DateData } from 'react-native-calendars';
 import MapView, { Marker } from 'react-native-maps';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
+import { useScrollHandler } from '../../context/TabBarVisibilityContext';
+import { useDialog } from '../../components/CustomDialog';
 import { RootStackScreenProps, Farmhouse } from '../../types/navigation';
 import { collection, query, where, onSnapshot, orderBy as firestoreOrderBy, limit, doc } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
@@ -30,6 +32,8 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   const initialFarmhouse = route.params.farmhouse;
   const { colors, isDark } = useTheme();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
+  const scrollHandler = useScrollHandler();
+  const { showDialog } = useDialog();
 
   // Use state for farmhouse to enable real-time updates
   const [farmhouse, setFarmhouse] = useState<Farmhouse>(initialFarmhouse);
@@ -288,12 +292,27 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
   const handleShare = async () => {
     try {
+      const shareMessage = `🏡 ${farmhouse.name}\n\n` +
+        `📍 Location: ${farmhouse.location}\n` +
+        `⭐ Rating: ${farmhouse.rating.toFixed(1)}/5 (${farmhouse.reviews} reviews)\n` +
+        `👥 Capacity: Up to ${farmhouse.capacity} guests\n` +
+        `🛏️ ${farmhouse.bedrooms} Bedrooms\n\n` +
+        `💰 Pricing:\n` +
+        `   Weekday: ₹${farmhouse.weeklyNight}/night\n` +
+        `   Weekend: ₹${farmhouse.weekendNight}/night\n\n` +
+        `📱 Book now on ReRoute App!\n` +
+        `Download: https://play.google.com/store/apps/details?id=com.reroute.app`;
+
       await Share.share({
-        message: `Check out ${farmhouse.name} in ${farmhouse.location}! Starting from ₹${farmhouse.weeklyNight}/night.`,
-        title: farmhouse.name,
+        message: shareMessage,
+        title: `${farmhouse.name} - ReRoute`,
       });
     } catch (error) {
-      Alert.alert('Error', 'Could not share farmhouse');
+      showDialog({
+        title: 'Error',
+        message: 'Could not share farmhouse',
+        type: 'error'
+      });
     }
   };
 
@@ -322,7 +341,11 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   const handleDateSelect = (day: DateData) => {
     const dateString = day.dateString;
     if (isDateBooked(dateString)) {
-      Alert.alert('Unavailable', 'This date is already booked or blocked.');
+      showDialog({
+        title: 'Unavailable',
+        message: 'This date is already booked or blocked.',
+        type: 'warning'
+      });
       return;
     }
 
@@ -373,7 +396,11 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
       while (current <= end) {
         const dateString = current.toISOString().split('T')[0];
         if (isDateBooked(dateString) && dateString !== selectedDates.start) {
-          Alert.alert("Invalid Range", "Your selection includes an unavailable date.");
+          showDialog({
+            title: 'Invalid Range',
+            message: 'Your selection includes an unavailable date.',
+            type: 'warning'
+          });
           setSelectedDates({ start: selectedDates.start, end: selectedDates.start });
           return marked;
         }
@@ -436,7 +463,11 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
   const handleBooking = () => {
     if (!selectedDates.start || !selectedDates.end) {
-      Alert.alert('Select Dates', 'Please select your desired dates on the calendar.');
+      showDialog({
+        title: 'Select Dates',
+        message: 'Please select your desired dates on the calendar.',
+        type: 'warning'
+      });
       return;
     }
 
@@ -463,12 +494,20 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     } else if (farmhouse.coordinates) {
         url = `https://www.google.com/maps/search/?api=1&query=${farmhouse.coordinates.latitude},${farmhouse.coordinates.longitude}`;
     } else {
-        Alert.alert("Location not available", "Map link or coordinates are not available for this farmhouse.");
+        showDialog({
+          title: 'Location not available',
+          message: 'Map link or coordinates are not available for this farmhouse.',
+          type: 'warning'
+        });
         return;
     }
     Linking.canOpenURL(url).then(supported => {
         if (supported) Linking.openURL(url);
-        else Alert.alert('Error', `Could not open the map link.`);
+        else showDialog({
+          title: 'Error',
+          message: 'Could not open the map link.',
+          type: 'error'
+        });
     }).catch(err => console.error('An error occurred opening the map', err));
   };
 
@@ -512,12 +551,15 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
       
-      <ScrollView 
-        style={styles.mainScroll} 
+      <ScrollView
+        style={styles.mainScroll}
+        contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
+        onScroll={scrollHandler.onScroll}
+        scrollEventThrottle={scrollHandler.scrollEventThrottle}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView,
   KeyboardAvoidingView, Platform, ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ import { ArrowLeft, User, Phone, Mail, Calendar, MapPin } from 'lucide-react-nat
 import { updateProfile } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { useTheme } from '../../context/ThemeContext';
+import { useDialog } from '../../components/CustomDialog';
 import { RootStackScreenProps } from '../../types/navigation';
 import { useAuth } from '../../authContext';
 import { auth, db } from '../../firebaseConfig';
@@ -18,12 +19,13 @@ export default function EditProfileScreen({ route, navigation }: Props) {
   const { profile } = route.params;
   const { colors, isDark } = useTheme();
   const { user } = useAuth(); // Get current user session
+  const { showDialog } = useDialog();
   
   const [formData, setFormData] = useState({
     name: profile?.name || '',
     email: profile?.email || '',
-    phone: profile?.phone?.replace('+91', '').trim() || '',
-    age: profile?.age?.toString() || '',
+    phone: profile?.phone ? profile.phone.replace(/[^0-9]/g, '') : '',
+    age: profile?.age ? profile.age.toString() : '',
     address: profile?.address || '',
     gender: profile?.gender || ''
   });
@@ -80,13 +82,20 @@ export default function EditProfileScreen({ route, navigation }: Props) {
         gender: formData.gender,
       }, { merge: true }); // merge: true prevents overwriting other fields like email, role etc.
 
-      Alert.alert('Success', 'Profile updated successfully',
-        [{ text: 'OK', onPress: () => navigation.goBack() }]
-      );
+      showDialog({
+        title: 'Success',
+        message: 'Profile updated successfully',
+        type: 'success',
+        buttons: [{ text: 'OK', style: 'default', onPress: () => navigation.goBack() }]
+      });
 
     } catch (error) {
       console.error("Error updating profile:", error);
-      Alert.alert("Error", "Failed to update profile. Please try again.");
+      showDialog({
+        title: 'Error',
+        message: 'Failed to update profile. Please try again.',
+        type: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -100,7 +109,7 @@ export default function EditProfileScreen({ route, navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
@@ -158,8 +167,9 @@ export default function EditProfileScreen({ route, navigation }: Props) {
                   style={[styles.input, { color: colors.text }]}
                   value={formData.phone}
                   onChangeText={(text) => {
-                    if (text.length <= 10 && /^\d*$/.test(text)) {
-                      updateField('phone', text);
+                    const numericOnly = text.replace(/[^0-9]/g, '');
+                    if (numericOnly.length <= 10) {
+                      updateField('phone', numericOnly);
                     }
                   }}
                   placeholder="9876543210"

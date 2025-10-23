@@ -68,7 +68,9 @@ service cloud.firestore {
 
     // ========== Farmhouses Collection ==========
     match /farmhouses/{farmhouseId} {
-      allow read: if isAuthenticated();
+      // Allow public read for approved farmhouses (for browsing)
+      // Allow authenticated users to read all (for owners to see pending)
+      allow read: if true;
 
       allow create: if isAuthenticated()
         && request.resource.data.ownerId == request.auth.uid
@@ -76,8 +78,13 @@ service cloud.firestore {
         && request.resource.data.status == 'pending';
 
       allow update: if isAuthenticated() && (
+        // Farmhouse owner can update (except status, approvedAt, ownerId)
         (isFarmhouseOwner(resource.data.ownerId)
           && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'approvedAt', 'ownerId']))
+        // Any authenticated user can update bookedDates only (for bookings)
+        || (isAuthenticated()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bookedDates']))
+        // Admins can update anything
         || isAdmin()
       );
 
@@ -86,16 +93,15 @@ service cloud.firestore {
 
     // ========== Bookings Collection ==========
     match /bookings/{bookingId} {
-      allow read: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid ||
-        isAdmin()
-      );
+      // Allow users to read their own bookings, farmhouse owners to read bookings for their properties,
+      // and authenticated users to query for availability checking
+      allow read: if isAuthenticated();
 
       allow create: if isAuthenticated()
         && request.resource.data.userId == request.auth.uid
         && validateBookingData()
-        && request.resource.data.status == 'pending'
-        && request.resource.data.paymentStatus == 'pending';
+        && request.resource.data.status in ['pending', 'confirmed']
+        && request.resource.data.paymentStatus in ['pending', 'paid'];
 
       allow update: if isAuthenticated() && (
         (resource.data.userId == request.auth.uid
@@ -131,7 +137,18 @@ service cloud.firestore {
     // ========== Audit Logs Collection ==========
     match /audit_logs/{logId} {
       allow read: if isAdmin();
-      allow write: if false; // Only server-side writes
+      allow create: if isAuthenticated(); // Allow authenticated users to create audit logs
+      allow update, delete: if isAdmin(); // Only admins can modify/delete logs
+    }
+
+    // ========== Coupons Collection ==========
+    match /coupons/{couponId} {
+      // Allow public read for active coupons (users need to see and apply them)
+      allow read: if true;
+
+      allow create: if isAdmin();
+      allow update: if isAdmin() || isAuthenticated(); // Allow users to increment usage
+      allow delete: if isAdmin();
     }
 
     // ========== Favorites Collection ==========

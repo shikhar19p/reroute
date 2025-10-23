@@ -17,6 +17,9 @@ import { FarmRegistrationProvider } from './context/FarmRegistrationContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { WishlistProvider } from './context/WishlistContext';
 import { GlobalDataProvider } from './GlobalDataContext';
+import { ToastProvider } from './components/Toast';
+import { DialogProvider } from './components/CustomDialog';
+import { TabBarVisibilityProvider } from './context/TabBarVisibilityContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { registerForPushNotifications } from './services/notificationService';
 
@@ -197,19 +200,20 @@ function AppNavigator() {
         },
       }}
     >
-      <Stack.Navigator
-        initialRouteName={getInitialRoute()}
-        screenOptions={{
-          headerShown: true,
-          headerStyle: { backgroundColor: '#FFFFFF' },
-          headerTintColor: '#1F2937',
-          headerTitleStyle: { fontWeight: '600' },
-          headerShadowVisible: false,
-        }}
-      >
-        {user ? (
-          <>
-            {/* Role Selection (for authenticated users without role) */}
+      <TabBarVisibilityProvider>
+        <Stack.Navigator
+          initialRouteName={getInitialRoute()}
+          screenOptions={{
+            headerShown: true,
+            headerStyle: { backgroundColor: '#FFFFFF' },
+            headerTintColor: '#1F2937',
+            headerTitleStyle: { fontWeight: '600' },
+            headerShadowVisible: false,
+          }}
+        >
+          {user ? (
+            <>
+              {/* Role Selection (for authenticated users without role) */}
             <Stack.Screen
               name="RoleSelection"
               component={RoleSelectionScreen}
@@ -240,22 +244,22 @@ function AppNavigator() {
             <Stack.Screen
               name="EditFarmhouse"
               component={EditFarmhouseScreen}
-              options={{ title: 'Edit Farmhouse' }}
+              options={{ headerShown: false }}
             />
             <Stack.Screen
               name="OwnerBookings"
               component={OwnerBookingsScreen}
-              options={{ title: 'Bookings' }}
+              options={{ headerShown: false }}
             />
             <Stack.Screen
               name="OwnerBookingDetails"
               component={OwnerBookingDetailScreen}
-              options={{ title: 'Booking Details' }}
+              options={{ headerShown: false }}
             />
             <Stack.Screen
               name="ManageBlockedDates"
               component={ManageBlockedDatesScreen}
-              options={{ title: 'Blocked Dates' }}
+              options={{ headerShown: false }}
             />
 
             {/* Farm Registration Flow */}
@@ -326,22 +330,23 @@ function AppNavigator() {
               component={EditProfileScreen}
               options={{ headerShown: false }}
             />
-          </>
-        ) : (
-          <>
-            <Stack.Screen
-              name="Welcome"
-              component={WelcomeScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="Login"
-              component={LoginWithRoleScreen}
-              options={{ headerShown: false }}
-            />
-          </>
-        )}
-      </Stack.Navigator>
+            </>
+          ) : (
+            <>
+              <Stack.Screen
+                name="Welcome"
+                component={WelcomeScreen}
+                options={{ headerShown: false }}
+              />
+              <Stack.Screen
+                name="Login"
+                component={LoginWithRoleScreen}
+                options={{ headerShown: false }}
+              />
+            </>
+          )}
+        </Stack.Navigator>
+      </TabBarVisibilityProvider>
     </NavigationContainer>
   );
 }
@@ -356,6 +361,9 @@ export default function App() {
   });
 
   // Register for push notifications on app start
+  // Note: FCM (Firebase Cloud Messaging) credentials must be configured for production
+  // See: https://docs.expo.dev/push-notifications/fcm-credentials/
+  // For development, push notifications will gracefully fail if FCM is not set up
   useEffect(() => {
     registerForPushNotifications().then((token) => {
       if (token) {
@@ -379,11 +387,15 @@ export default function App() {
       <AuthProvider>
         <GlobalDataProvider>
           <ThemeProvider>
-            <WishlistProvider>
-              <FarmRegistrationProvider>
-                <AppNavigator />
-              </FarmRegistrationProvider>
-            </WishlistProvider>
+            <DialogProvider>
+              <ToastProvider>
+                <WishlistProvider>
+                  <FarmRegistrationProvider>
+                    <AppNavigator />
+                  </FarmRegistrationProvider>
+                </WishlistProvider>
+              </ToastProvider>
+            </DialogProvider>
           </ThemeProvider>
         </GlobalDataProvider>
       </AuthProvider>

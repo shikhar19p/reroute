@@ -1,10 +1,12 @@
 import React, { useState, useCallback } from 'react';
-import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, Alert } from 'react-native';
+import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Heart, MapPin, Users } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useWishlist } from '../../../context/WishlistContext';
 import { useTheme } from '../../../context/ThemeContext';
+import { useScrollHandler } from '../../../context/TabBarVisibilityContext';
+import { useDialog } from '../../../components/CustomDialog';
 import { getFarmhouseById } from '../../../services/farmhouseService';
 // FIX: Import the definitive Farmhouse type.
 import { Farmhouse } from '../../../types/navigation';
@@ -12,6 +14,8 @@ import { Farmhouse } from '../../../types/navigation';
 export default function WishlistScreen({ navigation }: any) {
   const { colors } = useTheme();
   const { wishlist, removeFromWishlist } = useWishlist();
+  const scrollHandler = useScrollHandler();
+  const { showDialog } = useDialog();
   const [wishlistFarmhouses, setWishlistFarmhouses] = useState<Farmhouse[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -25,13 +29,17 @@ export default function WishlistScreen({ navigation }: any) {
         setWishlistFarmhouses(validFarmhouses);
       } catch (error) {
         console.error('Error loading wishlist farmhouses:', error);
-        Alert.alert("Error", "Could not load your wishlist.");
+        showDialog({
+          title: 'Error',
+          message: 'Could not load your wishlist.',
+          type: 'error'
+        });
       }
     } else {
       setWishlistFarmhouses([]);
     }
     setLoading(false);
-  }, [wishlist]);
+  }, [wishlist, showDialog]);
 
   useFocusEffect(
     useCallback(() => {
@@ -93,7 +101,7 @@ export default function WishlistScreen({ navigation }: any) {
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>My Wishlist</Text>
         <Text style={[styles.count, { color: colors.placeholder }]}>
@@ -112,6 +120,8 @@ export default function WishlistScreen({ navigation }: any) {
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
+          onScroll={scrollHandler.onScroll}
+          scrollEventThrottle={scrollHandler.scrollEventThrottle}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Heart size={64} color={colors.placeholder} />

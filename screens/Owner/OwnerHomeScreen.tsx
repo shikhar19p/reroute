@@ -13,6 +13,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
+import { getResponsivePadding, isSmallDevice } from '../../utils/responsive';
 
 type RootStackParamList = {
   OwnerHome: undefined;
@@ -35,7 +36,7 @@ export default function OwnerHomeScreen({ navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
       {/* Header */}
