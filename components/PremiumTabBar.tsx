@@ -1,13 +1,15 @@
 import React from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
+import { View, TouchableOpacity, Text, StyleSheet, Platform, Animated } from 'react-native';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { BlurView } from 'expo-blur';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
+import { useTabBarVisibility } from '../context/TabBarVisibilityContext';
 import * as Haptics from 'expo-haptics';
 
 export default function PremiumTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
-  const { colors, typography, shadows } = useTheme();
+  const { colors, typography, shadows, isDark } = useTheme();
+  const { translateY } = useTabBarVisibility();
 
   const getTabIcon = (routeName: string): string => {
     switch (routeName) {
@@ -40,13 +42,16 @@ export default function PremiumTabBar({ state, descriptors, navigation }: Bottom
   };
 
   return (
-    <View style={styles.container}>
+    <Animated.View style={[styles.container, { transform: [{ translateY }] }]}>
       <BlurView
-        intensity={60}
-        tint="light"
-        style={styles.blurContainer}
+        intensity={100}
+        tint={isDark ? 'dark' : 'light'}
+        style={[styles.blurContainer, {
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)',
+          backgroundColor: isDark ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)',
+        }]}
       >
-        <View style={[styles.tabBar, { backgroundColor: 'rgba(255, 255, 255, 0.3)' }]}>
+        <View style={styles.tabBar}>
           {state.routes.map((route, index) => {
             const { options } = descriptors[route.key];
             const label = options.tabBarLabel !== undefined
@@ -123,7 +128,7 @@ export default function PremiumTabBar({ state, descriptors, navigation }: Bottom
           })}
         </View>
       </BlurView>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -142,9 +147,7 @@ const styles = StyleSheet.create({
   blurContainer: {
     borderRadius: 28,
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.05)',
     overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   tabBar: {
     flexDirection: 'row',

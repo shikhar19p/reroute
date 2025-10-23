@@ -17,7 +17,7 @@ export default function RulesRestrictionsScreen({ navigation }: RulesRestriction
   const { amenities, rules } = farm;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={['bottom']} edges={['top', 'left', 'right']}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <Text style={styles.title}>Review Configuration</Text>
         <Text style={styles.subtitle}>Please review your amenities and rules before proceeding</Text>

@@ -1,21 +1,26 @@
 import React, { useState, useMemo } from 'react';
 import {
   View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, StatusBar,
-  Modal, TextInput, FlatList, Share, Alert, ActivityIndicator
+  Modal, TextInput, FlatList, Share, ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Heart, Search, SlidersHorizontal, ArrowUpDown, LogOut, Share2 } from 'lucide-react-native';
+import { Heart, Search, SlidersHorizontal, ArrowUpDown, Bell, Share2 } from 'lucide-react-native';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
+import { useScrollHandler } from '../../context/TabBarVisibilityContext';
+import { useDialog } from '../../components/CustomDialog';
 import { Farmhouse as FarmhouseType } from '../../types/navigation';
 import { useAvailableFarmhouses } from '../../GlobalDataContext';
+import { getResponsivePadding, getResponsiveGap, isSmallDevice } from '../../utils/responsive';
 
 export default function ExploreScreen({ navigation }: any) {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { colors, isDark } = useTheme();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
-  
+  const scrollHandler = useScrollHandler();
+  const { showDialog } = useDialog();
+
   // Use the GlobalDataContext hook instead of local state
   const { data: farmhouses, loading, error } = useAvailableFarmhouses();
 
@@ -40,30 +45,29 @@ export default function ExploreScreen({ navigation }: any) {
 
   const handleShare = async (farmhouse: FarmhouseType) => {
     try {
+      const shareMessage = `🏡 ${farmhouse.name}\n\n` +
+        `📍 Location: ${farmhouse.location}\n` +
+        `⭐ Rating: ${farmhouse.rating?.toFixed(1) || '4.5'}/5\n` +
+        `👥 Capacity: Up to ${farmhouse.capacity} guests\n\n` +
+        `💰 Starting from ₹${farmhouse.weeklyNight}/night\n\n` +
+        `📱 Book now on ReRoute App!\n` +
+        `Download: https://play.google.com/store/apps/details?id=com.reroute.app`;
+
       await Share.share({
-        message: `Check out ${farmhouse.name} in ${farmhouse.location}! Starting from ₹${farmhouse.weeklyNight}/night.`,
-        title: farmhouse.name,
+        message: shareMessage,
+        title: `${farmhouse.name} - ReRoute`,
       });
     } catch (error) {
-      Alert.alert('Error', 'Could not share farmhouse');
+      showDialog({
+        title: 'Error',
+        message: 'Could not share farmhouse',
+        type: 'error'
+      });
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Logout', style: 'destructive', onPress: async () => {
-          try {
-            await logout();
-          } catch (error) {
-            Alert.alert('Error', 'Failed to logout');
-          }
-        }}
-      ]
-    );
+  const handleNotifications = () => {
+    navigation.navigate('Bookings');
   };
 
   const filteredAndSortedFarmhouses = useMemo(() => {
@@ -190,7 +194,7 @@ export default function ExploreScreen({ navigation }: any) {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.background} />
 
       <View style={styles.header}>
@@ -200,8 +204,8 @@ export default function ExploreScreen({ navigation }: any) {
             {user?.displayName || 'User'}!
           </Text>
         </View>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <LogOut size={20} color="#EF4444" />
+        <TouchableOpacity onPress={handleNotifications} style={styles.notificationButton}>
+          <Bell size={22} color={colors.text} />
         </TouchableOpacity>
       </View>
 
@@ -242,6 +246,8 @@ export default function ExploreScreen({ navigation }: any) {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          onScroll={scrollHandler.onScroll}
+          scrollEventThrottle={scrollHandler.scrollEventThrottle}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={[styles.emptyText, { color: colors.placeholder }]}>
@@ -317,7 +323,7 @@ export default function ExploreScreen({ navigation }: any) {
                 placeholderTextColor={colors.placeholder}
                 keyboardType="numeric"
                 value={filters.minPrice}
-                onChangeText={(text) => setFilters({...filters, minPrice: text})}
+                onChangeText={(text) => setFilters({...filters, minPrice: text.replace(/[^0-9]/g, '')})}
               />
               <TextInput
                 style={[styles.filterInputHalf, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
@@ -325,7 +331,7 @@ export default function ExploreScreen({ navigation }: any) {
                 placeholderTextColor={colors.placeholder}
                 keyboardType="numeric"
                 value={filters.maxPrice}
-                onChangeText={(text) => setFilters({...filters, maxPrice: text})}
+                onChangeText={(text) => setFilters({...filters, maxPrice: text.replace(/[^0-9]/g, '')})}
               />
             </View>
 
@@ -336,7 +342,7 @@ export default function ExploreScreen({ navigation }: any) {
               placeholderTextColor={colors.placeholder}
               keyboardType="numeric"
               value={filters.minCapacity}
-              onChangeText={(text) => setFilters({...filters, minCapacity: text})}
+              onChangeText={(text) => setFilters({...filters, minCapacity: text.replace(/[^0-9]/g, '')})}
             />
 
             <View style={styles.filterButtons}>
@@ -364,15 +370,45 @@ export default function ExploreScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingVertical: 16 },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: getResponsivePadding(24),
+    paddingVertical: 16
+  },
   userInfo: { flex: 1 },
   greeting: { fontSize: 14 },
   userName: { fontSize: 18, fontWeight: '600' },
-  logoutButton: { padding: 8 },
-  searchFilterRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingBottom: 16 },
-  searchBar: { flex: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1 },
-  searchInput: { flex: 1, fontSize: 14 },
-  iconButton: { width: 44, height: 44, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  notificationButton: { padding: 8 },
+  searchFilterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: getResponsiveGap(10),
+    paddingHorizontal: getResponsivePadding(16),
+    paddingBottom: 16
+  },
+  searchBar: {
+    flex: 1,
+    borderRadius: 8,
+    paddingHorizontal: isSmallDevice() ? 8 : 12,
+    paddingVertical: isSmallDevice() ? 8 : 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: isSmallDevice() ? 6 : 10,
+    borderWidth: 1,
+    minWidth: 0, // Allow shrinking
+  },
+  searchInput: { flex: 1, fontSize: 14, minWidth: 0 },
+  iconButton: {
+    width: isSmallDevice() ? 40 : 44,
+    height: isSmallDevice() ? 40 : 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0, // Prevent shrinking
+  },
   listContent: { paddingHorizontal: 16, paddingBottom: 20 },
   propertyCard: { borderRadius: 16, overflow: 'hidden', marginBottom: 24, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   imageContainer: { position: 'relative' },

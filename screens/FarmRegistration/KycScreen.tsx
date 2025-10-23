@@ -1,7 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -17,6 +16,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { kycSchema } from '../../utils/validation';
 import { useFarmRegistration } from '../../context/FarmRegistrationContext';
 import { saveFarmRegistration } from '../../services/farmService';
+import { useDialog } from '../../components/CustomDialog';
 
 type KycScreenProps = {
   navigation: NativeStackNavigationProp<any, any>;
@@ -24,6 +24,7 @@ type KycScreenProps = {
 
 export default function KycScreen({ navigation }: KycScreenProps) {
   const { farm, setField, resetFarm } = useFarmRegistration();
+  const { showDialog } = useDialog();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -57,10 +58,14 @@ export default function KycScreen({ navigation }: KycScreenProps) {
           updateField(fieldPath, fileData);
         }
       } catch (error) {
-        Alert.alert('Error', 'Failed to pick document');
+        showDialog({
+          title: 'Error',
+          message: 'Failed to pick document',
+          type: 'error'
+        });
       }
     },
-    [updateField]
+    [updateField, showDialog]
   );
 
   const handleSubmit = useCallback(async () => {
@@ -85,17 +90,25 @@ export default function KycScreen({ navigation }: KycScreenProps) {
       console.log('KycScreen: About to call saveFarmRegistration');
       const result = await saveFarmRegistration(farm);
       console.log('KycScreen: Registration successful!', result);
-      Alert.alert('Success', 'Farm registration submitted for review!');
+      showDialog({
+        title: 'Success',
+        message: 'Farm registration submitted for review!',
+        type: 'success'
+      });
       resetFarm();
       navigation.reset({ index: 0, routes: [{ name: 'MyFarmhouses' }] });
     } catch (error) {
       console.error('KycScreen: Submission error:', error);
       console.error('KycScreen: Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
-      Alert.alert('Error', `Failed to submit registration: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      showDialog({
+        title: 'Error',
+        message: `Failed to submit registration: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        type: 'error'
+      });
     } finally {
       setIsSubmitting(false);
     }
-  }, [farm, isSubmitting, navigation, resetFarm]);
+  }, [farm, isSubmitting, navigation, resetFarm, showDialog]);
 
   const toggleTerms = () => {
     const current = farm.kyc.agreedToTerms;
@@ -103,7 +116,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={['top']} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -137,7 +150,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               <Text style={styles.label}>Phone*</Text>
               <TextInput
                 value={farm.kyc.person1.phone}
-                onChangeText={(text) => updateField(['kyc', 'person1', 'phone'], text)}
+                onChangeText={(text) => updateField(['kyc', 'person1', 'phone'], text.replace(/[^0-9]/g, ''))}
                 style={styles.input}
                 placeholder="10-digit phone number"
                 placeholderTextColor="#9CA3AF"
@@ -151,7 +164,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               <Text style={styles.label}>Aadhaar Number*</Text>
               <TextInput
                 value={farm.kyc.person1.aadhaarNumber}
-                onChangeText={(text) => updateField(['kyc', 'person1', 'aadhaarNumber'], text)}
+                onChangeText={(text) => updateField(['kyc', 'person1', 'aadhaarNumber'], text.replace(/[^0-9]/g, ''))}
                 style={styles.input}
                 placeholder="12-digit Aadhaar number"
                 placeholderTextColor="#9CA3AF"
@@ -204,7 +217,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               <Text style={styles.label}>Phone*</Text>
               <TextInput
                 value={farm.kyc.person2.phone}
-                onChangeText={(text) => updateField(['kyc', 'person2', 'phone'], text)}
+                onChangeText={(text) => updateField(['kyc', 'person2', 'phone'], text.replace(/[^0-9]/g, ''))}
                 style={styles.input}
                 placeholder="10-digit phone number"
                 placeholderTextColor="#9CA3AF"
@@ -218,7 +231,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               <Text style={styles.label}>Aadhaar Number*</Text>
               <TextInput
                 value={farm.kyc.person2.aadhaarNumber}
-                onChangeText={(text) => updateField(['kyc', 'person2', 'aadhaarNumber'], text)}
+                onChangeText={(text) => updateField(['kyc', 'person2', 'aadhaarNumber'], text.replace(/[^0-9]/g, ''))}
                 style={styles.input}
                 placeholder="12-digit Aadhaar number"
                 placeholderTextColor="#9CA3AF"
@@ -314,7 +327,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               <Text style={styles.label}>Account Number*</Text>
               <TextInput
                 value={farm.kyc.bankDetails.accountNumber}
-                onChangeText={(text) => updateField(['kyc', 'bankDetails', 'accountNumber'], text)}
+                onChangeText={(text) => updateField(['kyc', 'bankDetails', 'accountNumber'], text.replace(/[^0-9]/g, ''))}
                 style={styles.input}
                 placeholder="9-18 digits"
                 placeholderTextColor="#9CA3AF"

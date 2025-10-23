@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, Linking } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../authContext';
 import { getFarmhousesByOwner } from '../../services/farmhouseService';
 import { Booking, getFarmhouseBookings, updateBookingStatus, updatePaymentStatus } from '../../services/bookingService';
+import { useDialog } from '../../components/CustomDialog';
 
 type RootStackParamList = {
   OwnerBookings: { farmhouseId?: string } | undefined;
@@ -19,6 +20,7 @@ const STATUS_FILTERS: Array<Booking['status'] | 'all'> = ['all', 'pending', 'con
 export default function BookingsListScreen({ route, navigation }: Props) {
   const { colors } = useTheme();
   const { user } = useAuth();
+  const { showDialog } = useDialog();
   const [loading, setLoading] = useState(true);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [filter, setFilter] = useState<'all' | Booking['status']>('all');
@@ -48,7 +50,11 @@ export default function BookingsListScreen({ route, navigation }: Props) {
       setBookings(results);
     } catch (e) {
       console.error('Error loading bookings', e);
-      Alert.alert('Error', 'Failed to load bookings');
+      showDialog({
+        title: 'Error',
+        message: 'Failed to load bookings',
+        type: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -75,12 +81,23 @@ export default function BookingsListScreen({ route, navigation }: Props) {
   };
 
   const confirmAction = (title: string, message: string, action: () => Promise<void>) => {
-    Alert.alert(title, message, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'OK', onPress: async () => {
-        try { await action(); await loadBookings(); } catch (e) { Alert.alert('Error', 'Action failed'); }
-      }}
-    ]);
+    showDialog({
+      title,
+      message,
+      type: 'confirm',
+      buttons: [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'OK', style: 'default', onPress: async () => {
+          try { await action(); await loadBookings(); } catch (e) {
+            showDialog({
+              title: 'Error',
+              message: 'Action failed',
+              type: 'error'
+            });
+          }
+        }}
+      ]
+    });
   };
 
   const renderBooking = ({ item }: { item: Booking }) => (
@@ -139,7 +156,7 @@ export default function BookingsListScreen({ route, navigation }: Props) {
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Bookings</Text>
         <Text style={[styles.headerSub, { color: colors.placeholder }]}>{bookings.length} total</Text>

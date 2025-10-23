@@ -12,6 +12,7 @@ import {
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { useTheme } from '../../context/ThemeContext';
+import { useScrollHandler } from '../../context/TabBarVisibilityContext';
 
 const { width } = Dimensions.get('window');
 
@@ -68,6 +69,7 @@ interface Farmhouse {
 export default function BookingDetailsScreen({ route, navigation }: any) {
   const { bookingId, booking: bookingParam } = route.params || {};
   const { colors, isDark } = useTheme();
+  const scrollHandler = useScrollHandler();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -86,7 +88,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
     } else if (bookingId) {
       fetchBookingDetails();
     } else {
-      console.error('No booking ID or booking data provided');
+      // No booking data provided - navigation error
       setLoading(false);
     }
   }, [bookingId, bookingParam]);
@@ -274,7 +276,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.buttonBackground} />
           <Text style={[styles.loadingText, { color: colors.text }]}>Loading booking details...</Text>
@@ -285,7 +287,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
 
   if (!booking || !farmhouse) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
         <View style={styles.errorContainer}>
           <AlertCircle size={48} color="#EF4444" />
           <Text style={[styles.errorText, { color: colors.text }]}>Booking not found</Text>
@@ -298,7 +300,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
       <View style={[styles.header, { backgroundColor: colors.cardBackground, borderBottomColor: colors.border }]}>
@@ -309,9 +311,12 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.content}
+        contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
+        onScroll={scrollHandler.onScroll}
+        scrollEventThrottle={scrollHandler.scrollEventThrottle}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -500,48 +505,48 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
             <>
               <Text style={[styles.subsectionTitle, { color: colors.text }]}>Amenities</Text>
               <View style={styles.amenitiesGrid}>
-                {farmhouse.amenities.pool && (
+                {farmhouse.amenities.pool === true && (
                   <View style={[styles.amenityChip, { backgroundColor: colors.background }]}>
                     <Droplet size={16} color="#3B82F6" />
                     <Text style={[styles.amenityText, { color: colors.text }]}>Swimming Pool</Text>
                   </View>
                 )}
-                {farmhouse.amenities.bonfire && Number(farmhouse.amenities.bonfire) > 0 && (
+                {Number(farmhouse.amenities.bonfire || 0) > 0 && (
                   <View style={[styles.amenityChip, { backgroundColor: colors.background }]}>
                     <Flame size={16} color="#F59E0B" />
                     <Text style={[styles.amenityText, { color: colors.text }]}>Bonfire</Text>
                   </View>
                 )}
-                {farmhouse.amenities.tv && Number(farmhouse.amenities.tv) > 0 && (
+                {Number(farmhouse.amenities.tv || 0) > 0 && (
                   <View style={[styles.amenityChip, { backgroundColor: colors.background }]}>
                     <Tv size={16} color="#8B5CF6" />
                     <Text style={[styles.amenityText, { color: colors.text }]}>TV</Text>
                   </View>
                 )}
-                {farmhouse.amenities.geyser && Number(farmhouse.amenities.geyser) > 0 && (
+                {Number(farmhouse.amenities.geyser || 0) > 0 && (
                   <View style={[styles.amenityChip, { backgroundColor: colors.background }]}>
                     <Text style={[styles.amenityText, { color: colors.text }]}>
                       Geyser ({Number(farmhouse.amenities.geyser)})
                     </Text>
                   </View>
                 )}
-                {farmhouse.amenities.carroms && Number(farmhouse.amenities.carroms) > 0 && (
+                {Number(farmhouse.amenities.carroms || 0) > 0 && (
                   <View style={[styles.amenityChip, { backgroundColor: colors.background }]}>
                     <Text style={[styles.amenityText, { color: colors.text }]}>Carroms</Text>
                   </View>
                 )}
-                {farmhouse.amenities.chess && Number(farmhouse.amenities.chess) > 0 && (
+                {Number(farmhouse.amenities.chess || 0) > 0 && (
                   <View style={[styles.amenityChip, { backgroundColor: colors.background }]}>
                     <Text style={[styles.amenityText, { color: colors.text }]}>Chess</Text>
                   </View>
                 )}
-                {farmhouse.amenities.volleyball && Number(farmhouse.amenities.volleyball) > 0 && (
+                {Number(farmhouse.amenities.volleyball || 0) > 0 && (
                   <View style={[styles.amenityChip, { backgroundColor: colors.background }]}>
                     <Text style={[styles.amenityText, { color: colors.text }]}>Volleyball</Text>
                   </View>
                 )}
               </View>
-              {farmhouse.amenities.customAmenities && (
+              {farmhouse.amenities.customAmenities && farmhouse.amenities.customAmenities.trim() !== '' && (
                 <Text style={[styles.customAmenities, { color: colors.placeholder }]}>
                   {farmhouse.amenities.customAmenities}
                 </Text>
@@ -633,7 +638,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
             <>
               <View style={styles.infoRow}>
                 <Text style={[styles.discountLabel, { color: '#10B981' }]}>
-                  Discount {booking.couponCode ? `(${booking.couponCode})` : ''}
+                  {`Discount${booking.couponCode ? ` (${booking.couponCode})` : ''}`}
                 </Text>
                 <Text style={[styles.discountValue, { color: '#10B981' }]}>
                   -₹{Number(booking.discountApplied).toLocaleString('en-IN')}

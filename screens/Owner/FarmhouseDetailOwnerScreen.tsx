@@ -7,7 +7,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   Dimensions,
   Linking,
 } from 'react-native';
@@ -19,6 +18,7 @@ import { ArrowLeft, Edit, MapPin, Users, Home, Star } from 'lucide-react-native'
 import { useTheme } from '../../context/ThemeContext';
 import { getFarmhouseById, Farmhouse } from '../../services/farmhouseService';
 import MapView, { Marker } from 'react-native-maps';
+import { useDialog } from '../../components/CustomDialog';
 
 const { width } = Dimensions.get('window');
 
@@ -33,6 +33,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'FarmhouseDetailOwner'>;
 export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props) {
   const { farmhouseId } = route.params;
   const { colors, isDark } = useTheme();
+  const { showDialog } = useDialog();
   const [farmhouse, setFarmhouse] = useState<Farmhouse | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
@@ -55,12 +56,20 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
       if (data) {
         setFarmhouse(data);
       } else {
-        Alert.alert('Error', 'Farmhouse not found');
+        showDialog({
+          title: 'Error',
+          message: 'Farmhouse not found',
+          type: 'error'
+        });
         navigation.goBack();
       }
     } catch (error) {
       console.error('Error loading farmhouse:', error);
-      Alert.alert('Error', 'Failed to load farmhouse details');
+      showDialog({
+        title: 'Error',
+        message: 'Failed to load farmhouse details',
+        type: 'error'
+      });
       navigation.goBack();
     } finally {
       setLoading(false);
@@ -148,7 +157,7 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
   const mainImage = images[0] || 'https://via.placeholder.com/400x300';
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Image Gallery */}
         <View style={styles.imageSection}>

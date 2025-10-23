@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
+import PremiumLogo from '../components/PremiumLogo';
 
 const { width, height } = Dimensions.get('window');
 
@@ -16,7 +17,7 @@ export default function WelcomeScreen({ navigation }: any) {
 
       {/* Premium gradient background */}
       <LinearGradient
-        colors={colors.goldGradient}
+        colors={['#0F766E', '#0D9488', '#14B8A6']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFillObject}
@@ -28,29 +29,15 @@ export default function WelcomeScreen({ navigation }: any) {
       <View style={[styles.decorativeCircle, styles.circle3]} />
 
       <View style={styles.content}>
-        {/* Title */}
-        <View style={styles.titleContainer}>
-          <Text style={[styles.title, { fontFamily: typography.fontFamily.bold }]}>
-            Reroute
-          </Text>
-          <View style={styles.titleUnderline} />
+        {/* Premium Logo */}
+        <View style={styles.logoContainer}>
+          <PremiumLogo size="large" variant="light" />
         </View>
 
         {/* Subtitle */}
         <Text style={[styles.subtitle, { fontFamily: typography.fontFamily.medium }]}>
           Find your perfect countryside escape
         </Text>
-
-        {/* Icon with Glassmorphism */}
-        <View style={styles.iconWrapper}>
-          <BlurView intensity={40} tint="light" style={styles.glassContainer}>
-            <MaterialCommunityIcons
-              name="home-variant"
-              size={80}
-              color={colors.primary}
-            />
-          </BlurView>
-        </View>
 
         {/* Features */}
         <View style={styles.featuresContainer}>
@@ -65,22 +52,17 @@ export default function WelcomeScreen({ navigation }: any) {
           onPress={() => navigation.navigate('Login')}
           activeOpacity={0.9}
         >
-          <LinearGradient
-            colors={[colors.primary, colors.primaryDark]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={[styles.buttonGradient, { borderRadius: borderRadius.xl }]}
-          >
-            <Text style={[styles.buttonText, { fontFamily: typography.fontFamily.semiBold }]}>
+          <View style={[styles.buttonGradient, styles.whiteButton, { borderRadius: borderRadius.xl }]}>
+            <Text style={[styles.buttonText, styles.buttonTextDark, { fontFamily: typography.fontFamily.semiBold }]}>
               Get Started
             </Text>
             <MaterialCommunityIcons
               name="arrow-right"
               size={24}
-              color="white"
+              color="#0D9488"
               style={styles.buttonIcon}
             />
-          </LinearGradient>
+          </View>
         </TouchableOpacity>
 
         <Text style={[styles.footerText, { fontFamily: typography.fontFamily.regular }]}>
@@ -106,7 +88,7 @@ function FeatureItem({ icon, text, colors, typography }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#D4AF37',
+    backgroundColor: '#0D9488',
   },
   content: {
     flex: 1,
@@ -138,46 +120,17 @@ const styles = StyleSheet.create({
     top: height * 0.3,
     left: -75,
   },
-  titleContainer: {
+  logoContainer: {
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  title: {
-    fontSize: 48,
-    color: 'white',
-    textAlign: 'center',
-    letterSpacing: 1,
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  titleUnderline: {
-    width: 60,
-    height: 4,
-    backgroundColor: 'white',
-    borderRadius: 2,
-    marginTop: 8,
+    marginBottom: 20,
   },
   subtitle: {
     fontSize: 18,
     color: 'rgba(255, 255, 255, 0.95)',
     textAlign: 'center',
     marginBottom: 40,
+    marginTop: 8,
     lineHeight: 26,
-  },
-  iconWrapper: {
-    marginVertical: 40,
-  },
-  glassContainer: {
-    width: 160,
-    height: 160,
-    borderRadius: 80,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    overflow: 'hidden',
   },
   featuresContainer: {
     flexDirection: 'row',
@@ -207,10 +160,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  whiteButton: {
+    backgroundColor: 'white',
+  },
   buttonText: {
     color: 'white',
     fontSize: 18,
     marginRight: 8,
+  },
+  buttonTextDark: {
+    color: '#0D9488',
   },
   buttonIcon: {
     marginLeft: 4,

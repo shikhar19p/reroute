@@ -54,10 +54,15 @@ export async function createBooking(bookingData: Omit<Booking, 'id' | 'createdAt
     // Validate required fields
     const validations = [
       validators.futureDate(bookingData.checkInDate),
-      validators.dateRange(bookingData.checkInDate, bookingData.checkOutDate),
       validators.price(bookingData.totalPrice),
       validators.capacity(bookingData.guests),
     ];
+
+    // For overnight bookings, ensure checkout is after checkin
+    // For day-use bookings, they can be on the same day
+    if (bookingData.bookingType === 'overnight') {
+      validations.push(validators.dateRange(bookingData.checkInDate, bookingData.checkOutDate));
+    }
 
     const errors = validateFields(validations);
     if (errors.length > 0) {
@@ -86,25 +91,32 @@ export async function createBooking(bookingData: Omit<Booking, 'id' | 'createdAt
       createdAt: serverTimestamp(),
     });
 
-    // Log audit event
-    await logAuditEvent(
-      'booking_created',
-      bookingData.userId,
-      'booking',
-      docRef.id,
-      {
-        farmhouseId: bookingData.farmhouseId,
-        totalPrice: bookingData.totalPrice,
-        checkIn: bookingData.checkInDate,
-        checkOut: bookingData.checkOutDate,
-      }
-    );
+    // Log audit event (silently fail if permissions issue)
+    try {
+      await logAuditEvent(
+        'booking_created',
+        bookingData.userId,
+        'booking',
+        docRef.id,
+        {
+          farmhouseId: bookingData.farmhouseId,
+          totalPrice: bookingData.totalPrice,
+          checkIn: bookingData.checkInDate,
+          checkOut: bookingData.checkOutDate,
+        }
+      );
+    } catch (auditError) {
+      // Silently ignore audit log failures - booking is still created
+    }
 
     console.log('Booking created successfully with ID:', docRef.id);
     return docRef.id;
   } catch (error) {
-    console.error('Error creating booking:', error);
-    throw error;
+    if (error instanceof Error && error.message.includes('Validation failed')) {
+      throw error; // Re-throw validation errors as-is
+    }
+    // For other errors, throw a user-friendly message
+    throw new Error('Unable to complete booking. Please try again.');
   }
 }
 

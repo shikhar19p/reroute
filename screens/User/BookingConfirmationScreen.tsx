@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
-  Image, Alert, ActivityIndicator, TextInput, RefreshControl, Dimensions
+  Image, ActivityIndicator, TextInput, RefreshControl, Dimensions
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, User, Phone, Mail, Tag, X, CheckCircle } from 'lucide-react-native';
@@ -9,6 +9,9 @@ import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../authContext';
+import { useToast } from '../../components/Toast';
+import { useDialog } from '../../components/CustomDialog';
+import { useScrollHandler } from '../../context/TabBarVisibilityContext';
 import { useCoupons, useGlobalData } from '../../GlobalDataContext';
 import { createBooking } from '../../services/bookingService';
 import { addBookedDatesToFarmhouse } from '../../services/farmhouseService';
@@ -24,6 +27,9 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
 
   const { colors, isDark } = useTheme();
   const { user } = useAuth();
+  const { showToast } = useToast();
+  const { showDialog } = useDialog();
+  const scrollHandler = useScrollHandler();
   const { getFarmhouseById } = useGlobalData();
   const { data: availableCoupons, loading: couponsLoading, refresh: refreshCoupons } = useCoupons();
 
@@ -104,7 +110,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
       return;
     }
     setAppliedCoupon(validation.coupon);
-    Alert.alert('Success', 'Coupon applied successfully!');
+    showToast('Coupon applied successfully!', 'success');
   };
 
   const removeCoupon = () => {
@@ -147,12 +153,30 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
 
   const handleConfirmBooking = async () => {
     if (!user || !userProfile) {
-      Alert.alert('Error', 'Please login to continue');
+      showDialog({
+        title: 'Error',
+        message: 'Please login to continue',
+        type: 'error'
+      });
       return;
     }
 
     if (!userProfile.phone || userProfile.phone === 'Not provided') {
-      Alert.alert('Phone Number Required', 'Please add a phone number to your profile before booking.');
+      showDialog({
+        title: 'Phone Number Required',
+        message: 'Please add a phone number to your profile before booking.',
+        type: 'warning'
+      });
+      return;
+    }
+
+    // Validate price is greater than 0
+    if (finalPrice <= 0) {
+      showDialog({
+        title: 'Invalid Price',
+        message: 'Booking amount must be greater than ₹0. Please check the pricing details.',
+        type: 'error'
+      });
       return;
     }
 
@@ -195,24 +219,46 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
       });
 
       setLoading(false);
-      Alert.alert(
-        'Booking Confirmed! 🎉', 
-        `Your booking for ${farmhouseDetails?.name || farmhouseName} is confirmed.`,
-        [{ 
-          text: 'View Details', 
-          onPress: () => navigation.replace('BookingDetails', { 
-            booking: { 
-              ...bookingData, 
-              id: bookingId, 
-              createdAt: new Date().toISOString() 
-            } 
-          }) 
+      showDialog({
+        title: 'Booking Confirmed! 🎉',
+        message: `Your booking for ${farmhouseDetails?.name || farmhouseName} is confirmed.`,
+        type: 'success',
+        buttons: [{
+          text: 'View Details',
+          style: 'default',
+          onPress: () => navigation.replace('BookingDetails', {
+            booking: {
+              ...bookingData,
+              id: bookingId,
+              createdAt: new Date().toISOString()
+            }
+          })
         }]
-      );
+      });
     } catch (error) {
       setLoading(false);
-      console.error('Booking error:', error);
-      Alert.alert('Error', 'Failed to create booking. The dates may have just been taken. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create booking';
+
+      // Show user-friendly error messages
+      if (errorMessage.includes('Validation failed')) {
+        showDialog({
+          title: 'Booking Error',
+          message: errorMessage.replace('Validation failed: ', ''),
+          type: 'error'
+        });
+      } else if (errorMessage.includes('not available')) {
+        showDialog({
+          title: 'Dates Unavailable',
+          message: 'The selected dates are no longer available. Please choose different dates.',
+          type: 'error'
+        });
+      } else {
+        showDialog({
+          title: 'Booking Failed',
+          message: 'Unable to complete booking. Please try again.',
+          type: 'error'
+        });
+      }
     }
   };
 
@@ -221,7 +267,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
   const displayLocation = farmhouseDetails?.location || location;
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
       <View style={styles.header}>
@@ -232,9 +278,12 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView 
-        style={styles.content} 
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
+        onScroll={scrollHandler.onScroll}
+        scrollEventThrottle={scrollHandler.scrollEventThrottle}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

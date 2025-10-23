@@ -6,12 +6,12 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StatusBar,
-  Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
+import { useDialog } from '../components/CustomDialog';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db, auth } from '../firebaseConfig';
 import { useAuth } from '../authContext';
@@ -20,6 +20,7 @@ import { saveSession } from '../sessionManager';
 export default function RoleSelectionScreen({ navigation }: any) {
   const { colors, typography, borderRadius } = useTheme();
   const { user } = useAuth();
+  const { showDialog } = useDialog();
   const [loading, setLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState<'customer' | 'owner' | null>(null);
 
@@ -27,7 +28,11 @@ export default function RoleSelectionScreen({ navigation }: any) {
     console.log('🎯 Button pressed! Selected role:', role);
 
     if (!user) {
-      Alert.alert('Error', 'User not authenticated');
+      showDialog({
+        title: 'Error',
+        message: 'User not authenticated',
+        type: 'error'
+      });
       console.log('❌ No user found');
       return;
     }
@@ -87,7 +92,11 @@ export default function RoleSelectionScreen({ navigation }: any) {
       }
     } catch (error: any) {
       console.error('❌ Error setting role:', error);
-      Alert.alert('Error', 'Failed to set role. Please try again.');
+      showDialog({
+        title: 'Error',
+        message: 'Failed to set role. Please try again.',
+        type: 'error'
+      });
       setLoading(false);
       setSelectedRole(null);
     }

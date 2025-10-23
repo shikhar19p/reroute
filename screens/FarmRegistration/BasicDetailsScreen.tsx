@@ -54,8 +54,13 @@ export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenPro
     [farm]
   );
 
-  const handleChange = (key: string, value: string) => {
-    setField(key, value);
+  const handleChange = (key: string, value: string, keyboardType?: string) => {
+    // Strip non-numeric characters for phone and numeric inputs
+    const processedValue = (keyboardType === 'phone-pad' || keyboardType === 'numeric')
+      ? value.replace(/[^0-9]/g, '')
+      : value;
+
+    setField(key, processedValue);
     if (errors[key]) {
       setErrors((prev) => ({ ...prev, [key]: undefined }));
     }
@@ -87,7 +92,7 @@ export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenPro
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
+    <SafeAreaView style={styles.safeArea} edges={['top']} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -106,7 +111,7 @@ export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenPro
               <Text style={styles.label}>{label}</Text>
               <TextInput
                 value={(farm as any)[key] ?? ''}
-                onChangeText={(text) => handleChange(key, text)}
+                onChangeText={(text) => handleChange(key, text, keyboardType)}
                 placeholder={placeholder}
                 placeholderTextColor="#9CA3AF"
                 style={[styles.input, errors[key] && styles.inputError]}
