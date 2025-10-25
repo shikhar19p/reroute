@@ -6,19 +6,23 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StatusBar,
+  SafeAreaView,
+  Dimensions,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
-import { useTheme } from '../context/ThemeContext';
 import { useDialog } from '../components/CustomDialog';
 import Constants from 'expo-constants';
 
+const { width } = Dimensions.get('window');
+
+// Define the primary color for accents (the gold/ochre color in the design)
+const PRIMARY_COLOR = '#C5A565';
+const TEXT_COLOR = '#333333';
+const LIGHT_GREY = '#666666';
+
 export default function LoginWithRoleScreen({ navigation }: any) {
-  const { colors, typography, borderRadius } = useTheme();
   const { showDialog } = useDialog();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -91,180 +95,194 @@ export default function LoginWithRoleScreen({ navigation }: any) {
     }
   };
 
+  const handleBack = () => {
+    navigation.goBack();
+  };
+
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" />
 
-      <LinearGradient
-        colors={[colors.primaryDark, colors.primary, colors.primaryLight]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-      />
+      <View style={styles.container}>
 
-      <View style={[styles.decorativeCircle, styles.circle1]} />
-      <View style={[styles.decorativeCircle, styles.circle2]} />
-
-      <View style={styles.content}>
-        <View style={styles.titleContainer}>
-          <View style={styles.iconWrapper}>
-            <MaterialCommunityIcons name="account-circle" size={100} color="white" />
-          </View>
-          <Text style={[styles.title, { fontFamily: typography.fontFamily.bold }]}>
-            Welcome to Reroute
-          </Text>
-          <Text style={[styles.subtitle, { fontFamily: typography.fontFamily.medium }]}>
-            Sign in to continue
-          </Text>
+        {/* --- 1. Logo Icon (White) --- */}
+        <View style={styles.iconContainer}>
+          <Text style={styles.iconPlaceholder}>🏠</Text>
         </View>
 
-        {/* Google Sign-In Button */}
-        <View style={styles.cardWrapper}>
-          <BlurView
-            intensity={20}
-            tint="light"
-            style={[styles.glassCard, { borderRadius: borderRadius.lg }]}
-          >
-            <TouchableOpacity
-              style={styles.googleButton}
-              onPress={handleGoogleSignIn}
-              disabled={loading}
-              activeOpacity={0.8}
-            >
-              {loading ? (
-                <ActivityIndicator color="white" size="large" />
-              ) : (
-                <>
-                  <View style={styles.googleIconContainer}>
-                    <MaterialCommunityIcons name="google" size={32} color="#4285F4" />
-                  </View>
-                  <Text style={[styles.googleButtonText, { fontFamily: typography.fontFamily.semiBold }]}>
-                    Sign in with Google
-                  </Text>
-                  <MaterialCommunityIcons name="chevron-right" size={28} color="white" />
-                </>
-              )}
-            </TouchableOpacity>
-          </BlurView>
-        </View>
+        {/* --- 2 & 3. Titles and Subtitle --- */}
+        <Text style={styles.title}>Welcome to Reroute</Text>
+        <Text style={styles.subtitle}>Sign in to continue your journey</Text>
 
-        <Text style={[styles.infoText, { fontFamily: typography.fontFamily.regular }]}>
-          You'll choose your role after signing in
-        </Text>
-
-        {/* Back Button */}
+        {/* --- 4. Google Sign In Button --- */}
         <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          style={styles.googleButton}
+          onPress={handleGoogleSignIn}
+          disabled={loading}
+          activeOpacity={0.8}
         >
-          <MaterialCommunityIcons name="arrow-left" size={20} color="white" />
-          <Text style={[styles.backButtonText, { fontFamily: typography.fontFamily.medium }]}>
-            Back to Welcome
-          </Text>
+          {loading ? (
+            <ActivityIndicator color={PRIMARY_COLOR} size="small" />
+          ) : (
+            <View style={styles.buttonContent}>
+              {/* Google Logo Placeholder */}
+              <Text style={styles.googleIconPlaceholder}>G</Text>
+
+              <Text style={styles.googleButtonText}>Sign in with Google</Text>
+
+              {/* Arrow Icon Placeholder */}
+              <Text style={styles.arrowIconPlaceholder}>→</Text>
+            </View>
+          )}
         </TouchableOpacity>
+
+        {/* Info Text */}
+        <Text style={styles.infoText}>You'll choose your role after signing in</Text>
+
       </View>
-    </View>
+
+      {/* --- Back Button (Fixed at Bottom) --- */}
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={handleBack}
+        activeOpacity={0.7}
+      >
+        <View style={styles.backButtonContent}>
+          <Text style={styles.backArrow}>&lt;</Text>
+          <Text style={styles.backText}>Back</Text>
+        </View>
+      </TouchableOpacity>
+
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#D4AF37',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: width * 0.08,
+    paddingTop: 20,
   },
-  content: {
-    flex: 1,
+
+  // --- Icon Styles ---
+  iconContainer: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 60,
+    marginBottom: 32,
+    borderWidth: 2,
+    borderColor: PRIMARY_COLOR,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  decorativeCircle: {
-    position: 'absolute',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 999,
+  iconPlaceholder: {
+    fontSize: 50,
+    color: PRIMARY_COLOR,
   },
-  circle1: {
-    width: 250,
-    height: 250,
-    top: -80,
-    right: -60,
-  },
-  circle2: {
-    width: 180,
-    height: 180,
-    bottom: 60,
-    left: -40,
-  },
-  titleContainer: {
-    alignItems: 'center',
-    marginBottom: 50,
-  },
-  iconWrapper: {
-    marginBottom: 24,
-  },
+
+  // --- Title Styles ---
   title: {
-    fontSize: 36,
-    color: 'white',
-    textAlign: 'center',
+    fontSize: 32,
+    fontWeight: '700',
+    color: TEXT_COLOR,
     marginBottom: 12,
-    paddingHorizontal: 20,
-    textShadowColor: 'rgba(0, 0, 0, 0.15)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    letterSpacing: 0.5,
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 18,
-    color: 'rgba(255, 255, 255, 0.95)',
+    fontSize: 17,
+    color: LIGHT_GREY,
+    marginBottom: 50,
     textAlign: 'center',
+    fontWeight: '400',
+    lineHeight: 24,
   },
-  cardWrapper: {
-    width: '100%',
-    maxWidth: 400,
-    marginBottom: 16,
-  },
-  glassCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    overflow: 'hidden',
-  },
+
+  // --- Google Button Styles ---
   googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    gap: 12,
+    width: '100%',
+    maxWidth: 320,
+    paddingVertical: 16,
+    borderRadius: 30,
+    backgroundColor: '#FFFFFF',
+    borderColor: PRIMARY_COLOR,
+    borderWidth: 1.5,
+    shadowColor: PRIMARY_COLOR,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+    marginBottom: 24,
   },
-  googleIconContainer: {
-    backgroundColor: 'white',
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
+  buttonContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  googleIconPlaceholder: {
+    fontSize: 20,
+    color: PRIMARY_COLOR,
+    fontWeight: 'bold',
   },
   googleButtonText: {
-    fontSize: 20,
-    color: 'white',
-    flex: 1,
+    fontSize: 17,
+    fontWeight: '600',
+    color: TEXT_COLOR,
+    letterSpacing: 0.3,
   },
+  arrowIconPlaceholder: {
+    fontSize: 20,
+    color: PRIMARY_COLOR,
+    fontWeight: 'bold',
+  },
+
+  // --- Info Text ---
   infoText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 15,
+    color: LIGHT_GREY,
     textAlign: 'center',
     marginTop: 12,
+    fontWeight: '400',
+    lineHeight: 22,
   },
+
+  // --- Back Button Styles (Footer) ---
   backButton: {
+    position: 'absolute',
+    bottom: 40,
+    width: '100%',
+    alignItems: 'center',
+    paddingBottom: 20,
+  },
+  backButtonContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 32,
     paddingVertical: 12,
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
   },
-  backButtonText: {
-    color: 'white',
-    fontSize: 16,
-    marginLeft: 8,
+  backArrow: {
+    fontSize: 22,
+    color: PRIMARY_COLOR,
+    marginRight: 6,
+    fontWeight: '400',
+  },
+  backText: {
+    fontSize: 17,
+    color: PRIMARY_COLOR,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
 });

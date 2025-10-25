@@ -5,21 +5,22 @@ import {
   StyleSheet,
   TouchableOpacity,
   ActivityIndicator,
+  StatusBar,
+  SafeAreaView,
   Dimensions,
-  StatusBar
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useGoogleAuth } from '../useGoogleAuth';
-import { useTheme } from '../context/ThemeContext';
 import { useDialog } from '../components/CustomDialog';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
+
+// Define the primary color for accents (the gold/ochre color in the design)
+const PRIMARY_COLOR = '#C5A565';
+const TEXT_COLOR = '#333333';
+const LIGHT_GREY = '#666666';
 
 export default function LoginScreen({ navigation }: any) {
   const { signIn, loading, error } = useGoogleAuth();
-  const { colors, typography, spacing, borderRadius, shadows } = useTheme();
   const { showDialog } = useDialog();
 
   useEffect(() => {
@@ -32,171 +33,250 @@ export default function LoginScreen({ navigation }: any) {
     }
   }, [error, showDialog]);
 
-  const handleSignIn = async () => {
+  const handleGoogleSignIn = async () => {
     await signIn();
   };
 
+  const handleEmailSignIn = () => {
+    showDialog({
+      title: 'Coming Soon',
+      message: 'Email authentication will be available soon!',
+      type: 'info'
+    });
+  };
+
+  const handleSignUp = () => {
+    showDialog({
+      title: 'Coming Soon',
+      message: 'Sign up feature will be available soon!',
+      type: 'info'
+    });
+  };
+
+  const handleBack = () => {
+    navigation.goBack();
+  };
+
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="dark-content" />
 
-      {/* Premium gradient background */}
-      <LinearGradient
-        colors={['#0F766E', '#0D9488', '#14B8A6']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-      />
+      <View style={styles.container}>
 
-      {/* Decorative circles */}
-      <View style={[styles.decorativeCircle, styles.circle1]} />
-      <View style={[styles.decorativeCircle, styles.circle2]} />
-
-      <View style={styles.content}>
-        {/* Title */}
-        <View style={styles.titleContainer}>
-          <View style={styles.iconWrapper}>
-            <MaterialCommunityIcons
-              name="home-heart"
-              size={80}
-              color="white"
-            />
-          </View>
-          <Text style={[styles.title, { fontFamily: typography.fontFamily.bold }]}>
-            Welcome to Reroute
-          </Text>
-          <Text style={[styles.subtitle, { fontFamily: typography.fontFamily.medium }]}>
-            Your gateway to unforgettable farmhouse experiences
-          </Text>
+        {/* --- 1. Logo Icon (White) --- */}
+        <View style={styles.iconContainer}>
+          <Text style={styles.iconPlaceholder}>🏠</Text>
         </View>
 
-        {/* Google Sign-In Button */}
-        <View style={styles.buttonWrapper}>
-          <TouchableOpacity
-            style={[styles.whiteSignInButton, { borderRadius: borderRadius.lg, ...shadows.lg }]}
-            onPress={handleSignIn}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            {loading ? (
-              <ActivityIndicator color="#0D9488" size="large" />
-            ) : (
-              <>
-                <View style={styles.googleIconContainer}>
-                  <MaterialCommunityIcons name="google" size={28} color="#4285F4" />
-                </View>
-                <Text style={[styles.signInText, styles.signInTextDark, { fontFamily: typography.fontFamily.semiBold }]}>
-                  Continue with Google
-                </Text>
-              </>
-            )}
+        {/* --- 2 & 3. Titles and Subtitle --- */}
+        <Text style={styles.title}>Welcome to Reroute</Text>
+        <Text style={styles.subtitle}>Your journey to tranquility begins</Text>
+
+        {/* --- 4. Google Sign In Button --- */}
+        <TouchableOpacity
+          style={styles.googleButton}
+          onPress={handleGoogleSignIn}
+          disabled={loading}
+          activeOpacity={0.8}
+        >
+          {loading ? (
+            <ActivityIndicator color={PRIMARY_COLOR} size="small" />
+          ) : (
+            <View style={styles.buttonContent}>
+              {/* Google Logo Placeholder */}
+              <Text style={styles.googleIconPlaceholder}>G</Text>
+
+              <Text style={styles.googleButtonText}>Continue with Google</Text>
+
+              {/* Arrow Icon Placeholder */}
+              <Text style={styles.arrowIconPlaceholder}>→</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        {/* --- 5. 'or' Separator --- */}
+        <Text style={styles.orText}>or</Text>
+
+        {/* --- 6. Email Sign In Link --- */}
+        <TouchableOpacity onPress={handleEmailSignIn}>
+          <Text style={styles.emailLinkText}>Continue with email</Text>
+        </TouchableOpacity>
+
+        {/* --- 7. Sign Up Link --- */}
+        <View style={styles.signUpContainer}>
+          <Text style={styles.smallText}>Don't have you account? </Text>
+          <TouchableOpacity onPress={handleSignUp}>
+            <Text style={styles.signUpLink}>Sign up</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Back Button */}
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <MaterialCommunityIcons name="arrow-left" size={20} color="white" />
-          <Text style={[styles.backButtonText, { fontFamily: typography.fontFamily.medium }]}>
-            Back to Welcome
-          </Text>
-        </TouchableOpacity>
       </View>
-    </View>
+
+      {/* --- 8. Back Button (Fixed at Bottom) --- */}
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={handleBack}
+        activeOpacity={0.7}
+      >
+        <View style={styles.backButtonContent}>
+          <Text style={styles.backArrow}>&lt;</Text>
+          <Text style={styles.backText}>Back</Text>
+        </View>
+      </TouchableOpacity>
+
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
   container: {
     flex: 1,
-    backgroundColor: '#0D9488',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: width * 0.08,
+    paddingTop: 20,
   },
-  content: {
-    flex: 1,
+
+  // --- Icon Styles ---
+  iconContainer: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 60,
+    marginBottom: 32,
+    borderWidth: 2,
+    borderColor: PRIMARY_COLOR,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  decorativeCircle: {
-    position: 'absolute',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 999,
+  iconPlaceholder: {
+    fontSize: 50,
+    color: PRIMARY_COLOR,
   },
-  circle1: {
-    width: 250,
-    height: 250,
-    top: -80,
-    right: -60,
-  },
-  circle2: {
-    width: 180,
-    height: 180,
-    bottom: 60,
-    left: -40,
-  },
-  titleContainer: {
-    alignItems: 'center',
-    marginBottom: 40,
-  },
-  iconWrapper: {
-    marginBottom: 16,
-  },
+
+  // --- Title Styles ---
   title: {
-    fontSize: 36,
-    color: 'white',
+    fontSize: 32,
+    fontWeight: '700',
+    color: TEXT_COLOR,
+    marginBottom: 12,
+    letterSpacing: 0.5,
     textAlign: 'center',
-    marginBottom: 8,
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
   },
   subtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 17,
+    color: LIGHT_GREY,
+    marginBottom: 50,
     textAlign: 'center',
+    fontWeight: '400',
+    lineHeight: 24,
   },
-  buttonWrapper: {
+
+  // --- Google Button Styles ---
+  googleButton: {
     width: '100%',
-    maxWidth: 400,
-    marginTop: 20,
+    maxWidth: 320,
+    paddingVertical: 16,
+    borderRadius: 30,
+    backgroundColor: '#FFFFFF',
+    borderColor: PRIMARY_COLOR,
+    borderWidth: 1.5,
+    shadowColor: PRIMARY_COLOR,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+    marginBottom: 28,
   },
-  whiteSignInButton: {
-    backgroundColor: 'white',
+  buttonContent: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-    minHeight: 70,
+    paddingHorizontal: 24,
   },
-  googleIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'white',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
+  googleIconPlaceholder: {
+    fontSize: 20,
+    color: PRIMARY_COLOR,
+    fontWeight: 'bold',
   },
-  signInText: {
-    fontSize: 18,
-    color: 'white',
+  googleButtonText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: TEXT_COLOR,
+    letterSpacing: 0.3,
   },
-  signInTextDark: {
-    color: '#0D9488',
+  arrowIconPlaceholder: {
+    fontSize: 20,
+    color: PRIMARY_COLOR,
+    fontWeight: 'bold',
   },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 24,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+
+  // --- Links and Separator ---
+  orText: {
+    fontSize: 13,
+    color: LIGHT_GREY,
+    marginBottom: 28,
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+    fontWeight: '500',
   },
-  backButtonText: {
-    color: 'white',
+  emailLinkText: {
     fontSize: 16,
-    marginLeft: 8,
+    color: TEXT_COLOR,
+    fontWeight: '500',
+    marginBottom: 32,
+  },
+  signUpContainer: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  smallText: {
+    fontSize: 15,
+    color: LIGHT_GREY,
+    fontWeight: '400',
+  },
+  signUpLink: {
+    fontSize: 15,
+    color: PRIMARY_COLOR,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
+  },
+
+  // --- Back Button Styles (Footer) ---
+  backButton: {
+    position: 'absolute',
+    bottom: 40,
+    width: '100%',
+    alignItems: 'center',
+    paddingBottom: 20,
+  },
+  backButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+  },
+  backArrow: {
+    fontSize: 22,
+    color: PRIMARY_COLOR,
+    marginRight: 6,
+    fontWeight: '400',
+  },
+  backText: {
+    fontSize: 17,
+    color: PRIMARY_COLOR,
+    fontWeight: '600',
+    letterSpacing: 0.3,
   },
 });
