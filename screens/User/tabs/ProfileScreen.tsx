@@ -70,12 +70,12 @@ export default function ProfileScreen({ navigation }: any) {
         }
       });
 
-      // Fetch wishlist count
-      const wishlistDoc = await getDoc(doc(db, 'favorites', user.uid));
-      const wishlistCount = wishlistDoc.exists() ? (wishlistDoc.data().farmhouseIds || []).length : 0;
-
       if (userDoc.exists()) {
         const data = userDoc.data();
+        
+        // Get wishlist count from user document's wishlist array
+        const wishlistCount = Array.isArray(data.wishlist) ? data.wishlist.length : 0;
+        
         let memberSince = 'Recently';
         try {
           if (data.createdAt && typeof data.createdAt.toDate === 'function') {
@@ -111,7 +111,7 @@ export default function ProfileScreen({ navigation }: any) {
           pastBookings: past,
           cancelledBookings: cancelled,
           memberSince: 'Recently',
-          wishlistCount: wishlistCount,
+          wishlistCount: 0, // No wishlist if user document doesn't exist
         });
       }
     } catch (error) {
