@@ -14,7 +14,6 @@ import { useDialog } from '../../components/CustomDialog';
 import { useScrollHandler } from '../../context/TabBarVisibilityContext';
 import { useCoupons, useGlobalData } from '../../GlobalDataContext';
 import { createBooking } from '../../services/bookingService';
-import { addBookedDatesToFarmhouse } from '../../services/farmhouseService';
 
 const { width } = Dimensions.get('window');
 
@@ -133,24 +132,6 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
   const discountAmount = calculateDiscount();
   const finalPrice = totalPrice - discountAmount;
 
-  const generateDateRange = (start: string, end: string, bookingType: string): string[] => {
-    const dates: string[] = [];
-    const startDate = new Date(start);
-    const endDate = new Date(end);
-    
-    if (bookingType === 'day-use') {
-      return [start];
-    }
-    
-    let currentDate = new Date(startDate);
-    while (currentDate < endDate) {
-      dates.push(currentDate.toISOString().split('T')[0]);
-      currentDate.setDate(currentDate.getDate() + 1);
-    }
-    
-    return dates;
-  };
-
   const handleConfirmBooking = async () => {
     if (!user || !userProfile) {
       showDialog({
@@ -203,8 +184,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
       
       const bookingId = await createBooking(bookingData);
       
-      const datesToBlock = generateDateRange(startDate, endDate, bookingType);
-      await addBookedDatesToFarmhouse(farmhouseId, datesToBlock);
+      // createBooking already handles adding dates to farmhouse bookedDates
 
       if (appliedCoupon) {
         const couponRef = doc(db, 'coupons', appliedCoupon.id);

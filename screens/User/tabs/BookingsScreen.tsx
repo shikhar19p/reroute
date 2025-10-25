@@ -165,6 +165,7 @@ export default function BookingsScreen({ navigation }: any) {
           style: 'destructive',
           onPress: async () => {
             try {
+              // cancelBooking service handles both status update and date removal
               await cancelBooking(bookingId);
               showToast('Booking cancelled successfully', 'success');
             } catch (error) {
