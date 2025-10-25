@@ -55,10 +55,16 @@ export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenPro
   );
 
   const handleChange = (key: string, value: string, keyboardType?: string) => {
+    let processedValue = value;
+
     // Strip non-numeric characters for phone and numeric inputs
-    const processedValue = (keyboardType === 'phone-pad' || keyboardType === 'numeric')
-      ? value.replace(/[^0-9]/g, '')
-      : value;
+    if (keyboardType === 'phone-pad' || keyboardType === 'numeric') {
+      processedValue = value.replace(/[^0-9]/g, '');
+    }
+    // Strip non-alphabetic characters for farmhouse name (allow spaces)
+    else if (key === 'name') {
+      processedValue = value.replace(/[^a-zA-Z\s]/g, '');
+    }
 
     setField(key, processedValue);
     if (errors[key]) {

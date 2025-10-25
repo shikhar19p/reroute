@@ -138,7 +138,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               <Text style={styles.label}>Name*</Text>
               <TextInput
                 value={farm.kyc.person1.name}
-                onChangeText={(text) => updateField(['kyc', 'person1', 'name'], text)}
+                onChangeText={(text) => updateField(['kyc', 'person1', 'name'], text.replace(/[^a-zA-Z\s]/g, ''))}
                 style={styles.input}
                 placeholder="Full name"
                 placeholderTextColor="#9CA3AF"
@@ -205,7 +205,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               <Text style={styles.label}>Name*</Text>
               <TextInput
                 value={farm.kyc.person2.name}
-                onChangeText={(text) => updateField(['kyc', 'person2', 'name'], text)}
+                onChangeText={(text) => updateField(['kyc', 'person2', 'name'], text.replace(/[^a-zA-Z\s]/g, ''))}
                 style={styles.input}
                 placeholder="Full name"
                 placeholderTextColor="#9CA3AF"
@@ -272,12 +272,12 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               <Text style={styles.label}>PAN Number*</Text>
               <TextInput
                 value={farm.kyc.panNumber}
-                onChangeText={(text) => updateField(['kyc', 'panNumber'], text.toUpperCase())}
+                onChangeText={(text) => updateField(['kyc', 'panNumber'], text.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
                 style={styles.input}
-                placeholder="ABCDE1234F"
+                placeholder="Alphanumeric (9-18 chars)"
                 placeholderTextColor="#9CA3AF"
                 autoCapitalize="characters"
-                maxLength={10}
+                maxLength={18}
               />
               {errors.panNumber && <Text style={styles.error}>{errors.panNumber}</Text>}
             </View>
@@ -313,7 +313,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               <Text style={styles.label}>Account Holder Name*</Text>
               <TextInput
                 value={farm.kyc.bankDetails.accountHolderName}
-                onChangeText={(text) => updateField(['kyc', 'bankDetails', 'accountHolderName'], text)}
+                onChangeText={(text) => updateField(['kyc', 'bankDetails', 'accountHolderName'], text.replace(/[^a-zA-Z\s]/g, ''))}
                 style={styles.input}
                 placeholder="As per bank records"
                 placeholderTextColor="#9CA3AF"
@@ -343,12 +343,12 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               <Text style={styles.label}>IFSC Code*</Text>
               <TextInput
                 value={farm.kyc.bankDetails.ifscCode}
-                onChangeText={(text) => updateField(['kyc', 'bankDetails', 'ifscCode'], text.toUpperCase())}
+                onChangeText={(text) => updateField(['kyc', 'bankDetails', 'ifscCode'], text.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
                 style={styles.input}
-                placeholder="ABCD0123456"
+                placeholder="Alphanumeric (9-18 chars)"
                 placeholderTextColor="#9CA3AF"
                 autoCapitalize="characters"
-                maxLength={11}
+                maxLength={18}
               />
               {errors['bankDetails.ifscCode'] && (
                 <Text style={styles.error}>{errors['bankDetails.ifscCode']}</Text>
@@ -359,7 +359,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               <Text style={styles.label}>Branch Name*</Text>
               <TextInput
                 value={farm.kyc.bankDetails.branchName}
-                onChangeText={(text) => updateField(['kyc', 'bankDetails', 'branchName'], text)}
+                onChangeText={(text) => updateField(['kyc', 'bankDetails', 'branchName'], text.replace(/[^a-zA-Z\s]/g, ''))}
                 style={styles.input}
                 placeholder="Branch name"
                 placeholderTextColor="#9CA3AF"
