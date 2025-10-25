@@ -118,7 +118,10 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
 
   const userId = currentUser.uid;
   const timestamp = Date.now();
-  console.log('User ID:', userId, 'Timestamp:', timestamp);
+  console.log('✅ User authenticated!');
+  console.log('User ID:', userId);
+  console.log('User email:', currentUser.email);
+  console.log('Timestamp:', timestamp);
 
   console.log('Uploading photos to Storage...');
   console.log('Number of photos to upload:', farmData.photos.length);
@@ -193,28 +196,29 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
       area: farmData.area,
       locationText: farmData.locationText,
       mapLink: farmData.mapLink || null,
-      bedrooms: farmData.bedrooms,
-      capacity: farmData.capacity,
+      bedrooms: parseInt(farmData.bedrooms) || 0,
+      capacity: parseInt(farmData.capacity) || 0,
       description: farmData.description,
     },
     pricing: {
-      weeklyDay: farmData.pricing.weeklyDay,
-      weeklyNight: farmData.pricing.weeklyNight,
-      occasionalDay: farmData.pricing.occasionalDay,
-      occasionalNight: farmData.pricing.occasionalNight,
-      weekendDay: farmData.pricing.weekendDay,
-      weekendNight: farmData.pricing.weekendNight,
-      customPricing: farmData.pricing.customPricing || [],
+      weeklyDay: parseInt(farmData.pricing.weeklyDay) || 0,
+      weeklyNight: parseInt(farmData.pricing.weeklyNight) || 0,
+      weekendDay: parseInt(farmData.pricing.weekendDay) || 0,
+      weekendNight: parseInt(farmData.pricing.weekendNight) || 0,
+      customPricing: farmData.pricing.customPricing?.map((cp: any) => ({
+        name: cp.name || '',
+        price: parseInt(cp.price) || 0
+      })) || [],
     },
     photoUrls,
     amenities: {
-      tv: farmData.amenities.tv,
-      geyser: farmData.amenities.geyser,
-      bonfire: farmData.amenities.bonfire,
+      tv: parseInt(farmData.amenities.tv) || 0,
+      geyser: parseInt(farmData.amenities.geyser) || 0,
+      bonfire: parseInt(farmData.amenities.bonfire) || 0,
       pool: farmData.amenities.pool || false,
-      chess: farmData.amenities.chess,
-      carroms: farmData.amenities.carroms,
-      volleyball: farmData.amenities.volleyball,
+      chess: parseInt(farmData.amenities.chess) || 0,
+      carroms: parseInt(farmData.amenities.carroms) || 0,
+      volleyball: parseInt(farmData.amenities.volleyball) || 0,
       customAmenities: farmData.amenities.customAmenities || null,
     },
     rules: {
@@ -256,13 +260,16 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
 
   console.log('Saving to Firestore...');
   console.log('Farm document to be saved:', JSON.stringify(farmDoc, null, 2));
+  console.log('✅ Document has ownerId:', farmDoc.ownerId);
+  console.log('✅ Document has status:', farmDoc.status);
+  console.log('✅ ownerId matches userId:', farmDoc.ownerId === userId);
 
   try {
     const farmsCollection = collection(db, 'farmhouses');
     console.log('Firestore collection reference created');
 
     const docRef = await addDoc(farmsCollection, farmDoc);
-    console.log('Farm saved successfully! Document ID:', docRef.id);
+    console.log('✅ Farm saved successfully! Document ID:', docRef.id);
 
     return {
       farmId: docRef.id,

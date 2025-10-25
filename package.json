@@ -49,6 +49,8 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@react-native-community/cli": "latest",
+    "@react-native/metro-config": "latest",
     "@types/react": "~19.1.0",
     "typescript": "~5.9.2"
   },
