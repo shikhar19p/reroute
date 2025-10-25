@@ -349,6 +349,8 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
   const handleDateSelect = (day: DateData) => {
     const dateString = day.dateString;
+    
+    // Check if clicked date is unavailable
     if (isDateBooked(dateString)) {
       showDialog({
         title: 'Unavailable',
@@ -358,24 +360,65 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
       return;
     }
 
+    // First click - select start date
     if (!selectedDates.start) {
       setSelectedDates({ start: dateString, end: dateString });
-    } else if (selectedDates.start && selectedDates.start === selectedDates.end) {
+      return;
+    }
+    
+    // Click on same date - deselect
+    if (selectedDates.start && selectedDates.start === selectedDates.end) {
       if (dateString === selectedDates.start) {
         setSelectedDates({});
-      } else if (dateString < selectedDates.start) {
-        setSelectedDates({ start: dateString, end: dateString });
-      } else {
-        setSelectedDates({ start: selectedDates.start, end: dateString });
+        return;
       }
-    } else {
-      setSelectedDates({ start: dateString, end: dateString });
+      
+      // Selecting end date - validate range first
+      if (dateString < selectedDates.start) {
+        // User clicked earlier date, make it new start
+        setSelectedDates({ start: dateString, end: dateString });
+        return;
+      }
+      
+      // Check if any date in range is booked
+      const start = new Date(selectedDates.start);
+      const end = new Date(dateString);
+      let current = new Date(start);
+      let hasConflict = false;
+      
+      while (current <= end) {
+        const checkDateString = current.toISOString().split('T')[0];
+        if (isDateBooked(checkDateString)) {
+          hasConflict = true;
+          break;
+        }
+        current.setDate(current.getDate() + 1);
+      }
+      
+      if (hasConflict) {
+        showDialog({
+          title: 'Invalid Range',
+          message: 'Your selection includes an unavailable date. Please choose a different range.',
+          type: 'warning'
+        });
+        // Reset to single date
+        setSelectedDates({ start: dateString, end: dateString });
+        return;
+      }
+      
+      // Range is valid - set it
+      setSelectedDates({ start: selectedDates.start, end: dateString });
+      return;
     }
+    
+    // Already have a range - start new selection
+    setSelectedDates({ start: dateString, end: dateString });
   };
 
   const getMarkedDates = () => {
     const marked: any = {};
     
+    // Mark unavailable dates
     unavailableDates.forEach(date => {
       marked[date] = {
         disabled: true,
@@ -397,6 +440,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
       };
     });
 
+    // Mark selected dates
     if (selectedDates.start && selectedDates.end) {
       const start = new Date(selectedDates.start);
       const end = new Date(selectedDates.end);
@@ -404,16 +448,8 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
       while (current <= end) {
         const dateString = current.toISOString().split('T')[0];
-        if (isDateBooked(dateString) && dateString !== selectedDates.start) {
-          showDialog({
-            title: 'Invalid Range',
-            message: 'Your selection includes an unavailable date.',
-            type: 'warning'
-          });
-          setSelectedDates({ start: selectedDates.start, end: selectedDates.start });
-          return marked;
-        }
         
+        // Only mark if not already marked as unavailable
         if (!marked[dateString]) {
           const isStart = dateString === selectedDates.start;
           const isEnd = dateString === selectedDates.end;

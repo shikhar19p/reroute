@@ -4,6 +4,7 @@ import { Booking } from './bookingService';
 import { processRefund } from './paymentService';
 import { sendCancellationNotification } from './notificationService';
 import { logAuditEvent } from './auditService';
+import { removeBookedDatesFromFarmhouse } from './availabilityService';
 
 export interface CancellationPolicy {
   freeCancellationDays: number; // Days before check-in for free cancellation
@@ -132,6 +133,20 @@ export async function cancelBookingWithRefund(
       processingFee: refundCalc.processingFee,
       updatedAt: serverTimestamp(),
     });
+
+    // Remove dates from farmhouse bookedDates array
+    if (booking.farmhouseId && booking.checkInDate && booking.checkOutDate) {
+      try {
+        await removeBookedDatesFromFarmhouse(
+          booking.farmhouseId,
+          booking.checkInDate,
+          booking.checkOutDate
+        );
+      } catch (dateError) {
+        console.error('Warning: Failed to remove dates from farmhouse:', dateError);
+        // Don't throw - booking is already cancelled
+      }
+    }
 
     // Process refund if applicable
     if (refundCalc.refundAmount > 0 && booking.paymentStatus === 'paid') {

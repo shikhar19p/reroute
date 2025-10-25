@@ -9,10 +9,11 @@ import {
   updateDoc,
   doc,
   deleteDoc,
+  getDoc,
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { validators, validateFields } from '../utils/validators';
-import { validateBookingDates } from './availabilityService';
+import { validateBookingDates, addBookedDatesToFarmhouse, removeBookedDatesFromFarmhouse } from './availabilityService';
 import { logAuditEvent } from './auditService';
 
 export interface Booking {
@@ -90,6 +91,18 @@ export async function createBooking(bookingData: Omit<Booking, 'id' | 'createdAt
       paymentStatus: 'pending',
       createdAt: serverTimestamp(),
     });
+
+    // Add dates to farmhouse bookedDates array
+    try {
+      await addBookedDatesToFarmhouse(
+        bookingData.farmhouseId,
+        bookingData.checkInDate,
+        bookingData.checkOutDate
+      );
+    } catch (dateError) {
+      console.error('Warning: Failed to add dates to farmhouse, but booking was created:', dateError);
+      // Don't throw error here - booking is already created
+    }
 
     // Log audit event (silently fail if permissions issue)
     try {
@@ -196,10 +209,41 @@ export async function updateBookingStatus(
   }
 }
 
-// Cancel booking
+// Cancel booking and remove dates from farmhouse
 export async function cancelBooking(bookingId: string): Promise<void> {
   try {
+    // Get booking details first
+    const bookingRef = doc(db, 'bookings', bookingId);
+    const bookingSnap = await getDoc(bookingRef);
+    
+    if (!bookingSnap.exists()) {
+      throw new Error('Booking not found');
+    }
+    
+    // Cast the data to Booking type
+    const bookingData = {
+      id: bookingSnap.id,
+      ...bookingSnap.data()
+    } as Booking;
+    
+    const farmhouseId = bookingData.farmhouseId;
+    const checkInDate = bookingData.checkInDate;
+    const checkOutDate = bookingData.checkOutDate;
+    
+    // Update booking status
     await updateBookingStatus(bookingId, 'cancelled');
+    
+    // Remove dates from farmhouse bookedDates array
+    if (farmhouseId && checkInDate && checkOutDate) {
+      try {
+        await removeBookedDatesFromFarmhouse(farmhouseId, checkInDate, checkOutDate);
+      } catch (dateError) {
+        console.error('Warning: Failed to remove dates from farmhouse:', dateError);
+        // Don't throw - booking is already cancelled
+      }
+    }
+    
+    console.log('Booking cancelled and dates removed from farmhouse');
   } catch (error) {
     console.error('Error cancelling booking:', error);
     throw error;

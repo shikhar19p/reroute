@@ -9,6 +9,9 @@ import {
   where,
   getDocs,
   Timestamp,
+  doc,
+  getDoc,
+  updateDoc,
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
@@ -232,11 +235,11 @@ export async function validateBookingDates(
   checkInDate: Date,
   checkOutDate: Date
 ): Promise<{ valid: boolean; error?: string }> {
-  // Check if dates are valid
-  if (checkOutDate <= checkInDate) {
+  // Check if dates are valid - allow same day for day-use bookings
+  if (checkOutDate < checkInDate) {
     return {
       valid: false,
-      error: 'Check-out date must be after check-in date'
+      error: 'Check-out date must be on or after check-in date'
     };
   }
 
@@ -279,5 +282,152 @@ export async function getNextAvailableDate(farmhouseId: string): Promise<Date | 
   } catch (error) {
     console.error('Error getting next available date:', error);
     return null;
+  }
+}
+
+/**
+ * Generate array of dates between start and end (inclusive)
+ */
+export function generateDateRange(startDate: string, endDate: string): string[] {
+  const dates: string[] = [];
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  
+  for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+    const dateStr = date.toISOString().split('T')[0];
+    dates.push(dateStr);
+  }
+  
+  return dates;
+}
+
+/**
+ * Add dates to farmhouse bookedDates array
+ * Used when creating a new booking
+ */
+export async function addBookedDatesToFarmhouse(
+  farmhouseId: string,
+  checkInDate: string,
+  checkOutDate: string
+): Promise<void> {
+  try {
+    const farmhouseRef = doc(db, 'farmhouses', farmhouseId);
+    const farmhouseSnap = await getDoc(farmhouseRef);
+    
+    if (!farmhouseSnap.exists()) {
+      throw new Error('Farmhouse not found');
+    }
+    
+    // Cast to avoid TypeScript errors
+    const farmhouseData = farmhouseSnap.data() as {
+      bookedDates?: string[];
+      [key: string]: any;
+    };
+    const bookedDates = farmhouseData.bookedDates || [];
+    
+    // Generate all dates to be booked
+    const datesToAdd = generateDateRange(checkInDate, checkOutDate);
+    
+    // Combine and remove duplicates
+    const updatedBookedDates = Array.from(
+      new Set([...bookedDates, ...datesToAdd])
+    ).sort();
+    
+    await updateDoc(farmhouseRef, {
+      bookedDates: updatedBookedDates
+    });
+    
+    console.log(`✅ Added ${datesToAdd.length} dates to farmhouse ${farmhouseId}`);
+  } catch (error) {
+    console.error('Error adding booked dates to farmhouse:', error);
+    throw error;
+  }
+}
+
+/**
+ * Remove dates from farmhouse bookedDates array
+ * Used when cancelling a booking
+ */
+export async function removeBookedDatesFromFarmhouse(
+  farmhouseId: string,
+  checkInDate: string,
+  checkOutDate: string
+): Promise<void> {
+  try {
+    const farmhouseRef = doc(db, 'farmhouses', farmhouseId);
+    const farmhouseSnap = await getDoc(farmhouseRef);
+    
+    if (!farmhouseSnap.exists()) {
+      console.warn(`Farmhouse ${farmhouseId} not found, skipping date removal`);
+      return;
+    }
+    
+    // Cast to avoid TypeScript errors
+    const farmhouseData = farmhouseSnap.data() as {
+      bookedDates?: string[];
+      [key: string]: any;
+    };
+    const bookedDates = farmhouseData.bookedDates || [];
+    
+    // Generate all dates to be removed
+    const datesToRemove = generateDateRange(checkInDate, checkOutDate);
+    
+    // Filter out the dates to remove
+    const updatedBookedDates = bookedDates.filter(
+      (date: string) => !datesToRemove.includes(date)
+    );
+    
+    await updateDoc(farmhouseRef, {
+      bookedDates: updatedBookedDates
+    });
+    
+    console.log(`✅ Removed ${datesToRemove.length} dates from farmhouse ${farmhouseId}`);
+  } catch (error) {
+    console.error('Error removing booked dates from farmhouse:', error);
+    throw error;
+  }
+}
+
+/**
+ * Check if dates exist in farmhouse bookedDates
+ */
+export async function checkDatesInFarmhouse(
+  farmhouseId: string,
+  checkInDate: string,
+  checkOutDate: string
+): Promise<{ exists: boolean; conflictingDates: string[] }> {
+  try {
+    const farmhouseRef = doc(db, 'farmhouses', farmhouseId);
+    const farmhouseSnap = await getDoc(farmhouseRef);
+    
+    if (!farmhouseSnap.exists()) {
+      return { exists: false, conflictingDates: [] };
+    }
+    
+    // Cast to avoid TypeScript errors
+    const farmhouseData = farmhouseSnap.data() as {
+      bookedDates?: string[];
+      blockedDates?: string[];
+      [key: string]: any;
+    };
+    const bookedDates = farmhouseData.bookedDates || [];
+    const blockedDates = farmhouseData.blockedDates || [];
+    const unavailableDates = [...bookedDates, ...blockedDates];
+    
+    // Generate requested dates
+    const requestedDates = generateDateRange(checkInDate, checkOutDate);
+    
+    // Find conflicting dates
+    const conflictingDates = requestedDates.filter(date => 
+      unavailableDates.includes(date)
+    );
+    
+    return {
+      exists: conflictingDates.length > 0,
+      conflictingDates
+    };
+  } catch (error) {
+    console.error('Error checking dates in farmhouse:', error);
+    return { exists: false, conflictingDates: [] };
   }
 }
