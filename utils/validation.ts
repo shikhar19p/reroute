@@ -13,7 +13,7 @@ const positiveIntegerString = z
   .regex(/^[1-9]\d*$/, 'Please enter a valid number (must be greater than 0)');
 
 export const basicSchema = z.object({
-  name: z.string().trim().min(1, 'Farmhouse name is required'),
+  name: z.string().trim().min(1, 'Farmhouse name is required').regex(/^[a-zA-Z\s]+$/, 'Farmhouse name must contain only alphabets'),
   contactPhone1: phoneSchema,
   contactPhone2: optionalPhoneSchema,
   city: z.string().trim().min(1, 'City is required'),
@@ -22,11 +22,8 @@ export const basicSchema = z.object({
   mapLink: z
     .string()
     .trim()
-    .optional()
+    .min(1, 'Google Maps link is required')
     .refine((value) => {
-      if (!value) {
-        return true;
-      }
       try {
         new URL(value);
         return true;
@@ -76,12 +73,12 @@ const aadhaarNumberSchema = z
 const ifscSchema = z
   .string()
   .trim()
-  .regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, 'Please enter a valid IFSC code (e.g., ABCD0123456)');
+  .regex(/^[A-Z0-9]{9,18}$/, 'Please enter a valid IFSC code (9-18 alphanumeric characters)');
 
 const panNumberSchema = z
   .string()
   .trim()
-  .regex(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, 'Please enter a valid PAN number (e.g., ABCDE1234F)');
+  .regex(/^[A-Z0-9]{9,18}$/, 'Please enter a valid PAN number (9-18 alphanumeric characters)');
 
 const accountNumberSchema = z
   .string()
@@ -90,14 +87,14 @@ const accountNumberSchema = z
 
 export const kycSchema = z.object({
   person1: z.object({
-    name: z.string().trim().min(1, 'Name is required'),
+    name: z.string().trim().min(1, 'Name is required').regex(/^[a-zA-Z\s]+$/, 'Name must contain only alphabets'),
     phone: phoneSchema,
     aadhaarNumber: aadhaarNumberSchema,
     aadhaarFront: aadhaarFileSchema.refine((val) => val !== null, 'Aadhaar front photo is required'),
     aadhaarBack: aadhaarFileSchema.refine((val) => val !== null, 'Aadhaar back photo is required'),
   }),
   person2: z.object({
-    name: z.string().trim().min(1, 'Name is required'),
+    name: z.string().trim().min(1, 'Name is required').regex(/^[a-zA-Z\s]+$/, 'Name must contain only alphabets'),
     phone: phoneSchema,
     aadhaarNumber: aadhaarNumberSchema,
     aadhaarFront: aadhaarFileSchema.refine((val) => val !== null, 'Aadhaar front photo is required'),
@@ -107,10 +104,10 @@ export const kycSchema = z.object({
   companyPAN: z.any().refine((val) => val !== null, 'Company PAN document is required'),
   labourDoc: z.any().refine((val) => val !== null, 'Labour license document is required'),
   bankDetails: z.object({
-    accountHolderName: z.string().trim().min(1, 'Account holder name is required'),
+    accountHolderName: z.string().trim().min(1, 'Account holder name is required').regex(/^[a-zA-Z\s]+$/, 'Account holder name must contain only alphabets'),
     accountNumber: accountNumberSchema,
     ifscCode: ifscSchema,
-    branchName: z.string().trim().min(1, 'Branch name is required'),
+    branchName: z.string().trim().min(1, 'Branch name is required').regex(/^[a-zA-Z\s]+$/, 'Branch name must contain only alphabets'),
   }),
   agreedToTerms: z.boolean().refine((value) => value, 'You must agree to the terms'),
 });
