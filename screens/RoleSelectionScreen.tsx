@@ -7,22 +7,55 @@ import {
   ActivityIndicator,
   StatusBar,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { BlurView } from 'expo-blur';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useTheme } from '../context/ThemeContext';
 import { useDialog } from '../components/CustomDialog';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { db, auth } from '../firebaseConfig';
+import { db } from '../firebaseConfig';
 import { useAuth } from '../authContext';
 import { saveSession } from '../sessionManager';
 
 export default function RoleSelectionScreen({ navigation }: any) {
-  const { colors, typography, borderRadius } = useTheme();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { showDialog } = useDialog();
   const [loading, setLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState<'customer' | 'owner' | null>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleBack = async () => {
+    if (loading || loggingOut) return;
+
+    showDialog({
+      title: 'Sign Out',
+      message: 'Are you sure you want to go back? You will be signed out.',
+      type: 'warning',
+      buttons: [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Sign Out',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setLoggingOut(true);
+              await logout();
+              console.log('✅ User signed out successfully');
+              // Navigation will be handled automatically by AuthContext
+            } catch (error) {
+              console.error('❌ Error signing out:', error);
+              setLoggingOut(false);
+              showDialog({
+                title: 'Error',
+                message: 'Failed to sign out. Please try again.',
+                type: 'error'
+              });
+            }
+          },
+        },
+      ],
+    });
+  };
 
   const handleRoleSelection = async (role: 'customer' | 'owner') => {
     console.log('🎯 Button pressed! Selected role:', role);
@@ -44,7 +77,7 @@ export default function RoleSelectionScreen({ navigation }: any) {
     try {
       console.log('📝 Starting role save process...');
 
-      // Try to save to Firestore (may fail due to permissions)
+      // Try to save to Firestore
       try {
         const userDocRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userDocRef);
@@ -68,11 +101,11 @@ export default function RoleSelectionScreen({ navigation }: any) {
           console.log('✅ User document created in Firestore');
         }
       } catch (firestoreError: any) {
-        console.warn('⚠️ Could not save to Firestore (permissions):', firestoreError.message);
+        console.warn('⚠️ Could not save to Firestore:', firestoreError.message);
         console.log('💡 Continuing with local storage only');
       }
 
-      // Update local session (this always works)
+      // Update local session
       await saveSession({
         ...user,
         role,
@@ -82,7 +115,7 @@ export default function RoleSelectionScreen({ navigation }: any) {
       setLoading(false);
       console.log('🎉 Role selection complete!');
 
-      // Navigate directly to the appropriate screen
+      // Navigate to appropriate screen
       if (role === 'customer') {
         console.log('🚀 Navigating to UserHome');
         navigation.replace('UserHome');
@@ -104,107 +137,82 @@ export default function RoleSelectionScreen({ navigation }: any) {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-
-      {/* Premium gradient background */}
-      <LinearGradient
-        colors={[colors.primaryDark, colors.primary, colors.primaryLight]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
-      />
-
-      {/* Decorative circles */}
-      <View style={[styles.decorativeCircle, styles.circle1]} />
-      <View style={[styles.decorativeCircle, styles.circle2]} />
+      <StatusBar barStyle="dark-content" />
+      
+      {/* Back Button */}
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={handleBack}
+        disabled={loading || loggingOut}
+        activeOpacity={0.7}
+      >
+        {loggingOut ? (
+          <ActivityIndicator color="#D4AF37" size="small" />
+        ) : (
+          <Text style={styles.backButtonText}>← Back</Text>
+        )}
+      </TouchableOpacity>
 
       <View style={styles.content}>
-        {/* Title */}
-        <View style={styles.titleContainer}>
-          <View style={styles.iconWrapper}>
-            <MaterialCommunityIcons name="account-question" size={70} color="white" />
+        {/* Icon with Question Mark */}
+        <View style={styles.iconContainer}>
+          <View style={styles.iconCircle}>
+            <MaterialCommunityIcons name="account" size={40} color="#FFF" />
+            <View style={styles.questionBadge}>
+              <Text style={styles.questionMark}>?</Text>
+            </View>
           </View>
-          <Text style={[styles.title, { fontFamily: typography.fontFamily.bold }]}>
-            How do you want to use Reroute?
-          </Text>
-          <Text style={[styles.subtitle, { fontFamily: typography.fontFamily.medium }]}>
-            Choose your role to get started
-          </Text>
         </View>
 
-        {/* Customer Card */}
-        <View style={styles.cardWrapper}>
-          <BlurView
-            intensity={20}
-            tint="light"
-            style={[styles.glassCard, { borderRadius: borderRadius.lg }]}
-          >
-            <TouchableOpacity
-              style={styles.cardTouchable}
-              onPress={() => handleRoleSelection('customer')}
-              disabled={loading}
-              activeOpacity={0.8}
-            >
-              <View style={styles.cardContent}>
-                <View style={[styles.cardIconContainer, { backgroundColor: colors.primary }]}>
-                  <MaterialCommunityIcons name="compass" size={36} color="white" />
-                </View>
-                <View style={styles.cardTextContainer}>
-                  <Text style={[styles.cardTitle, { fontFamily: typography.fontFamily.semiBold }]}>
-                    User
-                  </Text>
-                  <Text
-                    style={[styles.cardSubtitle, { fontFamily: typography.fontFamily.regular }]}
-                  >
-                    Browse and book farmhouses for your next getaway
-                  </Text>
-                </View>
-                {loading && selectedRole === 'customer' ? (
-                  <ActivityIndicator color="white" size="small" />
-                ) : (
-                  <MaterialCommunityIcons name="chevron-right" size={28} color="white" />
-                )}
-              </View>
-            </TouchableOpacity>
-          </BlurView>
-        </View>
+        {/* Title */}
+        <Text style={styles.title}>How you want to use Reroute?</Text>
+        <Text style={styles.subtitle}>Choose your role to get started</Text>
 
-        {/* Owner Card */}
-        <View style={styles.cardWrapper}>
-          <BlurView
-            intensity={20}
-            tint="light"
-            style={[styles.glassCard, { borderRadius: borderRadius.lg }]}
-          >
-            <TouchableOpacity
-              style={styles.cardTouchable}
-              onPress={() => handleRoleSelection('owner')}
-              disabled={loading}
-              activeOpacity={0.8}
-            >
-              <View style={styles.cardContent}>
-                <View style={[styles.cardIconContainer, { backgroundColor: colors.secondary }]}>
-                  <MaterialCommunityIcons name="home-city" size={36} color="white" />
-                </View>
-                <View style={styles.cardTextContainer}>
-                  <Text style={[styles.cardTitle, { fontFamily: typography.fontFamily.semiBold }]}>
-                    Farmhouse Owner
-                  </Text>
-                  <Text
-                    style={[styles.cardSubtitle, { fontFamily: typography.fontFamily.regular }]}
-                  >
-                    List and manage your farmhouse properties
-                  </Text>
-                </View>
-                {loading && selectedRole === 'owner' ? (
-                  <ActivityIndicator color="white" size="small" />
-                ) : (
-                  <MaterialCommunityIcons name="chevron-right" size={28} color="white" />
-                )}
-              </View>
-            </TouchableOpacity>
-          </BlurView>
-        </View>
+        {/* User Card */}
+        <TouchableOpacity
+          style={[styles.roleCard, loading && selectedRole === 'customer' && styles.roleCardDisabled]}
+          onPress={() => handleRoleSelection('customer')}
+          disabled={loading}
+          activeOpacity={0.8}
+        >
+          <View style={styles.roleCardContent}>
+            <View style={styles.iconWrapper}>
+              <MaterialCommunityIcons name="compass-outline" size={32} color="#D4AF37" />
+            </View>
+            <View style={styles.roleTextContainer}>
+              <Text style={styles.roleTitle}>User</Text>
+              <Text style={styles.roleSubtitle}>Browse and book unique properties</Text>
+            </View>
+            {loading && selectedRole === 'customer' ? (
+              <ActivityIndicator color="#D4AF37" size="small" />
+            ) : (
+              <MaterialCommunityIcons name="chevron-right" size={24} color="#666" />
+            )}
+          </View>
+        </TouchableOpacity>
+
+        {/* Host Card */}
+        <TouchableOpacity
+          style={[styles.roleCard, loading && selectedRole === 'owner' && styles.roleCardDisabled]}
+          onPress={() => handleRoleSelection('owner')}
+          disabled={loading}
+          activeOpacity={0.8}
+        >
+          <View style={styles.roleCardContent}>
+            <View style={styles.iconWrapper}>
+              <MaterialCommunityIcons name="home-outline" size={32} color="#D4AF37" />
+            </View>
+            <View style={styles.roleTextContainer}>
+              <Text style={styles.roleTitle}>Become a Host</Text>
+              <Text style={styles.roleSubtitle}>List and manage your property</Text>
+            </View>
+            {loading && selectedRole === 'owner' ? (
+              <ActivityIndicator color="#D4AF37" size="small" />
+            ) : (
+              <MaterialCommunityIcons name="chevron-right" size={24} color="#666" />
+            )}
+          </View>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -213,91 +221,114 @@ export default function RoleSelectionScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#D4AF37',
+    backgroundColor: '#F5F5F5',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 50,
+    left: 24,
+    zIndex: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  backButtonText: {
+    fontSize: 16,
+    color: '#D4AF37',
+    fontWeight: '500',
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 60,
+    paddingHorizontal: 32,
   },
-  decorativeCircle: {
-    position: 'absolute',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 999,
+  iconContainer: {
+    marginBottom: 24,
+    position: 'relative',
   },
-  circle1: {
-    width: 250,
-    height: 250,
-    top: -80,
-    right: -60,
-  },
-  circle2: {
-    width: 180,
-    height: 180,
-    bottom: 60,
-    left: -40,
-  },
-  titleContainer: {
+  iconCircle: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: '#D4AF37',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 40,
+    position: 'relative',
   },
-  iconWrapper: {
-    marginBottom: 20,
+  questionBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#D4AF37',
+  },
+  questionMark: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#D4AF37',
   },
   title: {
-    fontSize: 28,
-    color: 'white',
-    textAlign: 'center',
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#000',
     marginBottom: 8,
-    paddingHorizontal: 20,
-    textShadowColor: 'rgba(0, 0, 0, 0.1)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 14,
+    color: '#999',
+    marginBottom: 40,
     textAlign: 'center',
   },
-  cardWrapper: {
+  roleCard: {
+    backgroundColor: '#FFF',
+    borderWidth: 2,
+    borderColor: '#D4AF37',
+    borderRadius: 16,
+    padding: 24,
     width: '100%',
-    maxWidth: 400,
     marginBottom: 20,
+    minHeight: 110,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  glassCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    overflow: 'hidden',
+  roleCardDisabled: {
+    opacity: 0.6,
   },
-  cardTouchable: {
-    padding: 20,
-  },
-  cardContent: {
+  roleCardContent: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  cardIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+  iconWrapper: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#FFF5E6',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
   },
-  cardTextContainer: {
+  roleTextContainer: {
     flex: 1,
   },
-  cardTitle: {
-    fontSize: 20,
-    color: 'white',
-    marginBottom: 6,
+  roleTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#000',
+    marginBottom: 4,
   },
-  cardSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.85)',
-    lineHeight: 20,
+  roleSubtitle: {
+    fontSize: 13,
+    color: '#666',
+    lineHeight: 18,
   },
 });
