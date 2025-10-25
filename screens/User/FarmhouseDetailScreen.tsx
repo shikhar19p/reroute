@@ -23,7 +23,8 @@ interface Review {
   rating: number;
   date: string;
   comment: string;
-  farmhouseId: string;
+  userId: string;
+  createdAt: any;
 }
 
 type Props = RootStackScreenProps<'FarmhouseDetail'>;
@@ -82,10 +83,10 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
   // Real-time reviews updates
   useEffect(() => {
-    const reviewsRef = collection(db, 'reviews');
+    // Updated to use subcollection: farmhouses/{farmhouseId}/reviews
+    const reviewsRef = collection(db, 'farmhouses', farmhouse.id, 'reviews');
     const q = query(
       reviewsRef,
-      where('farmhouseId', '==', farmhouse.id),
       firestoreOrderBy('createdAt', 'desc'),
       limit(10)
     );
@@ -115,6 +116,13 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     setRefreshing(true);
     // The real-time listeners will automatically update the data
   };
+
+  // Calculate average rating from reviews
+  const averageRating = useMemo(() => {
+    if (reviews.length === 0) return 0;
+    const totalRating = reviews.reduce((sum, review) => sum + (review.rating || 0), 0);
+    return totalRating / reviews.length;
+  }, [reviews]);
 
   // ========== PRICING HELPER FUNCTIONS ==========
   
@@ -292,9 +300,10 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
   const handleShare = async () => {
     try {
+      const ratingText = averageRating > 0 ? `${averageRating.toFixed(1)}/5` : 'New Property';
       const shareMessage = `🏡 ${farmhouse.name}\n\n` +
         `📍 Location: ${farmhouse.location}\n` +
-        `⭐ Rating: ${farmhouse.rating.toFixed(1)}/5 (${farmhouse.reviews} reviews)\n` +
+        `⭐ Rating: ${ratingText} (${reviews.length} ${reviews.length === 1 ? 'review' : 'reviews'})\n` +
         `👥 Capacity: Up to ${farmhouse.capacity} guests\n` +
         `🛏️ ${farmhouse.bedrooms} Bedrooms\n\n` +
         `💰 Pricing:\n` +
@@ -601,8 +610,12 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
             <Text style={[styles.title, { color: colors.text }]}>{farmhouse.name}</Text>
             <View style={styles.ratingRow}>
               <Star size={16} color="#FCD34D" fill="#FCD34D" />
-              <Text style={[styles.rating, { color: colors.text }]}>{farmhouse.rating.toFixed(1)}</Text>
-              <Text style={[styles.reviews, { color: colors.placeholder }]}>({farmhouse.reviews} reviews)</Text>
+              <Text style={[styles.rating, { color: colors.text }]}>
+                {averageRating > 0 ? averageRating.toFixed(1) : 'New'}
+              </Text>
+              <Text style={[styles.reviews, { color: colors.placeholder }]}>
+                ({reviews.length} {reviews.length === 1 ? 'review' : 'reviews'})
+              </Text>
             </View>
           </View>
 

@@ -14,7 +14,6 @@ interface Review {
   rating: number;
   comment: string;
   date: string;
-  farmhouseId: string;
   userId: string;
   createdAt: any;
 }
@@ -46,10 +45,10 @@ export default function AllReviewsScreen({ route, navigation }: Props) {
   const fetchReviews = async () => {
     try {
       setLoading(true);
-      const reviewsRef = collection(db, 'reviews');
+      // Updated to use subcollection: farmhouses/{farmhouseId}/reviews
+      const reviewsRef = collection(db, 'farmhouses', farmhouseId, 'reviews');
       const q = query(
         reviewsRef,
-        where('farmhouseId', '==', farmhouseId),
         orderBy('createdAt', 'desc')
       );
       const snapshot = await getDocs(q);
@@ -99,7 +98,6 @@ export default function AllReviewsScreen({ route, navigation }: Props) {
     try {
       setSubmitting(true);
       const reviewData = {
-        farmhouseId,
         userId: user.uid,
         userName: user.displayName || 'Anonymous',
         rating: newRating,
@@ -108,7 +106,8 @@ export default function AllReviewsScreen({ route, navigation }: Props) {
         createdAt: serverTimestamp()
       };
 
-      await addDoc(collection(db, 'reviews'), reviewData);
+      // Add review to subcollection: farmhouses/{farmhouseId}/reviews
+      await addDoc(collection(db, 'farmhouses', farmhouseId, 'reviews'), reviewData);
       
       setNewComment('');
       setNewRating(5);
@@ -119,7 +118,7 @@ export default function AllReviewsScreen({ route, navigation }: Props) {
         type: 'success'
       });
 
-      // ✅ AUTOMATIC: Data will refresh automatically if using GlobalDataContext
+      // Refresh reviews
       await fetchReviews();
     } catch (error) {
       console.error('Error adding review:', error);

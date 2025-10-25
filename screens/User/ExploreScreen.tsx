@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, StatusBar,
   Modal, TextInput, FlatList, Share, ActivityIndicator
@@ -13,6 +13,8 @@ import { useDialog } from '../../components/CustomDialog';
 import { Farmhouse as FarmhouseType } from '../../types/navigation';
 import { useAvailableFarmhouses } from '../../GlobalDataContext';
 import { getResponsivePadding, getResponsiveGap, isSmallDevice } from '../../utils/responsive';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../../firebaseConfig';
 
 export default function ExploreScreen({ navigation }: any) {
   const { user } = useAuth();
@@ -34,6 +36,38 @@ export default function ExploreScreen({ navigation }: any) {
     maxPrice: '',
     minCapacity: '',
   });
+  const [farmhouseRatings, setFarmhouseRatings] = useState<Record<string, number>>({});
+
+  // Fetch average ratings for all farmhouses
+  useEffect(() => {
+    const fetchRatings = async () => {
+      const ratingsMap: Record<string, number> = {};
+      
+      for (const farmhouse of farmhouses) {
+        try {
+          const reviewsRef = collection(db, 'farmhouses', farmhouse.id, 'reviews');
+          const reviewsSnapshot = await getDocs(reviewsRef);
+          
+          if (!reviewsSnapshot.empty) {
+            let totalRating = 0;
+            reviewsSnapshot.forEach(doc => {
+              const review = doc.data();
+              totalRating += review.rating || 0;
+            });
+            ratingsMap[farmhouse.id] = totalRating / reviewsSnapshot.size;
+          }
+        } catch (error) {
+          console.error(`Error fetching ratings for ${farmhouse.id}:`, error);
+        }
+      }
+      
+      setFarmhouseRatings(ratingsMap);
+    };
+
+    if (farmhouses.length > 0) {
+      fetchRatings();
+    }
+  }, [farmhouses]);
 
   const toggleWishlist = async (farmhouse: FarmhouseType) => {
     if (isInWishlist(farmhouse.id)) {
@@ -45,9 +79,12 @@ export default function ExploreScreen({ navigation }: any) {
 
   const handleShare = async (farmhouse: FarmhouseType) => {
     try {
+      const actualRating = farmhouseRatings[farmhouse.id];
+      const ratingText = actualRating ? actualRating.toFixed(1) : 'New';
+      
       const shareMessage = `🏡 ${farmhouse.name}\n\n` +
         `📍 Location: ${farmhouse.location}\n` +
-        `⭐ Rating: ${farmhouse.rating?.toFixed(1) || '4.5'}/5\n` +
+        `⭐ Rating: ${ratingText}${actualRating ? '/5' : ''}\n` +
         `👥 Capacity: Up to ${farmhouse.capacity} guests\n\n` +
         `💰 Starting from ₹${farmhouse.weeklyNight}/night\n\n` +
         `📱 Book now on ReRoute App!\n` +
@@ -113,7 +150,7 @@ export default function ExploreScreen({ navigation }: any) {
         result.sort((a, b) => b.capacity - a.capacity);
         break;
       case 'rating':
-        result.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+        result.sort((a, b) => (farmhouseRatings[b.id] || 0) - (farmhouseRatings[a.id] || 0));
         break;
       case 'name':
         result.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -121,7 +158,7 @@ export default function ExploreScreen({ navigation }: any) {
     }
 
     return result;
-  }, [searchText, filters, sortBy, farmhouses]);
+  }, [searchText, filters, sortBy, farmhouses, farmhouseRatings]);
 
   const renderFarmhouse = ({ item }: { item: FarmhouseType }) => (
     <TouchableOpacity
@@ -163,7 +200,7 @@ export default function ExploreScreen({ navigation }: any) {
           <View style={styles.ratingContainer}>
             <Text style={styles.star}>★</Text>
             <Text style={[styles.rating, { color: colors.text }]}>
-              {item.rating?.toFixed(1) || '4.5'}
+              {farmhouseRatings[item.id] ? farmhouseRatings[item.id].toFixed(1) : 'New'}
             </Text>
           </View>
         </View>
