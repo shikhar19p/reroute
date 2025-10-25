@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Camera, ImageIcon, X } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { useFarmRegistration } from '../../context/FarmRegistrationContext';
@@ -129,12 +130,12 @@ export default function PhotosScreen({ navigation }: PhotosScreenProps) {
   const handleAddPhoto = () => {
     showDialog({
       title: 'Add Photo',
-      message: 'Choose source',
+      message: 'Choose a source to upload your photo',
       type: 'confirm',
       buttons: [
-        { text: 'Camera', style: 'default', onPress: () => handlePickImage('camera') },
-        { text: 'Photo Library', style: 'default', onPress: () => handlePickImage('library') },
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Camera', style: 'default', icon: Camera, onPress: () => handlePickImage('camera') },
+        { text: 'Gallery', style: 'default', icon: ImageIcon, onPress: () => handlePickImage('library') },
+        { text: 'Cancel', style: 'cancel', icon: X },
       ]
     });
   };

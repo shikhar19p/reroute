@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, Animated } from 'react-native';
-import { AlertCircle, CheckCircle, X, AlertTriangle } from 'lucide-react-native';
+import { AlertCircle, CheckCircle, X, AlertTriangle, LucideIcon } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 
 type DialogType = 'success' | 'error' | 'warning' | 'confirm';
@@ -9,6 +9,7 @@ interface DialogButton {
   text: string;
   onPress?: () => void;
   style?: 'default' | 'cancel' | 'destructive';
+  icon?: any; // LucideIcon component
 }
 
 interface DialogConfig {
@@ -115,6 +116,8 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
                     textColor = '#FFFFFF';
                   }
 
+                  const IconComponent = button.icon;
+
                   return (
                     <TouchableOpacity
                       key={index}
@@ -125,6 +128,9 @@ export function DialogProvider({ children }: { children: React.ReactNode }) {
                       ]}
                       onPress={() => handleButtonPress(button)}
                     >
+                      {IconComponent && (
+                        <IconComponent size={20} color={textColor} style={{ marginBottom: 4 }} />
+                      )}
                       <Text style={[styles.buttonText, { color: textColor }]}>
                         {button.text}
                       </Text>
@@ -155,8 +161,8 @@ const styles = StyleSheet.create({
     bottom: 0,
   },
   dialog: {
-    width: '85%',
-    maxWidth: 400,
+    width: '90%',
+    maxWidth: 420,
     borderRadius: 20,
     padding: 24,
     alignItems: 'center',
@@ -188,14 +194,16 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   button: {
-    paddingVertical: 14,
-    paddingHorizontal: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    minWidth: 80,
   },
   buttonText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
+    textAlign: 'center',
   },
 });

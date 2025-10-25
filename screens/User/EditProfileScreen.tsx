@@ -24,7 +24,7 @@ export default function EditProfileScreen({ route, navigation }: Props) {
   const [formData, setFormData] = useState({
     name: profile?.name || '',
     email: profile?.email || '',
-    phone: profile?.phone ? profile.phone.replace(/[^0-9]/g, '') : '',
+    phone: profile?.phone ? profile.phone.replace(/[^0-9]/g, '').slice(-10) : '',
     age: profile?.age ? profile.age.toString() : '',
     address: profile?.address || '',
     gender: profile?.gender || ''

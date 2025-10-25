@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Trash2, Plus, X } from 'lucide-react-native';
+import { Trash2, Plus, X, Camera, ImageIcon } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { Farmhouse } from '../../services/farmhouseService';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -183,12 +183,12 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
   const choosePhotoSource = async () => {
     showDialog({
       title: 'Add Photo',
-      message: 'Choose source',
+      message: 'Choose a source to upload your photo',
       type: 'confirm',
       buttons: [
-        { text: 'Camera', style: 'default', onPress: takePhotoWithCamera },
-        { text: 'Photo Library', style: 'default', onPress: pickImageFromLibrary },
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Camera', style: 'default', icon: Camera, onPress: takePhotoWithCamera },
+        { text: 'Gallery', style: 'default', icon: ImageIcon, onPress: pickImageFromLibrary },
+        { text: 'Cancel', style: 'cancel', icon: X },
       ]
     });
   };
