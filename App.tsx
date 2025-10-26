@@ -10,6 +10,7 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
+import * as Font from 'expo-font';
 
 // Contexts
 import { AuthProvider, useAuth } from './authContext';
@@ -153,7 +154,7 @@ function UserTabs() {
 function AppNavigator() {
   const { user, loading } = useAuth();
 
-  console.log('🔄 AppNavigator render - loading:', loading, 'user:', user?.email, 'role:', user?.role);
+  console.log('📄 AppNavigator render - loading:', loading, 'user:', user?.email, 'role:', user?.role);
 
   if (loading) {
     return (
@@ -167,22 +168,22 @@ function AppNavigator() {
   // Determine initial route based on user role
   const getInitialRoute = () => {
     if (!user) {
-      console.log('📍 No user - going to Welcome');
+      console.log('🔓 No user - going to Welcome');
       return 'Welcome';
     }
     if (!user.role) {
-      console.log('📍 User authenticated but no role - going to RoleSelection');
+      console.log('🔓 User authenticated but no role - going to RoleSelection');
       return 'RoleSelection';
     }
     if (user.role === 'customer') {
-      console.log('📍 Customer role - going to UserHome');
+      console.log('🔓 Customer role - going to UserHome');
       return 'UserHome';
     }
     if (user.role === 'owner') {
-      console.log('📍 Owner role - going to OwnerNavigator');
+      console.log('🔓 Owner role - going to OwnerNavigator');
       return 'OwnerNavigator';
     }
-    console.log('📍 Unknown state - going to Welcome');
+    console.log('🔓 Unknown state - going to Welcome');
     return 'Welcome';
   };
 
@@ -354,10 +355,18 @@ function AppNavigator() {
 // Root App Wrapper
 export default function App() {
   const [fontsLoaded] = useFonts({
+    // Inter fonts for general UI
     Inter_400Regular,
     Inter_500Medium,
     Inter_600SemiBold,
     Inter_700Bold,
+    // Seasons fonts for premium screens
+    'Seasons-Regular': require('./assets/fonts/Fontspring-DEMO-theseasons-reg.otf'),
+    'Seasons-Light': require('./assets/fonts/Fontspring-DEMO-theseasons-lt.otf'),
+    'Seasons-Bold': require('./assets/fonts/Fontspring-DEMO-theseasons-bd.otf'),
+    'Seasons-Italic': require('./assets/fonts/Fontspring-DEMO-theseasons-it.otf'),
+    'Seasons-LightItalic': require('./assets/fonts/Fontspring-DEMO-theseasons-ltit.otf'),
+    'Seasons-BoldItalic': require('./assets/fonts/Fontspring-DEMO-theseasons-bdit.otf'),
   });
 
   // Register for push notifications on app start
@@ -377,7 +386,7 @@ export default function App() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#D4AF37" />
-        <Text style={{ marginTop: 16, color: '#6C757D' }}>Loading...</Text>
+        <Text style={{ marginTop: 16, color: '#6C757D' }}>Loading fonts...</Text>
       </View>
     );
   }

@@ -8,6 +8,7 @@ import {
   StatusBar,
   SafeAreaView,
   Dimensions,
+  Image,
 } from 'react-native';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
@@ -105,9 +106,13 @@ export default function LoginWithRoleScreen({ navigation }: any) {
 
       <View style={styles.container}>
 
-        {/* --- 1. Logo Icon (White) --- */}
+        {/* --- 1. Logo Icon --- */}
         <View style={styles.iconContainer}>
-          <Text style={styles.iconPlaceholder}>🏠</Text>
+          <Image
+            source={require('../assets/icon.png')}
+            style={styles.iconImage}
+            resizeMode="cover"
+          />
         </View>
 
         {/* --- 2 & 3. Titles and Subtitle --- */}
@@ -186,10 +191,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
+    overflow: 'hidden', // Important for clipping the image to circular shape
   },
-  iconPlaceholder: {
-    fontSize: 50,
-    color: PRIMARY_COLOR,
+  iconImage: {
+    width: 86,
+    height: 86,
+    borderRadius: 43,
   },
 
   // --- Title Styles ---
