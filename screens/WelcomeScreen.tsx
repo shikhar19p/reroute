@@ -19,26 +19,27 @@ export default function WelcomeScreen({ navigation }: any) {
       
       {/* Background Image */}
       <ImageBackground
-        source={require('../assets/farmhouse-bg.jpg')} // You'll need to add this image
+        source={require('../assets/farmhouse-bg.jpg')}
         style={styles.backgroundImage}
         resizeMode="cover"
       >
         {/* Gradient Overlay */}
         <LinearGradient
-          colors={['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.1)', 'rgba(0,0,0,0.4)']}
+          colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.25)']}
           style={styles.gradient}
         >
-          {/* Top Section */}
+          {/* Top Section - 60% */}
           <View style={styles.topSection}>
-            <Text style={styles.welcomeText}>WELCOME TO REROUTE</Text>
-            <Text style={styles.premierText}>PREMIER ESCAPES</Text>
+            <View style={styles.headerContainer}>
+              <Text style={styles.welcomeText}>WELCOME TO REROUTE</Text>
+              <Text style={styles.premierText}>PREMIER ESCAPES</Text>
+            </View>
           </View>
 
-          {/* Bottom Section */}
+          {/* Bottom Section - 40% */}
           <View style={styles.bottomSection}>
             <View style={styles.contentCard}>
-              <Text style={styles.tagline}>Discover Your Perfect Escape</Text>
-              <Text style={styles.subTagline}>Luxury farmhouses, unforgettable experiences</Text>
+              <Text style={styles.tagline}>Find your perfect retreat.</Text>
               
               <TouchableOpacity
                 style={styles.exploreButton}
@@ -46,7 +47,7 @@ export default function WelcomeScreen({ navigation }: any) {
                 activeOpacity={0.9}
               >
                 <Text style={styles.exploreButtonText}>Explore Unique Stays</Text>
-                <Text style={styles.arrow}>→</Text>
+                <Text style={styles.arrow}>›</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -54,7 +55,7 @@ export default function WelcomeScreen({ navigation }: any) {
                 activeOpacity={0.7}
               >
                 <Text style={styles.signInText}>
-                  Already have an account? <Text style={styles.signInLink}>Sign in</Text>
+                  Already have or account? <Text style={styles.signInLink}>Sign in</Text>
                 </Text>
               </TouchableOpacity>
             </View>
@@ -77,89 +78,105 @@ const styles = StyleSheet.create({
   },
   gradient: {
     flex: 1,
+    justifyContent: 'space-between',
   },
   topSection: {
-    flex: 1,
-    justifyContent: 'center',
+    flex: 1.5, // 60% of screen
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    paddingTop: 80,
+    paddingTop: 100,
+  },
+  headerContainer: {
+    alignItems: 'center',
   },
   welcomeText: {
-    fontSize: 32,
-    fontWeight: '600',
-    color: '#D4AF37',
-    letterSpacing: 2,
-    textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  premierText: {
-    fontSize: 16,
+    fontFamily: 'Seasons-Regular',
+    fontSize: 26,
     fontWeight: '400',
-    color: '#FFFFFF',
+    color: '#D4AF37',
     letterSpacing: 3,
-    marginTop: 8,
     textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowColor: 'rgba(0, 0, 0, 0.4)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
+  premierText: {
+    fontFamily: 'Seasons-Light',
+    fontSize: 13,
+    fontWeight: '300',
+    color: '#FFFFFF',
+    letterSpacing: 4,
+    marginTop: 8,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
   bottomSection: {
+    flex: 1, // 40% of screen
+    justifyContent: 'flex-end',
     paddingBottom: 50,
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
   },
   contentCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 20,
-    padding: 32,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 36,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
   },
   tagline: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: '#000',
-    marginBottom: 8,
-    textAlign: 'center',
-    letterSpacing: 0.3,
-  },
-  subTagline: {
-    fontSize: 15,
+    fontFamily: 'Seasons-Regular',
+    fontSize: 20,
     fontWeight: '400',
-    color: '#666',
+    color: '#000',
     marginBottom: 32,
     textAlign: 'center',
-    lineHeight: 22,
+    letterSpacing: 0.5,
   },
   exploreButton: {
     backgroundColor: '#D4AF37',
-    paddingVertical: 18,
-    paddingHorizontal: 40,
-    borderRadius: 30,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 25,
     width: '100%',
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   exploreButtonText: {
+    //fontFamily: 'Seasons-Regular',
     color: '#FFF',
-    fontSize: 18,
-    fontWeight: '600',
-    marginRight: 8,
+    fontSize: 16,
+    fontWeight: '500',
+    marginRight: 6,
+    letterSpacing: 0.5,
   },
   arrow: {
     color: '#FFF',
-    fontSize: 20,
-    fontWeight: '600',
+    fontSize: 24,
+    fontWeight: '300',
   },
   signInText: {
-    fontSize: 14,
-    color: '#666',
+    //fontFamily: 'Seasons-Light',
+    fontSize: 13,
+    color: '#999',
     textAlign: 'center',
+    letterSpacing: 0.3,
   },
   signInLink: {
+    //fontFamily: 'Seasons-Regular',
     color: '#D4AF37',
-    fontWeight: '600',
+    fontWeight: '500',
   },
 });
