@@ -15,7 +15,6 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as DocumentPicker from 'expo-document-picker';
 import { kycSchema } from '../../utils/validation';
 import { useFarmRegistration } from '../../context/FarmRegistrationContext';
-import { saveFarmRegistration } from '../../services/farmService';
 import { useDialog } from '../../components/CustomDialog';
 
 type KycScreenProps = {
@@ -23,7 +22,7 @@ type KycScreenProps = {
 };
 
 export default function KycScreen({ navigation }: KycScreenProps) {
-  const { farm, setField, resetFarm } = useFarmRegistration();
+  const { farm, setField } = useFarmRegistration();
   const { showDialog } = useDialog();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -84,31 +83,9 @@ export default function KycScreen({ navigation }: KycScreenProps) {
     }
 
     setErrors({});
-    setIsSubmitting(true);
-
-    try {
-      console.log('KycScreen: About to call saveFarmRegistration');
-      const result = await saveFarmRegistration(farm);
-      console.log('KycScreen: Registration successful!', result);
-      showDialog({
-        title: 'Success',
-        message: 'Farm registration submitted for review!',
-        type: 'success'
-      });
-      resetFarm();
-      navigation.reset({ index: 0, routes: [{ name: 'MyFarmhouses' }] });
-    } catch (error) {
-      console.error('KycScreen: Submission error:', error);
-      console.error('KycScreen: Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
-      showDialog({
-        title: 'Error',
-        message: `Failed to submit registration: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        type: 'error'
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [farm, isSubmitting, navigation, resetFarm, showDialog]);
+    // Navigate to Registration Fee screen instead of direct submission
+    navigation.navigate('RegistrationFee');
+  }, [farm, isSubmitting, navigation]);
 
   const toggleTerms = () => {
     const current = farm.kyc.agreedToTerms;
@@ -389,16 +366,11 @@ export default function KycScreen({ navigation }: KycScreenProps) {
             <Text style={styles.secondaryButtonText}>Back</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.primaryButton, isSubmitting && styles.buttonDisabled]}
+            style={styles.primaryButton}
             onPress={handleSubmit}
             activeOpacity={0.8}
-            disabled={isSubmitting}
           >
-            {isSubmitting ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Text style={styles.primaryButtonText}>Submit</Text>
-            )}
+            <Text style={styles.primaryButtonText}>Next</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

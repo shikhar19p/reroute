@@ -4,7 +4,8 @@
       "Bash(claude mcp)",
       "WebSearch",
       "Bash(claude mcp add:*)",
-      "Bash(claude mcp:*)"
+      "Bash(claude mcp:*)",
+      "Bash(git stash:*)"
     ],
     "deny": [],
     "ask": []
