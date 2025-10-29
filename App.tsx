@@ -36,6 +36,7 @@ import PhotosScreen from './screens/FarmRegistration/PhotosScreen';
 import AmenitiesGamesScreen from './screens/FarmRegistration/AmenitiesGamesScreen';
 import RulesRestrictionsScreen from './screens/FarmRegistration/RulesRestrictionsScreen';
 import KycScreen from './screens/FarmRegistration/KycScreen';
+import RegistrationFeeScreen from './screens/FarmRegistration/RegistrationFeeScreen';
 
 // User Screens
 import ExploreScreen from './screens/User/ExploreScreen';
@@ -293,6 +294,11 @@ function AppNavigator() {
               name="FarmKyc"
               component={KycScreen}
               options={{ title: 'KYC Verification' }}
+            />
+            <Stack.Screen
+              name="RegistrationFee"
+              component={RegistrationFeeScreen}
+              options={{ title: 'Registration Fee' }}
             />
 
             {/* User Flow with Tabs */}
