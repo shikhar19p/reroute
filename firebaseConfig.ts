@@ -6,18 +6,26 @@ import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 
 // Get Firebase config from environment variables (via expo-constants)
+// SECURITY: Never hardcode credentials. All values must come from environment variables.
 const firebaseConfig = {
-  apiKey: Constants.expoConfig?.extra?.firebaseApiKey || 'AIzaSyDMLXQjQSSZRPUdlOeNf1afg2WPPQFSTAI',
-  authDomain: Constants.expoConfig?.extra?.firebaseAuthDomain || 'rustique-6b7c4.firebaseapp.com',
-  projectId: Constants.expoConfig?.extra?.firebaseProjectId || 'rustique-6b7c4',
-  storageBucket: Constants.expoConfig?.extra?.firebaseStorageBucket || 'rustique-6b7c4.firebasestorage.app',
-  messagingSenderId: Constants.expoConfig?.extra?.firebaseMessagingSenderId || '272634614965',
-  appId: Constants.expoConfig?.extra?.firebaseAppId || '1:272634614965:web:82bb8ef1772cac9c019afc',
+  apiKey: Constants.expoConfig?.extra?.firebaseApiKey,
+  authDomain: Constants.expoConfig?.extra?.firebaseAuthDomain,
+  projectId: Constants.expoConfig?.extra?.firebaseProjectId,
+  storageBucket: Constants.expoConfig?.extra?.firebaseStorageBucket,
+  messagingSenderId: Constants.expoConfig?.extra?.firebaseMessagingSenderId,
+  appId: Constants.expoConfig?.extra?.firebaseAppId,
 };
 
 // Validate that all required config values are present
-if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-  console.warn('Firebase configuration is incomplete. Please check your .env file.');
+const requiredFields = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
+const missingFields = requiredFields.filter(field => !firebaseConfig[field as keyof typeof firebaseConfig]);
+
+if (missingFields.length > 0) {
+  throw new Error(
+    `Firebase configuration is incomplete. Missing required environment variables: ${missingFields.join(', ')}.\n` +
+    'Please ensure your .env file contains all required Firebase configuration values.\n' +
+    'See .env.example for required fields.'
+  );
 }
 
 const app = initializeApp(firebaseConfig);
