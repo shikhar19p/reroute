@@ -1,11 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Bash(claude mcp)",
-      "WebSearch",
-      "Bash(claude mcp add:*)",
-      "Bash(claude mcp:*)",
-      "Bash(git stash:*)"
+      "Bash(npx react-native start:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git commit:*)",
+      "Bash(taskkill:*)",
+      "Bash(npx expo start --web)"
     ],
     "deny": [],
     "ask": []
