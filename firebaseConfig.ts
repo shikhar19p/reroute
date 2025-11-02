@@ -6,14 +6,28 @@ import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 
 // Get Firebase config from environment variables (via expo-constants)
-// SECURITY: Never hardcode credentials. All values must come from environment variables.
+// SECURITY: In production, all values must come from environment variables.
+// In development, fallback values are allowed for convenience.
+
+const isDevelopment = !__DEV__ ? false : true;
+
+// Development fallback values (only used if env vars are not set)
+const developmentFallbacks = {
+  apiKey: 'AIzaSyDMLXQjQSSZRPUdlOeNf1afg2WPPQFSTAI',
+  authDomain: 'rustique-6b7c4.firebaseapp.com',
+  projectId: 'rustique-6b7c4',
+  storageBucket: 'rustique-6b7c4.firebasestorage.app',
+  messagingSenderId: '272634614965',
+  appId: '1:272634614965:web:82bb8ef1772cac9c019afc',
+};
+
 const firebaseConfig = {
-  apiKey: Constants.expoConfig?.extra?.firebaseApiKey,
-  authDomain: Constants.expoConfig?.extra?.firebaseAuthDomain,
-  projectId: Constants.expoConfig?.extra?.firebaseProjectId,
-  storageBucket: Constants.expoConfig?.extra?.firebaseStorageBucket,
-  messagingSenderId: Constants.expoConfig?.extra?.firebaseMessagingSenderId,
-  appId: Constants.expoConfig?.extra?.firebaseAppId,
+  apiKey: Constants.expoConfig?.extra?.firebaseApiKey || (isDevelopment ? developmentFallbacks.apiKey : undefined),
+  authDomain: Constants.expoConfig?.extra?.firebaseAuthDomain || (isDevelopment ? developmentFallbacks.authDomain : undefined),
+  projectId: Constants.expoConfig?.extra?.firebaseProjectId || (isDevelopment ? developmentFallbacks.projectId : undefined),
+  storageBucket: Constants.expoConfig?.extra?.firebaseStorageBucket || (isDevelopment ? developmentFallbacks.storageBucket : undefined),
+  messagingSenderId: Constants.expoConfig?.extra?.firebaseMessagingSenderId || (isDevelopment ? developmentFallbacks.messagingSenderId : undefined),
+  appId: Constants.expoConfig?.extra?.firebaseAppId || (isDevelopment ? developmentFallbacks.appId : undefined),
 };
 
 // Validate that all required config values are present
@@ -21,11 +35,20 @@ const requiredFields = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'm
 const missingFields = requiredFields.filter(field => !firebaseConfig[field as keyof typeof firebaseConfig]);
 
 if (missingFields.length > 0) {
-  throw new Error(
-    `Firebase configuration is incomplete. Missing required environment variables: ${missingFields.join(', ')}.\n` +
-    'Please ensure your .env file contains all required Firebase configuration values.\n' +
-    'See .env.example for required fields.'
-  );
+  if (isDevelopment) {
+    console.warn(
+      '⚠️  WARNING: Using fallback Firebase configuration for development.\n' +
+      `Missing environment variables: ${missingFields.join(', ')}\n` +
+      'For production, please set up your .env file. See .env.example for reference.'
+    );
+  } else {
+    throw new Error(
+      `❌ PRODUCTION ERROR: Firebase configuration is incomplete.\n` +
+      `Missing required environment variables: ${missingFields.join(', ')}.\n` +
+      'Please ensure your .env file contains all required Firebase configuration values.\n' +
+      'See .env.example for required fields.'
+    );
+  }
 }
 
 const app = initializeApp(firebaseConfig);
