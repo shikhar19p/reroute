@@ -5,7 +5,9 @@
       "Bash(npx tsc:*)",
       "Bash(git commit:*)",
       "Bash(taskkill:*)",
-      "Bash(npx expo start --web)"
+      "Bash(npx expo start --web)",
+      "Bash(npx expo install expo-splash-screen)",
+      "Bash(npx expo install:*)"
     ],
     "deny": [],
     "ask": []

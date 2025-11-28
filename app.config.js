@@ -11,7 +11,7 @@ export default ({ config }) => ({
     splash: {
       image: "./assets/splash-icon.png",
       resizeMode: "contain",
-      backgroundColor: "#ffffff"
+      backgroundColor: "#F9F8EF"
     },
     ios: {
       supportsTablet: true
@@ -20,7 +20,7 @@ export default ({ config }) => ({
       package: "com.reroute.app",
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
-        backgroundColor: "#ffffff"
+        backgroundColor: "#F9F8EF"
       },
       edgeToEdgeEnabled: true,
       predictiveBackGestureEnabled: false

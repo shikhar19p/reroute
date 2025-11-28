@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0D9488"
+      "backgroundColor": "#F9F8EF"
     },
     "ios": {
       "supportsTablet": true
@@ -19,7 +19,7 @@
       "package": "com.reroute.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0D9488"
+        "backgroundColor": "#F9F8EF"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
