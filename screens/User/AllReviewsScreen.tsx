@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, TouchableOpacity, TextInput, Modal, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { ArrowLeft, Plus, Star } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../authContext';
 import { useDialog } from '../../components/CustomDialog';
@@ -141,9 +142,11 @@ export default function AllReviewsScreen({ route, navigation }: Props) {
             disabled={!onPress}
             onPress={() => onPress && onPress(star)}
           >
-            <Text style={styles.starIcon}>
-              {star <= rating ? '⭐' : '☆'}
-            </Text>
+            <Star
+              size={20}
+              color="#FCD34D"
+              fill={star <= rating ? '#FCD34D' : 'transparent'}
+            />
           </TouchableOpacity>
         ))}
       </View>
@@ -158,11 +161,11 @@ export default function AllReviewsScreen({ route, navigation }: Props) {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={[styles.backIcon, { color: colors.text }]}>←</Text>
+          <ArrowLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>Reviews</Text>
         <TouchableOpacity onPress={() => setShowAddReview(true)} style={styles.addButton}>
-          <Text style={[styles.addIcon, { color: colors.buttonBackground }]}>➕</Text>
+          <Plus size={24} color={colors.buttonBackground} />
         </TouchableOpacity>
       </View>
 
@@ -286,15 +289,12 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1 },
   backButton: { padding: 4 },
-  backIcon: { fontSize: 24 },
   addButton: { padding: 4 },
-  addIcon: { fontSize: 24 },
   title: { fontSize: 20, fontWeight: 'bold' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   summary: { padding: 20, alignItems: 'center', marginVertical: 16, marginHorizontal: 20, borderRadius: 12 },
   averageRating: { fontSize: 48, fontWeight: 'bold', marginBottom: 8 },
   starsContainer: { flexDirection: 'row', gap: 4, marginVertical: 8 },
-  starIcon: { fontSize: 24 },
   reviewCount: { fontSize: 14, marginTop: 8 },
   content: { padding: 20 },
   emptyContainer: { paddingVertical: 40, alignItems: 'center' },

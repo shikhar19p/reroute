@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -11,6 +11,12 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import * as Font from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
+
+// Prevent native splash from auto-hiding
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // Handle error silently
+});
 
 // Contexts
 import { AuthProvider, useAuth } from './authContext';
@@ -61,6 +67,7 @@ import ManageBlockedDatesScreen from './screens/Owner/ManageBlockedDatesScreen';
 
 // Components
 import PremiumTabBar from './components/PremiumTabBar';
+import AnimatedSplashScreen from './components/AnimatedSplashScreen';
 
 // Navigation types
 import { RootStackParamList, TabParamList } from './types/navigation';
@@ -102,12 +109,12 @@ function OwnerNavigator({ navigation }: any) {
     }
   };
 
-  return (
-    <View style={styles.loadingContainer}>
-      <ActivityIndicator size="large" color="#4CAF50" />
-      <Text style={{ marginTop: 16, color: '#6C757D' }}>Loading...</Text>
-    </View>
-  );
+  // Return empty view while checking - no loading indicator
+  if (loading) {
+    return <View style={{ flex: 1, backgroundColor: 'rgb(249, 248, 239)' }} />;
+  }
+
+  return null;
 }
 
 // Bottom Tab Navigator for User screens
@@ -157,14 +164,7 @@ function AppNavigator() {
 
   console.log('📄 AppNavigator render - loading:', loading, 'user:', user?.email, 'role:', user?.role);
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#02444d" />
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
-    );
-  }
+  // Don't show loading screen - let app load silently
 
   // Determine initial route based on user role
   const getInitialRoute = () => {
@@ -360,6 +360,10 @@ function AppNavigator() {
 
 // Root App Wrapper
 export default function App() {
+  const [showApp, setShowApp] = React.useState(false);
+  const [appReady, setAppReady] = React.useState(false);
+
+  // Load fonts in background - non-blocking
   const [fontsLoaded] = useFonts({
     // Inter fonts for general UI
     Inter_400Regular,
@@ -375,6 +379,21 @@ export default function App() {
     'Seasons-BoldItalic': require('./assets/fonts/Fontspring-DEMO-theseasons-bdit.otf'),
   });
 
+  // Keep native splash visible until custom splash is ready
+  React.useEffect(() => {
+    // Set app ready immediately - custom splash will render
+    setAppReady(true);
+  }, []);
+
+  // Hide native splash only after custom splash renders
+  const onCustomSplashReady = useCallback(async () => {
+    try {
+      await SplashScreen.hideAsync();
+    } catch (e) {
+      // Ignore errors
+    }
+  }, []);
+
   // Register for push notifications on app start
   // Note: FCM (Firebase Cloud Messaging) credentials must be configured for production
   // See: https://docs.expo.dev/push-notifications/fcm-credentials/
@@ -388,15 +407,20 @@ export default function App() {
     });
   }, []);
 
-  if (!fontsLoaded) {
+  // Show custom splash (native splash still visible until onReady called)
+  if (!showApp) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#D4AF37" />
-        <Text style={{ marginTop: 16, color: '#6C757D' }}>Loading fonts...</Text>
+      <View style={{ flex: 1, backgroundColor: 'rgb(249, 248, 239)' }}>
+        <AnimatedSplashScreen
+          message="Loading..."
+          onReady={onCustomSplashReady}
+          onAnimationComplete={() => setShowApp(true)}
+        />
       </View>
     );
   }
 
+  // Show app only after splash completes
   return (
     <ErrorBoundary>
       <AuthProvider>

@@ -149,7 +149,7 @@ export default function RoleSelectionScreen({ navigation }: any) {
         {loggingOut ? (
           <ActivityIndicator color="#D4AF37" size="small" />
         ) : (
-          <Text style={styles.backButtonText}>← Back</Text>
+          <MaterialCommunityIcons name="arrow-left" size={24} color="#D4AF37" />
         )}
       </TouchableOpacity>
 
@@ -230,11 +230,6 @@ const styles = StyleSheet.create({
     zIndex: 10,
     paddingVertical: 8,
     paddingHorizontal: 12,
-  },
-  backButtonText: {
-    fontSize: 16,
-    color: '#D4AF37',
-    fontWeight: '500',
   },
   content: {
     flex: 1,

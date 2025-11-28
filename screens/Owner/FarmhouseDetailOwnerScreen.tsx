@@ -17,7 +17,6 @@ import { useCallback } from 'react';
 import { ArrowLeft, Edit, MapPin, Users, Home, Star } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { getFarmhouseById, Farmhouse } from '../../services/farmhouseService';
-import MapView, { Marker } from 'react-native-maps';
 import { useDialog } from '../../components/CustomDialog';
 
 const { width } = Dimensions.get('window');
@@ -127,9 +126,6 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
   const openGoogleMaps = () => {
     if (farmhouse?.mapLink) {
       Linking.openURL(farmhouse.mapLink);
-    } else if (farmhouse?.coordinates) {
-      const url = `https://maps.google.com/?q=${farmhouse.coordinates.latitude},${farmhouse.coordinates.longitude}`;
-      Linking.openURL(url);
     }
   };
 
@@ -309,41 +305,25 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Location</Text>
             <TouchableOpacity onPress={openGoogleMaps} activeOpacity={0.8}>
-              {farmhouse.coordinates ? (
-                <MapView
-                  style={styles.map}
-                  initialRegion={{
-                    latitude: farmhouse.coordinates.latitude,
-                    longitude: farmhouse.coordinates.longitude,
-                    latitudeDelta: 0.01,
-                    longitudeDelta: 0.01,
-                  }}
-                  scrollEnabled={false}
-                  zoomEnabled={false}
-                >
-                  <Marker coordinate={farmhouse.coordinates} title={farmhouse.name} />
-                </MapView>
-              ) : (
-                <View
-                  style={[
-                    styles.map,
-                    {
-                      backgroundColor: colors.cardBackground,
-                      borderColor: colors.border,
-                      borderWidth: 1,
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                    },
-                  ]}
-                >
-                  <Text style={[{ color: colors.text, fontSize: 16, marginBottom: 8 }]}>
-                    📍 {farmhouse.location}
-                  </Text>
-                  <Text style={[{ color: colors.buttonBackground, fontSize: 14 }]}>
-                    Tap to open in Google Maps
-                  </Text>
-                </View>
-              )}
+              <View
+                style={[
+                  styles.map,
+                  {
+                    backgroundColor: colors.cardBackground,
+                    borderColor: colors.border,
+                    borderWidth: 1,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  },
+                ]}
+              >
+                <Text style={[{ color: colors.text, fontSize: 16, marginBottom: 8 }]}>
+                  📍 {farmhouse.location}
+                </Text>
+                <Text style={[{ color: colors.buttonBackground, fontSize: 14 }]}>
+                  Tap to open in Google Maps
+                </Text>
+              </View>
             </TouchableOpacity>
           </View>
 

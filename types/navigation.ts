@@ -43,10 +43,6 @@ export interface Farmhouse {
   reviews: number;
   bookedDates: string[];
   blockedDates?: string[];
-  coordinates?: {
-    latitude: number;
-    longitude: number;
-  };
   createdAt: any;
   approvedAt?: any;
   // Contact information - added for direct calling feature

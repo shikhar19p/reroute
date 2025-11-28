@@ -4,9 +4,8 @@ import {
   Dimensions, Linking, Share, TextInput, FlatList, RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Heart, MapPin, Users, Home, Star, Clock, Share2, Phone, Navigation, User } from 'lucide-react-native';
+import { ArrowLeft, Heart, MapPin, Users, Home, Star, Clock, Share2, Phone } from 'lucide-react-native';
 import { Calendar, DateData } from 'react-native-calendars';
-import MapView, { Marker } from 'react-native-maps';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
 import { useScrollHandler } from '../../context/TabBarVisibilityContext';
@@ -456,7 +455,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
           
           marked[dateString] = {
             selected: true,
-            color: '#14B8A6',
+            color: '#D4AF37',
             textColor: '#FFFFFF',
             startingDay: isStart,
             endingDay: isEnd,
@@ -533,21 +532,16 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   };
 
   const openGoogleMaps = () => {
-    let url = '';
-    if (farmhouse.mapLink) {
-        url = farmhouse.mapLink;
-    } else if (farmhouse.coordinates) {
-        url = `https://www.google.com/maps/search/?api=1&query=${farmhouse.coordinates.latitude},${farmhouse.coordinates.longitude}`;
-    } else {
+    if (!farmhouse.mapLink) {
         showDialog({
           title: 'Location not available',
-          message: 'Map link or coordinates are not available for this farmhouse.',
+          message: 'Map link is not available for this farmhouse.',
           type: 'warning'
         });
         return;
     }
-    Linking.canOpenURL(url).then(supported => {
-        if (supported) Linking.openURL(url);
+    Linking.canOpenURL(farmhouse.mapLink).then(supported => {
+        if (supported) Linking.openURL(farmhouse.mapLink);
         else showDialog({
           title: 'Error',
           message: 'Could not open the map link.',
@@ -655,20 +649,9 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
             </View>
           </View>
 
-          <View style={styles.locationRow}>
-            <MapPin size={18} color={colors.placeholder} />
-            <Text style={[styles.location, { color: colors.placeholder }]}>{farmhouse.location}</Text>
-          </View>
-
           {/* Owner Contact Information Card */}
           {(contactPhone1 || contactPhone2) && (
             <View style={[styles.ownerCard, { backgroundColor: colors.cardBackground, borderColor: colors.buttonBackground }]}>
-              <View style={styles.ownerHeader}>
-                <View style={[styles.ownerAvatar, { backgroundColor: colors.buttonBackground }]}>
-                  <User size={24} color={colors.buttonText} />
-                </View>
-              </View>
-
               <View style={styles.contactMethodsContainer}>
                 {contactPhone1 && (
                   <TouchableOpacity 
@@ -708,6 +691,14 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
               <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Rooms</Text>
               <Text style={[styles.infoValue, { color: colors.text }]}>{rooms}</Text>
             </View>
+            <TouchableOpacity
+              style={[styles.infoCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+              onPress={openGoogleMaps}
+              activeOpacity={0.7}
+            >
+              <MapPin size={20} color={colors.buttonBackground} />
+              <Text style={[styles.infoValue, { color: colors.text }]}>Location</Text>
+            </TouchableOpacity>
           </View>
           
           <View style={[styles.timingCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
@@ -836,54 +827,13 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
             />
 
             {selectedDates.start && selectedDates.end && (
-              <View style={[styles.bookingSummary, { backgroundColor: isDark ? 'rgba(20,184,166,0.15)' : 'rgba(20,184,166,0.1)', borderColor: '#14B8A6' }]}>
+              <View style={[styles.bookingSummary, { backgroundColor: isDark ? 'rgba(212,175,55,0.15)' : 'rgba(212,175,55,0.1)', borderColor: '#D4AF37' }]}>
                 <View style={styles.summaryRow}>
                   <Text style={[styles.summaryLabel, { color: colors.text }]}>Total ({getBookingType() === 'day-use' ? 'Day Use' : `${calculateNights()} ${calculateNights() === 1 ? 'night' : 'nights'}`}):</Text>
-                  <Text style={[styles.totalValue, { color: '#14B8A6' }]}>₹{calculateTotalPrice()}</Text>
+                  <Text style={[styles.totalValue, { color: '#D4AF37' }]}>₹{calculateTotalPrice()}</Text>
                 </View>
               </View>
             )}
-          </View>
-
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Location</Text>
-            <TouchableOpacity 
-              onPress={openGoogleMaps} 
-              activeOpacity={0.8}
-              style={[styles.mapContainer, { borderColor: colors.border }]}
-            >
-              {farmhouse.coordinates ? (
-                <View style={styles.mapWrapper}>
-                  <MapView 
-                    style={styles.map} 
-                    initialRegion={{ 
-                      latitude: farmhouse.coordinates.latitude, 
-                      longitude: farmhouse.coordinates.longitude, 
-                      latitudeDelta: 0.01, 
-                      longitudeDelta: 0.01 
-                    }} 
-                    scrollEnabled={false} 
-                    zoomEnabled={false}
-                    pointerEvents="none"
-                  >
-                    <Marker coordinate={farmhouse.coordinates} title={farmhouse.name} />
-                  </MapView>
-                  <View style={[styles.mapOverlay, { backgroundColor: 'rgba(255,255,255,0.95)' }]}>
-                    <Navigation size={20} color={colors.buttonBackground} />
-                    <Text style={[styles.mapOverlayText, { color: colors.buttonBackground }]}>Open in Google Maps</Text>
-                  </View>
-                </View>
-              ) : (
-                <View style={[styles.mapPlaceholder, { backgroundColor: colors.cardBackground }]}>
-                  <MapPin size={32} color={colors.buttonBackground} />
-                  <Text style={[styles.mapPlaceholderText, { color: colors.text }]}>{farmhouse.location}</Text>
-                  <View style={styles.mapPlaceholderButton}>
-                    <Navigation size={16} color={colors.buttonBackground} />
-                    <Text style={[styles.mapPlaceholderButtonText, { color: colors.buttonBackground }]}>Open in Google Maps</Text>
-                  </View>
-                </View>
-              )}
-            </TouchableOpacity>
           </View>
 
           <View style={styles.section}>
@@ -952,11 +902,7 @@ const styles = StyleSheet.create({
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   rating: { fontSize: 16, fontWeight: '600' },
   reviews: { fontSize: 14 },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 },
-  location: { fontSize: 16 },
   ownerCard: { marginTop: 20, padding: 20, borderRadius: 16, borderWidth: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 5 },
-  ownerHeader: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 16 },
-  ownerAvatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
   contactMethodsContainer: { gap: 10, marginBottom: 12 },
   contactMethodButton: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 12 },
   contactMethodText: { fontSize: 15, fontWeight: '600', flex: 1 },
@@ -1006,15 +952,6 @@ const styles = StyleSheet.create({
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   summaryLabel: { fontSize: 16, fontWeight: 'bold' },
   totalValue: { fontSize: 20, fontWeight: 'bold' },
-  mapContainer: { borderRadius: 12, overflow: 'hidden', borderWidth: 1 },
-  mapWrapper: { position: 'relative' },
-  map: { width: '100%', height: 200 },
-  mapOverlay: { position: 'absolute', bottom: 16, left: '50%', transform: [{ translateX: -90 }], flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 25, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 },
-  mapOverlayText: { fontSize: 14, fontWeight: '600' },
-  mapPlaceholder: { height: 200, justifyContent: 'center', alignItems: 'center', gap: 12 },
-  mapPlaceholderText: { fontSize: 16, fontWeight: '600' },
-  mapPlaceholderButton: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
-  mapPlaceholderButtonText: { fontSize: 14, fontWeight: '600' },
   ruleText: { fontSize: 14, marginBottom: 8, lineHeight: 20 },
   loadingText: { fontSize: 14, textAlign: 'center', paddingVertical: 20 },
   noReviewsText: { fontSize: 14, textAlign: 'center', paddingVertical: 20 },

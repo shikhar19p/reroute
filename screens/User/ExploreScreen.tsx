@@ -16,6 +16,82 @@ import { getResponsivePadding, getResponsiveGap, isSmallDevice } from '../../uti
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 
+// Memoized Farmhouse Card Component for performance
+const FarmhouseCard = React.memo(({
+  item,
+  colors,
+  farmhouseRating,
+  isInWishlist,
+  onPress,
+  onShare,
+  onToggleWishlist
+}: {
+  item: FarmhouseType;
+  colors: any;
+  farmhouseRating: number | undefined;
+  isInWishlist: boolean;
+  onPress: () => void;
+  onShare: () => void;
+  onToggleWishlist: () => void;
+}) => (
+  <TouchableOpacity
+    style={[styles.propertyCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+    onPress={onPress}
+  >
+    <View style={styles.imageContainer}>
+      <Image
+        source={{ uri: item.photos?.[0] || 'https://via.placeholder.com/400x300' }}
+        style={styles.propertyImage}
+      />
+
+      <View style={styles.imageActions}>
+        <TouchableOpacity
+          onPress={onShare}
+          style={styles.actionButton}
+        >
+          <Share2 size={18} color="#666" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={onToggleWishlist}
+          style={styles.actionButton}
+        >
+          <Heart
+            size={18}
+            color={isInWishlist ? "#EF4444" : "#666"}
+            fill={isInWishlist ? "#EF4444" : "transparent"}
+          />
+        </TouchableOpacity>
+      </View>
+    </View>
+
+    <View style={styles.propertyDetails}>
+      <View style={styles.titleRow}>
+        <Text style={[styles.propertyTitle, { color: colors.text }]} numberOfLines={1}>
+          {item.name}
+        </Text>
+        <View style={styles.ratingContainer}>
+          <Text style={styles.star}>★</Text>
+          <Text style={[styles.rating, { color: colors.text }]}>
+            {farmhouseRating ? farmhouseRating.toFixed(1) : 'New'}
+          </Text>
+        </View>
+      </View>
+      <Text style={[styles.distance, { color: colors.placeholder }]} numberOfLines={1}>
+        {item.location}
+      </Text>
+      <View style={styles.priceCapacityRow}>
+        <Text style={[styles.price, { color: colors.buttonBackground }]}>
+          ₹{item.weekendNight}/night
+        </Text>
+        <Text style={[styles.capacity, { color: colors.placeholder }]}>
+          Up to {item.capacity} guests
+        </Text>
+      </View>
+    </View>
+  </TouchableOpacity>
+));
+
 export default function ExploreScreen({ navigation }: any) {
   const { user } = useAuth();
   const { colors, isDark } = useTheme();
@@ -160,64 +236,17 @@ export default function ExploreScreen({ navigation }: any) {
     return result;
   }, [searchText, filters, sortBy, farmhouses, farmhouseRatings]);
 
-  const renderFarmhouse = ({ item }: { item: FarmhouseType }) => (
-    <TouchableOpacity
-      style={[styles.propertyCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+  const renderFarmhouse = React.useCallback(({ item }: { item: FarmhouseType }) => (
+    <FarmhouseCard
+      item={item}
+      colors={colors}
+      farmhouseRating={farmhouseRatings[item.id]}
+      isInWishlist={isInWishlist(item.id)}
       onPress={() => navigation.navigate('FarmhouseDetail', { farmhouse: item })}
-    >
-      <View style={styles.imageContainer}>
-        <Image
-          source={{ uri: item.photos?.[0] || 'https://via.placeholder.com/400x300' }}
-          style={styles.propertyImage}
-        />
-
-        <View style={styles.imageActions}>
-          <TouchableOpacity
-            onPress={() => handleShare(item)}
-            style={styles.actionButton}
-          >
-            <Share2 size={18} color="#666" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => toggleWishlist(item)}
-            style={styles.actionButton}
-          >
-            <Heart
-              size={18}
-              color={isInWishlist(item.id) ? "#EF4444" : "#666"}
-              fill={isInWishlist(item.id) ? "#EF4444" : "transparent"}
-            />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <View style={styles.propertyDetails}>
-        <View style={styles.titleRow}>
-          <Text style={[styles.propertyTitle, { color: colors.text }]} numberOfLines={1}>
-            {item.name}
-          </Text>
-          <View style={styles.ratingContainer}>
-            <Text style={styles.star}>★</Text>
-            <Text style={[styles.rating, { color: colors.text }]}>
-              {farmhouseRatings[item.id] ? farmhouseRatings[item.id].toFixed(1) : 'New'}
-            </Text>
-          </View>
-        </View>
-        <Text style={[styles.distance, { color: colors.placeholder }]} numberOfLines={1}>
-          {item.location}
-        </Text>
-        <View style={styles.priceCapacityRow}>
-          <Text style={[styles.price, { color: colors.buttonBackground }]}>
-            ₹{item.weekendNight}/night
-          </Text>
-          <Text style={[styles.capacity, { color: colors.placeholder }]}>
-            Up to {item.capacity} guests
-          </Text>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
+      onShare={() => handleShare(item)}
+      onToggleWishlist={() => toggleWishlist(item)}
+    />
+  ), [colors, farmhouseRatings, isInWishlist, navigation]);
 
   if (error) {
     return (
@@ -285,6 +314,11 @@ export default function ExploreScreen({ navigation }: any) {
           showsVerticalScrollIndicator={false}
           onScroll={scrollHandler.onScroll}
           scrollEventThrottle={scrollHandler.scrollEventThrottle}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={true}
+          updateCellsBatchingPeriod={50}
+          initialNumToRender={5}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={[styles.emptyText, { color: colors.placeholder }]}>
@@ -297,9 +331,14 @@ export default function ExploreScreen({ navigation }: any) {
 
       {/* Sort Modal */}
       <Modal visible={showSortModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.cardBackground }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Sort By</Text>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowSortModal(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+            <View style={[styles.modalContent, { backgroundColor: colors.cardBackground }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Sort By</Text>
             {[
               { label: 'Name (A-Z)', value: 'name' },
               { label: 'Price: Low to High', value: 'price-low' },
@@ -327,79 +366,89 @@ export default function ExploreScreen({ navigation }: any) {
                 </Text>
               </TouchableOpacity>
             ))}
-            <TouchableOpacity
-              style={[styles.closeButton, { backgroundColor: colors.border }]}
-              onPress={() => setShowSortModal(false)}
-            >
-              <Text style={[styles.closeButtonText, { color: colors.text }]}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+              <TouchableOpacity
+                style={[styles.closeButton, { backgroundColor: colors.border }]}
+                onPress={() => setShowSortModal(false)}
+              >
+                <Text style={[styles.closeButtonText, { color: colors.text }]}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* Filter Modal */}
       <Modal visible={showFilterModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <ScrollView style={[styles.filterModalContent, { backgroundColor: colors.cardBackground }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Filters</Text>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowFilterModal(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+            <View style={[styles.filterModalContent, { backgroundColor: colors.cardBackground }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Filters</Text>
 
-            <Text style={[styles.filterLabel, { color: colors.text }]}>Location</Text>
-            <TextInput
-              style={[styles.filterInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
-              placeholder="e.g. Hyderabad"
-              placeholderTextColor={colors.placeholder}
-              value={filters.location}
-              onChangeText={(text) => setFilters({...filters, location: text})}
-            />
+              <ScrollView style={styles.filterScrollView} showsVerticalScrollIndicator={false}>
+                <Text style={[styles.filterLabel, { color: colors.text }]}>Location</Text>
+                <TextInput
+                  style={[styles.filterInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+                  placeholder="e.g. Hyderabad"
+                  placeholderTextColor={colors.placeholder}
+                  value={filters.location}
+                  onChangeText={(text) => setFilters({...filters, location: text})}
+                />
 
-            <Text style={[styles.filterLabel, { color: colors.text }]}>Price Range</Text>
-            <View style={styles.priceRow}>
-              <TextInput
-                style={[styles.filterInputHalf, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
-                placeholder="Min"
-                placeholderTextColor={colors.placeholder}
-                keyboardType="numeric"
-                value={filters.minPrice}
-                onChangeText={(text) => setFilters({...filters, minPrice: text.replace(/[^0-9]/g, '')})}
-              />
-              <TextInput
-                style={[styles.filterInputHalf, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
-                placeholder="Max"
-                placeholderTextColor={colors.placeholder}
-                keyboardType="numeric"
-                value={filters.maxPrice}
-                onChangeText={(text) => setFilters({...filters, maxPrice: text.replace(/[^0-9]/g, '')})}
-              />
+                <Text style={[styles.filterLabel, { color: colors.text }]}>Price Range</Text>
+                <View style={styles.priceRow}>
+                  <TextInput
+                    style={[styles.filterInputHalf, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+                    placeholder="Min"
+                    placeholderTextColor={colors.placeholder}
+                    keyboardType="numeric"
+                    value={filters.minPrice}
+                    onChangeText={(text) => setFilters({...filters, minPrice: text.replace(/[^0-9]/g, '')})}
+                  />
+                  <TextInput
+                    style={[styles.filterInputHalf, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+                    placeholder="Max"
+                    placeholderTextColor={colors.placeholder}
+                    keyboardType="numeric"
+                    value={filters.maxPrice}
+                    onChangeText={(text) => setFilters({...filters, maxPrice: text.replace(/[^0-9]/g, '')})}
+                  />
+                </View>
+
+                <Text style={[styles.filterLabel, { color: colors.text }]}>Minimum Capacity</Text>
+                <TextInput
+                  style={[styles.filterInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+                  placeholder="e.g. 15"
+                  placeholderTextColor={colors.placeholder}
+                  keyboardType="numeric"
+                  value={filters.minCapacity}
+                  onChangeText={(text) => setFilters({...filters, minCapacity: text.replace(/[^0-9]/g, '')})}
+                />
+              </ScrollView>
+
+              <View style={styles.filterButtons}>
+                <TouchableOpacity
+                  style={[styles.clearButton, { backgroundColor: colors.border }]}
+                  onPress={() => {
+                    setFilters({ location: '', minPrice: '', maxPrice: '', minCapacity: '' });
+                    setShowFilterModal(false);
+                  }}
+                >
+                  <Text style={[styles.filterButtonText, { color: colors.text }]}>Clear</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.applyButton, { backgroundColor: colors.buttonBackground }]}
+                  onPress={() => setShowFilterModal(false)}
+                >
+                  <Text style={[styles.filterButtonText, { color: colors.buttonText }]}>Apply</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-
-            <Text style={[styles.filterLabel, { color: colors.text }]}>Minimum Capacity</Text>
-            <TextInput
-              style={[styles.filterInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
-              placeholder="e.g. 15"
-              placeholderTextColor={colors.placeholder}
-              keyboardType="numeric"
-              value={filters.minCapacity}
-              onChangeText={(text) => setFilters({...filters, minCapacity: text.replace(/[^0-9]/g, '')})}
-            />
-
-            <View style={styles.filterButtons}>
-              <TouchableOpacity
-                style={[styles.clearButton, { backgroundColor: colors.border }]}
-                onPress={() => {
-                  setFilters({ location: '', minPrice: '', maxPrice: '', minCapacity: '' });
-                }}
-              >
-                <Text style={[styles.filterButtonText, { color: colors.text }]}>Clear</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.applyButton, { backgroundColor: colors.buttonBackground }]}
-                onPress={() => setShowFilterModal(false)}
-              >
-                <Text style={[styles.filterButtonText, { color: colors.buttonText }]}>Apply</Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </SafeAreaView>
   );
@@ -427,9 +476,9 @@ const styles = StyleSheet.create({
   },
   searchBar: {
     flex: 1,
+    height: isSmallDevice() ? 40 : 44,
     borderRadius: 8,
     paddingHorizontal: isSmallDevice() ? 8 : 12,
-    paddingVertical: isSmallDevice() ? 8 : 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: isSmallDevice() ? 6 : 10,
@@ -471,7 +520,8 @@ const styles = StyleSheet.create({
   loadingText: { marginTop: 12, fontSize: 16 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
-  filterModalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '80%' },
+  filterModalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '85%' },
+  filterScrollView: { flexGrow: 0, flexShrink: 1 },
   modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 20 },
   modalOption: { padding: 15, borderRadius: 8, marginBottom: 10 },
   modalOptionText: { fontSize: 16, fontWeight: '500' },
