@@ -7,7 +7,18 @@
       "Bash(taskkill:*)",
       "Bash(npx expo start --web)",
       "Bash(npx expo install expo-splash-screen)",
-      "Bash(npx expo install:*)"
+      "Bash(npx expo install:*)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Bash(test:*)",
+      "Bash(cat:*)",
+      "Bash(git check-ignore:*)",
+      "Bash(npm run ensure-firebase:*)",
+      "Bash(npm run android:release:*)",
+      "Bash(.gradlew.bat:*)",
+      "Bash(./gradlew.bat clean)",
+      "Bash(timeout:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []
