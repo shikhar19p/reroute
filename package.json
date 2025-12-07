@@ -4,10 +4,12 @@
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
-    "android": "expo run:android",
+    "android": "node scripts/ensure-google-services.js && expo run:android",
+    "android:release": "node scripts/ensure-google-services.js && cd android && .\\gradlew.bat assembleRelease",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "add-dummy-data": "npx tsx scripts/addDummyData.ts"
+    "add-dummy-data": "npx tsx scripts/addDummyData.ts",
+    "ensure-firebase": "node scripts/ensure-google-services.js"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
