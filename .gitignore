@@ -40,6 +40,10 @@ firebaseConfig-prod.ts
 *.firebase.json
 service-account-*.json
 
+# Keep google-services.json in root (it's needed for builds)
+# The /android folder is gitignored, but we keep the source file
+!google-services.json
+
 # typescript
 *.tsbuildinfo
 

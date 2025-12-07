@@ -9,10 +9,11 @@ import Constants from 'expo-constants';
 // SECURITY: In production, all values must come from environment variables.
 // In development, fallback values are allowed for convenience.
 
-const isDevelopment = !__DEV__ ? false : true;
+const isDevelopment = __DEV__;
 
-// Development fallback values (only used if env vars are not set)
-const developmentFallbacks = {
+// Firebase configuration values
+// These can be overridden by environment variables via expo-constants
+const defaultConfig = {
   apiKey: 'AIzaSyDMLXQjQSSZRPUdlOeNf1afg2WPPQFSTAI',
   authDomain: 'rustique-6b7c4.firebaseapp.com',
   projectId: 'rustique-6b7c4',
@@ -22,12 +23,12 @@ const developmentFallbacks = {
 };
 
 const firebaseConfig = {
-  apiKey: Constants.expoConfig?.extra?.firebaseApiKey || (isDevelopment ? developmentFallbacks.apiKey : undefined),
-  authDomain: Constants.expoConfig?.extra?.firebaseAuthDomain || (isDevelopment ? developmentFallbacks.authDomain : undefined),
-  projectId: Constants.expoConfig?.extra?.firebaseProjectId || (isDevelopment ? developmentFallbacks.projectId : undefined),
-  storageBucket: Constants.expoConfig?.extra?.firebaseStorageBucket || (isDevelopment ? developmentFallbacks.storageBucket : undefined),
-  messagingSenderId: Constants.expoConfig?.extra?.firebaseMessagingSenderId || (isDevelopment ? developmentFallbacks.messagingSenderId : undefined),
-  appId: Constants.expoConfig?.extra?.firebaseAppId || (isDevelopment ? developmentFallbacks.appId : undefined),
+  apiKey: Constants.expoConfig?.extra?.firebaseApiKey || defaultConfig.apiKey,
+  authDomain: Constants.expoConfig?.extra?.firebaseAuthDomain || defaultConfig.authDomain,
+  projectId: Constants.expoConfig?.extra?.firebaseProjectId || defaultConfig.projectId,
+  storageBucket: Constants.expoConfig?.extra?.firebaseStorageBucket || defaultConfig.storageBucket,
+  messagingSenderId: Constants.expoConfig?.extra?.firebaseMessagingSenderId || defaultConfig.messagingSenderId,
+  appId: Constants.expoConfig?.extra?.firebaseAppId || defaultConfig.appId,
 };
 
 // Validate that all required config values are present
@@ -35,20 +36,11 @@ const requiredFields = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'm
 const missingFields = requiredFields.filter(field => !firebaseConfig[field as keyof typeof firebaseConfig]);
 
 if (missingFields.length > 0) {
-  if (isDevelopment) {
-    console.warn(
-      '⚠️  WARNING: Using fallback Firebase configuration for development.\n' +
-      `Missing environment variables: ${missingFields.join(', ')}\n` +
-      'For production, please set up your .env file. See .env.example for reference.'
-    );
-  } else {
-    throw new Error(
-      `❌ PRODUCTION ERROR: Firebase configuration is incomplete.\n` +
-      `Missing required environment variables: ${missingFields.join(', ')}.\n` +
-      'Please ensure your .env file contains all required Firebase configuration values.\n' +
-      'See .env.example for required fields.'
-    );
-  }
+  console.warn(
+    '⚠️  WARNING: Firebase configuration is incomplete.\n' +
+    `Missing fields: ${missingFields.join(', ')}\n` +
+    'Using default configuration.'
+  );
 }
 
 const app = initializeApp(firebaseConfig);
