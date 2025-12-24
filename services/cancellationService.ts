@@ -150,10 +150,44 @@ export async function cancelBookingWithRefund(
 
     // Process refund if applicable
     if (refundCalc.refundAmount > 0 && booking.paymentStatus === 'paid') {
-      // Note: In production, this should trigger a backend function to process actual refund
-      // For now, we'll just update the payment status
-      // await processRefund(paymentId, razorpayPaymentId, refundCalc.refundAmount);
-      console.log(`💰 Refund of ₹${refundCalc.refundAmount} will be processed`);
+      try {
+        // Process refund via Razorpay Cloud Function
+        if (booking.transactionId) {
+          console.log(`💰 Processing refund of ₹${refundCalc.refundAmount} via Razorpay...`);
+
+          const refundResult = await processRefund(
+            booking.transactionId, // Razorpay payment ID
+            refundCalc.refundAmount, // Refund amount in rupees
+            bookingId,
+            reason || 'Booking cancellation'
+          );
+
+          console.log('✅ Refund processed successfully:', refundResult.refundId);
+
+          // Update booking with refund details
+          await updateDoc(bookingRef, {
+            refundStatus: refundResult.status === 'processed' ? 'completed' : 'processing',
+            refundDate: serverTimestamp(),
+          });
+        } else {
+          console.warn('⚠️ No transaction ID found for booking, skipping refund processing');
+          // Update refund status to manual review
+          await updateDoc(bookingRef, {
+            refundStatus: 'pending',
+            refundNote: 'Manual refund processing required - no transaction ID',
+          });
+        }
+      } catch (refundError: any) {
+        console.error('❌ Error processing refund:', refundError);
+        // Update booking with refund error
+        await updateDoc(bookingRef, {
+          refundStatus: 'failed',
+          refundError: refundError.message || 'Refund processing failed',
+        });
+        // Don't throw - booking is already cancelled, refund can be processed manually
+      }
+    } else if (refundCalc.refundAmount > 0) {
+      console.log(`ℹ️ Refund applicable (₹${refundCalc.refundAmount}) but payment not completed`);
     }
 
     // Send cancellation notification

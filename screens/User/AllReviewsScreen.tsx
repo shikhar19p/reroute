@@ -58,13 +58,19 @@ export default function AllReviewsScreen({ route, navigation }: Props) {
         ...doc.data()
       } as Review));
       setReviews(fetchedReviews);
-    } catch (error) {
-      console.error('Error fetching reviews:', error);
-      showDialog({
-        title: 'Error',
-        message: 'Could not load reviews',
-        type: 'error'
-      });
+    } catch (error: any) {
+      // Only show error dialog if it's not a permission issue
+      if (!error?.message?.includes('Missing or insufficient permissions')) {
+        console.error('Error fetching reviews:', error);
+        showDialog({
+          title: 'Error',
+          message: 'Could not load reviews',
+          type: 'error'
+        });
+      } else {
+        // Silently skip reviews if permissions not set up yet
+        console.log('Reviews not available - permissions not configured');
+      }
     } finally {
       setLoading(false);
     }

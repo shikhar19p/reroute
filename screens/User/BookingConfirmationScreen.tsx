@@ -14,6 +14,7 @@ import { useDialog } from '../../components/CustomDialog';
 import { useScrollHandler } from '../../context/TabBarVisibilityContext';
 import { useCoupons, useGlobalData } from '../../GlobalDataContext';
 import { createBooking } from '../../services/bookingService';
+import { completePaymentFlow, savePaymentRecord } from '../../services/paymentService';
 
 const { width } = Dimensions.get('window');
 
@@ -162,30 +163,59 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
     }
 
     setLoading(true);
+    let bookingId: string | null = null;
+    let paymentId: string | null = null;
+
     try {
+      // Step 1: Create booking with pending status
       const bookingData = {
-        farmhouseId, 
+        farmhouseId,
         farmhouseName: farmhouseDetails?.name || farmhouseName,
-        userId: user.uid, 
+        userId: user.uid,
         userEmail: user.email || '',
-        userName: userProfile.name, 
+        userName: userProfile.name,
         userPhone: userProfile.phone,
-        checkInDate: startDate, 
+        checkInDate: startDate,
         checkOutDate: endDate,
-        guests: guestCount, 
-        totalPrice: finalPrice, 
+        guests: guestCount,
+        totalPrice: finalPrice,
         originalPrice: totalPrice,
-        discountApplied: discountAmount, 
+        discountApplied: discountAmount,
         couponCode: appliedCoupon?.code || null,
         bookingType: bookingType === 'day-use' ? 'dayuse' : 'overnight' as 'dayuse' | 'overnight',
-        status: 'confirmed' as 'confirmed', 
-        paymentStatus: 'paid' as 'paid',
+        status: 'pending' as 'pending',
+        paymentStatus: 'pending' as 'pending',
       };
-      
-      const bookingId = await createBooking(bookingData);
-      
-      // createBooking already handles adding dates to farmhouse bookedDates
 
+      bookingId = await createBooking(bookingData);
+      console.log('✅ Booking created with ID:', bookingId);
+
+      // Step 2: Process payment via Razorpay
+      showToast('Opening payment gateway...', 'info');
+
+      const paymentResponse = await completePaymentFlow(
+        finalPrice, // amount in rupees
+        'INR',
+        bookingId,
+        user.uid,
+        userProfile.name,
+        userProfile.email,
+        userProfile.phone,
+        `Booking for ${farmhouseDetails?.name || farmhouseName}`
+      );
+
+      console.log('✅ Payment successful:', paymentResponse);
+
+      // Step 3: Save payment record to Firestore
+      paymentId = await savePaymentRecord(
+        bookingId,
+        user.uid,
+        finalPrice * 100, // amount in paise
+        'INR',
+        paymentResponse
+      );
+
+      // Step 4: Update coupon usage and user stats
       if (appliedCoupon) {
         const couponRef = doc(db, 'coupons', appliedCoupon.id);
         await updateDoc(couponRef, {
@@ -201,7 +231,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
       setLoading(false);
       showDialog({
         title: 'Booking Confirmed! 🎉',
-        message: `Your booking for ${farmhouseDetails?.name || farmhouseName} is confirmed.`,
+        message: `Your payment of ₹${finalPrice} was successful. Your booking for ${farmhouseDetails?.name || farmhouseName} is confirmed.`,
         type: 'success',
         buttons: [{
           text: 'View Details',
@@ -210,17 +240,90 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
             booking: {
               ...bookingData,
               id: bookingId,
+              status: 'confirmed',
+              paymentStatus: 'paid',
+              transactionId: paymentResponse.razorpay_payment_id,
               createdAt: new Date().toISOString()
             }
           })
         }]
       });
-    } catch (error) {
+    } catch (error: any) {
       setLoading(false);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to create booking';
 
-      // Show user-friendly error messages
-      if (errorMessage.includes('Validation failed')) {
+      // Parse error message from various formats
+      let errorMessage = 'Failed to create booking';
+
+      // Handle Razorpay payment errors (comes as JSON string)
+      if (error?.description) {
+        try {
+          const parsedError = typeof error.description === 'string'
+            ? JSON.parse(error.description)
+            : error.description;
+
+          if (parsedError?.error) {
+            const razorpayError = parsedError.error;
+            // Map Razorpay error codes to user-friendly messages
+            switch (razorpayError.code) {
+              case 'BAD_REQUEST_ERROR':
+                if (razorpayError.reason === 'payment_error') {
+                  errorMessage = 'Payment failed. Please check your payment details and try again.';
+                } else {
+                  errorMessage = razorpayError.description || 'Invalid payment request. Please try again.';
+                }
+                break;
+              case 'GATEWAY_ERROR':
+                errorMessage = 'Payment gateway error. Please try again in a few moments.';
+                break;
+              case 'SERVER_ERROR':
+                errorMessage = 'Payment server error. Please try again later.';
+                break;
+              default:
+                errorMessage = razorpayError.description || 'Payment failed. Please try again.';
+            }
+          }
+        } catch (parseErr) {
+          // If parsing fails, use the original error
+          errorMessage = error.description;
+        }
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+
+      console.error('❌ Booking/Payment error:', error);
+
+      // Handle different error scenarios
+      if (errorMessage.includes('Payment was cancelled') || errorMessage.includes('cancelled')) {
+        // Payment cancelled by user - booking remains pending
+        showDialog({
+          title: 'Payment Cancelled',
+          message: 'You cancelled the payment. Your booking is saved as pending. You can try paying again from your bookings.',
+          type: 'warning',
+          buttons: [{
+            text: 'Go to Bookings',
+            style: 'default',
+            onPress: () => navigation.navigate('Bookings')
+          }, {
+            text: 'Try Again',
+            style: 'cancel',
+            onPress: () => {}
+          }]
+        });
+      } else if (errorMessage.includes('Payment verification failed')) {
+        // Payment might have succeeded but verification failed
+        showDialog({
+          title: 'Payment Verification Issue',
+          message: 'Your payment may have been processed, but we need to verify it. Please check your bookings or contact support.',
+          type: 'warning',
+          buttons: [{
+            text: 'Contact Support',
+            style: 'default',
+            onPress: () => {} // Add support navigation
+          }]
+        });
+      } else if (errorMessage.includes('Validation failed')) {
         showDialog({
           title: 'Booking Error',
           message: errorMessage.replace('Validation failed: ', ''),
@@ -234,9 +337,14 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
         });
       } else {
         showDialog({
-          title: 'Booking Failed',
-          message: 'Unable to complete booking. Please try again.',
-          type: 'error'
+          title: 'Payment Failed',
+          message: errorMessage,
+          type: 'error',
+          buttons: [{
+            text: 'Try Again',
+            style: 'default',
+            onPress: () => {}
+          }]
         });
       }
     }

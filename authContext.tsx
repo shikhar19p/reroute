@@ -20,39 +20,64 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    console.log('🔐 AuthProvider: Starting initialization...');
+    let mounted = true;
+
+    // Set a timeout to ensure we don't hang forever
+    const loadingTimeout = setTimeout(() => {
+      if (mounted && loading) {
+        console.warn('⚠️ Auth initialization timeout - proceeding anyway');
+        setLoading(false);
+      }
+    }, 3000); // 3 second timeout
+
     // Try to restore session on app start
     loadSession()
       .then((session) => {
-        if (session) {
+        if (session && mounted) {
+          console.log('✅ Restored session from storage:', session.email);
           setUser(session);
         }
       })
       .catch((err) => {
-        console.error('Failed to restore session:', err);
+        console.error('❌ Failed to restore session:', err);
       });
 
     // Listen to Firebase auth state changes
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       try {
+        console.log('🔄 Auth state changed:', firebaseUser ? firebaseUser.email : 'signed out');
         if (firebaseUser) {
           await handleUserSignIn(firebaseUser);
         } else {
           // User signed out
           await clearSession();
-          setUser(null);
-          setError(null);
+          if (mounted) {
+            setUser(null);
+            setError(null);
+          }
         }
       } catch (err: any) {
-        console.error('Auth state change error:', err);
-        setError(err.message);
-        await clearSession();
-        setUser(null);
+        console.error('❌ Auth state change error:', err);
+        if (mounted) {
+          setError(err.message);
+          await clearSession();
+          setUser(null);
+        }
       } finally {
-        setLoading(false);
+        clearTimeout(loadingTimeout);
+        if (mounted) {
+          console.log('✅ Auth initialization complete');
+          setLoading(false);
+        }
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      mounted = false;
+      clearTimeout(loadingTimeout);
+      unsubscribe();
+    };
   }, []);
 
   const handleUserSignIn = async (firebaseUser: User) => {

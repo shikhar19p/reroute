@@ -50,3 +50,5 @@ service-account-*.json
 # generated native folders
 /ios
 /android
+
+nul

@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "main": "index.ts",
   "scripts": {
-    "start": "expo start",
-    "android": "node scripts/ensure-google-services.js && expo run:android",
+    "start": "npx expo start",
+    "android": "node scripts/ensure-google-services.js && npx expo run:android",
     "android:release": "node scripts/ensure-google-services.js && cd android && .\\gradlew.bat assembleRelease",
-    "ios": "expo run:ios",
-    "web": "expo start --web",
+    "ios": "npx expo run:ios",
+    "web": "npx expo start --web",
     "add-dummy-data": "npx tsx scripts/addDummyData.ts",
     "ensure-firebase": "node scripts/ensure-google-services.js"
   },
