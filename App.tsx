@@ -164,7 +164,16 @@ function AppNavigator() {
 
   console.log('📄 AppNavigator render - loading:', loading, 'user:', user?.email, 'role:', user?.role);
 
-  // Don't show loading screen - let app load silently
+  // Show loading screen while Firebase initializes
+  if (loading) {
+    console.log('⏳ Showing loading screen...');
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="rgb(244, 173, 50)" />
+        <Text style={styles.loadingText}>Initializing...</Text>
+      </View>
+    );
+  }
 
   // Determine initial route based on user role
   const getInitialRoute = () => {
@@ -381,44 +390,67 @@ export default function App() {
 
   // Keep native splash visible until custom splash is ready
   React.useEffect(() => {
+    console.log('🚀 App component mounted');
     // Set app ready immediately - custom splash will render
     setAppReady(true);
   }, []);
 
   // Hide native splash only after custom splash renders
   const onCustomSplashReady = useCallback(async () => {
+    console.log('✅ Custom splash ready, hiding native splash');
     try {
       await SplashScreen.hideAsync();
     } catch (e) {
-      // Ignore errors
+      console.error('❌ Error hiding splash:', e);
     }
   }, []);
 
-  // Register for push notifications on app start
+  // Register for push notifications on app start - but don't block
   // Note: FCM (Firebase Cloud Messaging) credentials must be configured for production
   // See: https://docs.expo.dev/push-notifications/fcm-credentials/
   // For development, push notifications will gracefully fail if FCM is not set up
   useEffect(() => {
-    registerForPushNotifications().then((token) => {
-      if (token) {
-        console.log('✅ Push notification token:', token);
-        // TODO: Save token to user profile in Firestore
-      }
-    });
+    // Run in background without blocking
+    setTimeout(() => {
+      registerForPushNotifications().then((token) => {
+        if (token) {
+          console.log('✅ Push notification token:', token);
+          // TODO: Save token to user profile in Firestore
+        }
+      }).catch(err => {
+        console.log('⚠️ Push notifications not available:', err.message);
+      });
+    }, 5000); // Delay by 5 seconds to not block startup
+  }, []);
+
+  // DEV MODE: Skip splash for faster development
+  const SKIP_SPLASH = __DEV__ && false; // Change to true to skip splash
+
+  React.useEffect(() => {
+    if (SKIP_SPLASH) {
+      console.log('⚡ DEV MODE: Skipping splash screen');
+      SplashScreen.hideAsync().catch(() => {});
+      setShowApp(true);
+    }
   }, []);
 
   // Show custom splash (native splash still visible until onReady called)
-  if (!showApp) {
+  if (!showApp && !SKIP_SPLASH) {
     return (
       <View style={{ flex: 1, backgroundColor: 'rgb(249, 248, 239)' }}>
         <AnimatedSplashScreen
           message="Loading..."
           onReady={onCustomSplashReady}
-          onAnimationComplete={() => setShowApp(true)}
+          onAnimationComplete={() => {
+            console.log('✅ Splash animation complete, showing app');
+            setShowApp(true);
+          }}
         />
       </View>
     );
   }
+
+  console.log('🎨 Rendering main app');
 
   // Show app only after splash completes
   return (

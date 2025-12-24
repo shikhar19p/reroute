@@ -40,6 +40,7 @@ export default ({ config }) => ({
       firebaseMessagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
       firebaseAppId: process.env.FIREBASE_APP_ID,
       googleWebClientId: process.env.GOOGLE_WEB_CLIENT_ID,
+      razorpayKeyId: process.env.RAZORPAY_KEY_ID,
       environment: process.env.ENVIRONMENT || 'development'
     }
   }

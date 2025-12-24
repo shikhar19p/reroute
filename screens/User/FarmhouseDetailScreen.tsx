@@ -101,8 +101,11 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
         setLoadingReviews(false);
         setRefreshing(false);
       },
-      (error) => {
-        console.error('Error fetching reviews:', error);
+      (error: any) => {
+        // Silently handle permission errors - app continues to function without reviews
+        if (!error?.message?.includes('Missing or insufficient permissions')) {
+          console.error('Error fetching reviews:', error);
+        }
         setLoadingReviews(false);
         setRefreshing(false);
       }

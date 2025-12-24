@@ -18,7 +18,11 @@
       "Bash(.gradlew.bat:*)",
       "Bash(./gradlew.bat clean)",
       "Bash(timeout:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(firebase deploy:*)",
+      "Bash(adb logcat:*)",
+      "Bash(Select-Object -Last 50)",
+      "Bash(keytool -list -v -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android:*)"
     ],
     "deny": [],
     "ask": []

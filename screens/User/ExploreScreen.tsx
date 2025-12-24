@@ -132,8 +132,11 @@ export default function ExploreScreen({ navigation }: any) {
             });
             ratingsMap[farmhouse.id] = totalRating / reviewsSnapshot.size;
           }
-        } catch (error) {
-          console.error(`Error fetching ratings for ${farmhouse.id}:`, error);
+        } catch (error: any) {
+          // Silently handle permission errors - app continues to function without ratings
+          if (!error?.message?.includes('Missing or insufficient permissions')) {
+            console.error(`Error fetching ratings for ${farmhouse.id}:`, error);
+          }
         }
       }
       
