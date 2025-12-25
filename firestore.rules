@@ -65,9 +65,11 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isAuthenticated() || isAdmin();
       allow create: if isAuthenticated();
-      allow update: if isOwner(userId)
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'createdAt', 'email'])
-        || isAdmin();
+      allow update: if (isOwner(userId) && (
+        // Allow updates to role and roles fields (for multi-role support)
+        // Prevent updates to critical fields: createdAt, email, uid
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['createdAt', 'email', 'uid'])
+      )) || isAdmin();
       allow delete: if isAdmin();
     }
 
@@ -106,7 +108,13 @@ service cloud.firestore {
         || isAdmin()
       );
 
-      allow delete: if isAdmin();
+      // Allow users to delete their own pending bookings (for cleanup)
+      allow delete: if isAuthenticated() && (
+        ((resource.data.userId == request.auth.uid || resource.data.user_id == request.auth.uid)
+         && resource.data.status == 'pending'
+         && (resource.data.paymentStatus == 'pending' || resource.data.payment_status == 'pending'))
+        || isAdmin()
+      );
     }
 
     // ========== Reviews Collection ==========

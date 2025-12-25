@@ -35,6 +35,13 @@ export default function LoginWithRoleScreen({ navigation }: any) {
 
     GoogleSignin.configure({
       webClientId,
+      // Force account selection every time
+      forceCodeForRefreshToken: true,
+    });
+
+    // Clear cached Google account when screen loads to force account selection
+    GoogleSignin.signOut().catch(() => {
+      // Ignore errors if not signed in
     });
   }, []);
 
@@ -55,14 +62,6 @@ export default function LoginWithRoleScreen({ navigation }: any) {
 
       console.log('🔐 Starting Google Sign-In...');
 
-      // Clear any existing session
-      try {
-        await GoogleSignin.signOut();
-        console.log('📤 Signed out to get fresh token');
-      } catch (e) {
-        // Ignore if not signed in
-      }
-
       await GoogleSignin.hasPlayServices();
       const response = await GoogleSignin.signIn();
 
@@ -80,9 +79,8 @@ export default function LoginWithRoleScreen({ navigation }: any) {
 
       setLoading(false);
 
-      // Navigate to role selection screen (already authenticated)
-      // The AuthContext will handle the user state
-      console.log('🚀 Navigating to role selection...');
+      // The AuthContext will handle the user state and navigation
+      console.log('✅ Authentication complete, waiting for navigation...');
     } catch (err: any) {
       console.error('❌ Google Sign-In Error:', err);
       if (err.code === 'auth/invalid-credential') {

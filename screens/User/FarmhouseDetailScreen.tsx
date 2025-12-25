@@ -4,7 +4,7 @@ import {
   Dimensions, Linking, Share, TextInput, FlatList, RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Heart, MapPin, Users, Home, Star, Clock, Share2, Phone } from 'lucide-react-native';
+import { ArrowLeft, Heart, MapPin, Users, Home, Star, Clock, Share2 } from 'lucide-react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
@@ -273,8 +273,9 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     return list;
   }, [farmhouse.rules]);
 
-  const contactPhone1 = farmhouse.contactPhone1 || farmhouse.basicDetails?.contactPhone1;
-  const contactPhone2 = farmhouse.contactPhone2 || farmhouse.basicDetails?.contactPhone2;
+  // Contact details are now shown only in booking details after payment
+  // const contactPhone1 = farmhouse.contactPhone1 || farmhouse.basicDetails?.contactPhone1;
+  // const contactPhone2 = farmhouse.contactPhone2 || farmhouse.basicDetails?.contactPhone2;
 
   const updateGuestCount = (value: string) => {
     const numValue = parseInt(value) || 0;
@@ -327,9 +328,10 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const handleCall = (phoneNumber: string) => {
-    Linking.openURL(`tel:${phoneNumber}`);
-  };
+  // Contact functionality moved to booking details screen
+  // const handleCall = (phoneNumber: string) => {
+  //   Linking.openURL(`tel:${phoneNumber}`);
+  // };
 
   const getMinimumDate = () => {
     const now = new Date();
@@ -652,36 +654,8 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
             </View>
           </View>
 
-          {/* Owner Contact Information Card */}
-          {(contactPhone1 || contactPhone2) && (
-            <View style={[styles.ownerCard, { backgroundColor: colors.cardBackground, borderColor: colors.buttonBackground }]}>
-              <View style={styles.contactMethodsContainer}>
-                {contactPhone1 && (
-                  <TouchableOpacity 
-                    style={[styles.contactMethodButton, { backgroundColor: colors.buttonBackground }]} 
-                    onPress={() => handleCall(contactPhone1)}
-                  >
-                    <Phone size={18} color={colors.buttonText} />
-                    <Text style={[styles.contactMethodText, { color: colors.buttonText }]}>{contactPhone1}</Text>
-                  </TouchableOpacity>
-                )}
-                
-                {contactPhone2 && (
-                  <TouchableOpacity 
-                    style={[styles.contactMethodButton, { backgroundColor: colors.buttonBackground }]} 
-                    onPress={() => handleCall(contactPhone2)}
-                  >
-                    <Phone size={18} color={colors.buttonText} />
-                    <Text style={[styles.contactMethodText, { color: colors.buttonText }]}>{contactPhone2}</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              <Text style={[styles.contactNote, { color: colors.placeholder }]}>
-                💡 Contact the owner directly for inquiries or special requests
-              </Text>
-            </View>
-          )}
+          {/* Owner Contact Information - Hidden until booking is confirmed */}
+          {/* Contact details will be visible in booking details after payment */}
 
           <View style={styles.quickInfo}>
             <View style={[styles.infoCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>

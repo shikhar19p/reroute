@@ -292,16 +292,130 @@ export async function updateRefundStatus(
       refund_status: refundStatus,
       updatedAt: serverTimestamp(),
     };
-    
+
     if (refundDate) {
       updateData.refundDate = refundDate;
       updateData.refund_date = refundDate;
     }
-    
+
     await updateDoc(bookingRef, updateData);
     console.log('Refund status updated:', bookingId, refundStatus);
   } catch (error) {
     console.error('Error updating refund status:', error);
     throw error;
+  }
+}
+
+/**
+ * Cleanup abandoned pending bookings for a specific user (older than specified minutes)
+ * Returns the number of bookings cleaned up
+ */
+export async function cleanupAbandonedBookings(
+  userId: string,
+  maxAgeMinutes: number = 2
+): Promise<number> {
+  try {
+    if (!userId) {
+      console.log('⚠️ No userId provided for cleanup, skipping');
+      return 0;
+    }
+
+    const cutoffTime = new Date();
+    cutoffTime.setMinutes(cutoffTime.getMinutes() - maxAgeMinutes);
+
+    // Query for user's pending bookings only
+    const q = query(
+      collection(db, 'bookings'),
+      where('userId', '==', userId),
+      where('status', '==', 'pending'),
+      where('paymentStatus', '==', 'pending')
+    );
+
+    const snapshot = await getDocs(q);
+    let cleanedCount = 0;
+
+    for (const bookingDoc of snapshot.docs) {
+      const booking = { id: bookingDoc.id, ...bookingDoc.data() } as Booking;
+
+      // Check if booking is older than cutoff time
+      const createdAt = booking.createdAt?.toDate?.() || new Date(0);
+
+      if (createdAt < cutoffTime) {
+        console.log(`🧹 Cleaning up abandoned booking ${booking.id} created at ${createdAt}`);
+
+        // Remove dates from farmhouse
+        if (booking.farmhouseId && booking.checkInDate && booking.checkOutDate) {
+          try {
+            await removeBookedDatesFromFarmhouse(
+              booking.farmhouseId,
+              booking.checkInDate,
+              booking.checkOutDate
+            );
+          } catch (dateError) {
+            console.error('Warning: Failed to remove dates during cleanup:', dateError);
+          }
+        }
+
+        // Delete the booking document
+        await deleteDoc(doc(db, 'bookings', booking.id));
+        cleanedCount++;
+      }
+    }
+
+    if (cleanedCount > 0) {
+      console.log(`✅ Cleaned up ${cleanedCount} abandoned booking(s) for user ${userId}`);
+    }
+
+    return cleanedCount;
+  } catch (error) {
+    console.error('❌ Error cleaning up abandoned bookings:', error);
+    return 0;
+  }
+}
+
+/**
+ * Cleanup a specific booking if it's still pending
+ * Used when user cancels payment or navigates away
+ */
+export async function cleanupPendingBooking(bookingId: string): Promise<boolean> {
+  try {
+    const bookingRef = doc(db, 'bookings', bookingId);
+    const bookingSnap = await getDoc(bookingRef);
+
+    if (!bookingSnap.exists()) {
+      console.log('Booking not found, already cleaned up');
+      return true;
+    }
+
+    const booking = { id: bookingSnap.id, ...bookingSnap.data() } as Booking;
+
+    // Only cleanup if still pending
+    if (booking.status === 'pending' && booking.paymentStatus === 'pending') {
+      console.log(`🧹 Cleaning up pending booking ${bookingId}`);
+
+      // Remove dates from farmhouse
+      if (booking.farmhouseId && booking.checkInDate && booking.checkOutDate) {
+        try {
+          await removeBookedDatesFromFarmhouse(
+            booking.farmhouseId,
+            booking.checkInDate,
+            booking.checkOutDate
+          );
+        } catch (dateError) {
+          console.error('Warning: Failed to remove dates during cleanup:', dateError);
+        }
+      }
+
+      // Delete the booking
+      await deleteDoc(bookingRef);
+      console.log('✅ Pending booking cleaned up successfully');
+      return true;
+    } else {
+      console.log('Booking is no longer pending, skipping cleanup');
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ Error cleaning up pending booking:', error);
+    return false;
   }
 }

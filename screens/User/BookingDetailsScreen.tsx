@@ -34,6 +34,13 @@ interface Booking {
   userName: string;
   userPhone: string;
   couponCode?: string | null;
+  transactionId?: string;
+  refundAmount?: number;
+  refundPercentage?: number;
+  refundStatus?: string;
+  refundDate?: any;
+  cancellationReason?: string;
+  cancelledAt?: any;
 }
 
 interface Farmhouse {
@@ -145,7 +152,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
       }
 
       const rawBookingData = bookingSnap.data();
-      const bookingData = { 
+      const bookingData = {
         id: bookingSnap.id,
         bookingType: rawBookingData?.bookingType || 'overnight',
         checkInDate: rawBookingData?.checkInDate || '',
@@ -163,6 +170,13 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
         userName: rawBookingData?.userName || '',
         userPhone: rawBookingData?.userPhone || '',
         couponCode: rawBookingData?.couponCode || null,
+        transactionId: rawBookingData?.transactionId || null,
+        refundAmount: rawBookingData?.refundAmount ? Number(rawBookingData.refundAmount) : undefined,
+        refundPercentage: rawBookingData?.refundPercentage ? Number(rawBookingData.refundPercentage) : undefined,
+        refundStatus: rawBookingData?.refundStatus || undefined,
+        refundDate: rawBookingData?.refundDate || undefined,
+        cancellationReason: rawBookingData?.cancellationReason || undefined,
+        cancelledAt: rawBookingData?.cancelledAt || undefined,
       } as Booking;
       
       setBooking(bookingData);
@@ -555,12 +569,16 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
           )}
         </View>
 
-        {(farmhouse.contactPhone1 || farmhouse.contactPhone2) && (
+        {/* Only show owner contact if payment is completed */}
+        {booking.paymentStatus === 'paid' && (farmhouse.contactPhone1 || farmhouse.contactPhone2) && (
           <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Owner Contact</Text>
-            
+            <Text style={[styles.contactNote, { color: colors.placeholder }]}>
+              Contact owner for any further assistance regarding your stay 
+            </Text>
+
             {farmhouse.contactPhone1 && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.contactButton, { backgroundColor: colors.background }]}
                 onPress={() => callOwner(farmhouse.contactPhone1)}
               >
@@ -572,7 +590,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
             )}
 
             {farmhouse.contactPhone2 && farmhouse.contactPhone2.trim() !== '' && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.contactButton, { backgroundColor: colors.background }]}
                 onPress={() => callOwner(farmhouse.contactPhone2)}
               >
@@ -626,7 +644,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
 
         <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Payment Summary</Text>
-          
+
           <View style={styles.infoRow}>
             <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Base Price</Text>
             <Text style={[styles.infoValue, { color: colors.text }]}>
@@ -655,13 +673,131 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
             </Text>
           </View>
 
-          <View style={[styles.paidBadge, { backgroundColor: '#10B981' }]}>
+          {booking.transactionId && (
+            <View style={[styles.infoRow, { marginTop: 8 }]}>
+              <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Transaction ID</Text>
+              <Text style={[styles.transactionId, { color: colors.text }]} numberOfLines={1}>
+                {booking.transactionId}
+              </Text>
+            </View>
+          )}
+
+          <View style={[styles.paidBadge, { backgroundColor: booking.paymentStatus === 'paid' ? '#10B981' : '#F59E0B' }]}>
             <CheckCircle size={16} color="white" />
             <Text style={styles.paidText}>
               Payment {(booking.paymentStatus || 'pending').toUpperCase()}
             </Text>
           </View>
         </View>
+
+        {/* Show refund details for cancelled bookings */}
+        {booking.status === 'cancelled' && (
+          <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+            <View style={[styles.cancelledHeader, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEE2E2' }]}>
+              <AlertCircle size={20} color="#EF4444" />
+              <Text style={[styles.cancelledTitle, { color: '#EF4444' }]}>Booking Cancelled</Text>
+            </View>
+
+            {booking.cancelledAt && (
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Cancelled On</Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {formatTimestamp(booking.cancelledAt)}
+                </Text>
+              </View>
+            )}
+
+            {booking.cancellationReason && (
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Reason</Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {booking.cancellationReason}
+                </Text>
+              </View>
+            )}
+
+            {booking.refundAmount !== undefined && booking.refundAmount > 0 && (
+              <>
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+                <Text style={[styles.subsectionTitle, { color: colors.text }]}>Refund Information</Text>
+
+                <View style={styles.infoRow}>
+                  <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Refund Amount</Text>
+                  <Text style={[styles.refundAmount, { color: '#10B981' }]}>
+                    ₹{Number(booking.refundAmount).toLocaleString('en-IN')}
+                  </Text>
+                </View>
+
+                {booking.refundPercentage !== undefined && (
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Refund Percentage</Text>
+                    <Text style={[styles.infoValue, { color: colors.text }]}>
+                      {booking.refundPercentage}%
+                    </Text>
+                  </View>
+                )}
+
+                <View style={styles.infoRow}>
+                  <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Refund Status</Text>
+                  <View style={[styles.refundStatusBadge, {
+                    backgroundColor: booking.refundStatus === 'completed' ? '#10B981' :
+                                   booking.refundStatus === 'processing' ? '#F59E0B' :
+                                   booking.refundStatus === 'failed' ? '#EF4444' : '#6B7280'
+                  }]}>
+                    <Text style={styles.refundStatusText}>
+                      {(booking.refundStatus || 'Pending').toUpperCase()}
+                    </Text>
+                  </View>
+                </View>
+
+                {booking.refundDate && (
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Refund Date</Text>
+                    <Text style={[styles.infoValue, { color: colors.text }]}>
+                      {formatTimestamp(booking.refundDate)}
+                    </Text>
+                  </View>
+                )}
+
+                {booking.transactionId && (
+                  <View style={[styles.infoRow, { marginTop: 12 }]}>
+                    <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Original Transaction ID</Text>
+                    <Text style={[styles.transactionId, { color: colors.text }]} numberOfLines={1}>
+                      {booking.transactionId}
+                    </Text>
+                  </View>
+                )}
+
+                <View style={[styles.refundNote, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF', borderColor: '#3B82F6' }]}>
+                  <AlertCircle size={16} color="#3B82F6" />
+                  <Text style={[styles.refundNoteText, { color: colors.text }]}>
+                    {booking.refundStatus === 'completed'
+                      ? 'Refund has been processed to your original payment method.'
+                      : booking.refundStatus === 'processing'
+                      ? 'Refund is being processed and will reflect in 5-7 business days.'
+                      : booking.refundStatus === 'failed'
+                      ? 'Refund processing failed. Please contact support with your transaction ID.'
+                      : 'Refund will be processed within 24 hours to your original payment method.'
+                    }
+                  </Text>
+                </View>
+
+                <Text style={[styles.supportText, { color: colors.placeholder }]}>
+                  For refund queries, please contact support with your Booking ID and Transaction ID
+                </Text>
+              </>
+            )}
+
+            {booking.refundAmount === 0 && (
+              <View style={[styles.infoBox, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEE2E2', borderColor: '#EF4444' }]}>
+                <AlertCircle size={16} color="#EF4444" />
+                <Text style={[styles.infoBoxText, { color: colors.text }]}>
+                  No refund applicable as per cancellation policy (cancelled within 24 hours of check-in)
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -784,15 +920,44 @@ const styles = StyleSheet.create({
   },
   amenityText: { fontSize: 13, fontWeight: '500' },
   customAmenities: { fontSize: 13, marginTop: 12, lineHeight: 20 },
-  contactButton: { 
-    flexDirection: 'row', 
+  contactNote: { fontSize: 13, marginBottom: 12, lineHeight: 18 },
+  contactButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 16, 
+    padding: 16,
     borderRadius: 10,
     marginBottom: 12
   },
   contactText: { fontSize: 16, fontWeight: '600' },
+  transactionId: { fontSize: 12, fontWeight: '500', flex: 1, textAlign: 'right', fontFamily: 'monospace' },
+  cancelledHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16
+  },
+  cancelledTitle: { fontSize: 16, fontWeight: '700' },
+  refundAmount: { fontSize: 16, fontWeight: 'bold' },
+  refundStatusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 6
+  },
+  refundStatusText: { color: 'white', fontSize: 12, fontWeight: '700' },
+  refundNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 12
+  },
+  refundNoteText: { fontSize: 13, flex: 1, lineHeight: 18 },
+  supportText: { fontSize: 12, marginTop: 12, fontStyle: 'italic', textAlign: 'center' },
   ruleItem: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   ruleBullet: { color: '#EF4444', fontSize: 18, fontWeight: 'bold' },
   ruleText: { fontSize: 14, flex: 1, lineHeight: 20 },

@@ -15,10 +15,10 @@ export interface CancellationPolicy {
 
 // Default cancellation policy (can be customized per farmhouse)
 export const DEFAULT_CANCELLATION_POLICY: CancellationPolicy = {
-  freeCancellationDays: 7, // Free cancellation if cancelled 7+ days before
-  partialRefundDays: 3, // 50% refund if cancelled 3-7 days before
+  freeCancellationDays: 1, // 50% refund if cancelled 1+ days before
+  partialRefundDays: 1, // No refund if cancelled within 24 hours
   partialRefundPercentage: 50,
-  processingFee: 50, // ₹50 processing fee
+  processingFee: 0, // No processing fee
 };
 
 export interface CancellationResult {
@@ -35,6 +35,7 @@ export interface CancellationResult {
 export function calculateRefundAmount(
   totalAmount: number,
   checkInDate: string,
+  isOwnerCancellation: boolean = false,
   policy: CancellationPolicy = DEFAULT_CANCELLATION_POLICY
 ): {
   refundAmount: number;
@@ -42,12 +43,22 @@ export function calculateRefundAmount(
   processingFee: number;
   reason: string;
 } {
+  // If owner cancels, always give 100% refund
+  if (isOwnerCancellation) {
+    return {
+      refundAmount: totalAmount,
+      refundPercentage: 100,
+      processingFee: 0,
+      reason: 'Full refund - Cancelled by property owner',
+    };
+  }
+
   const now = new Date();
   const checkIn = new Date(checkInDate);
-  const daysUntilCheckIn = Math.ceil((checkIn.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const hoursUntilCheckIn = (checkIn.getTime() - now.getTime()) / (1000 * 60 * 60);
 
   // Cancellation after check-in date - no refund
-  if (daysUntilCheckIn < 0) {
+  if (hoursUntilCheckIn < 0) {
     return {
       refundAmount: 0,
       refundPercentage: 0,
@@ -56,35 +67,23 @@ export function calculateRefundAmount(
     };
   }
 
-  // Free cancellation window
-  if (daysUntilCheckIn >= policy.freeCancellationDays) {
-    const refundAmount = totalAmount - policy.processingFee;
+  // Within 24 hours of check-in - no refund
+  if (hoursUntilCheckIn < 24) {
     return {
-      refundAmount: Math.max(0, refundAmount),
-      refundPercentage: 100,
-      processingFee: policy.processingFee,
-      reason: `Free cancellation (${daysUntilCheckIn} days before check-in)`,
+      refundAmount: 0,
+      refundPercentage: 0,
+      processingFee: 0,
+      reason: `No refund - Cancellation within 24 hours of check-in (${Math.floor(hoursUntilCheckIn)} hours remaining)`,
     };
   }
 
-  // Partial refund window
-  if (daysUntilCheckIn >= policy.partialRefundDays) {
-    const refundBeforeFee = (totalAmount * policy.partialRefundPercentage) / 100;
-    const refundAmount = refundBeforeFee - policy.processingFee;
-    return {
-      refundAmount: Math.max(0, refundAmount),
-      refundPercentage: policy.partialRefundPercentage,
-      processingFee: policy.processingFee,
-      reason: `Partial refund (${policy.partialRefundPercentage}% refund - cancelled ${daysUntilCheckIn} days before check-in)`,
-    };
-  }
-
-  // Within non-refundable window
+  // More than 24 hours before check-in - 50% refund
+  const refundAmount = (totalAmount * 50) / 100;
   return {
-    refundAmount: 0,
-    refundPercentage: 0,
+    refundAmount: refundAmount,
+    refundPercentage: 50,
     processingFee: 0,
-    reason: `Non-refundable (cancelled ${daysUntilCheckIn} days before check-in)`,
+    reason: `50% refund - Cancelled ${Math.floor(hoursUntilCheckIn)} hours before check-in`,
   };
 }
 
@@ -94,7 +93,8 @@ export function calculateRefundAmount(
 export async function cancelBookingWithRefund(
   bookingId: string,
   userId: string,
-  reason?: string
+  reason?: string,
+  isOwnerCancellation: boolean = false
 ): Promise<CancellationResult> {
   try {
     // Get booking details
@@ -120,7 +120,8 @@ export async function cancelBookingWithRefund(
     // Calculate refund
     const refundCalc = calculateRefundAmount(
       booking.totalPrice,
-      booking.checkInDate
+      booking.checkInDate,
+      isOwnerCancellation
     );
 
     // Update booking status
@@ -235,13 +236,13 @@ export function getCancellationPolicyDescription(
   return `
 Cancellation Policy:
 
-• Free Cancellation: Cancel ${policy.freeCancellationDays}+ days before check-in for full refund (minus ₹${policy.processingFee} processing fee)
+• Cancel more than 24 hours before check-in: 50% refund
 
-• Partial Refund: Cancel ${policy.partialRefundDays}-${policy.freeCancellationDays - 1} days before check-in for ${policy.partialRefundPercentage}% refund (minus ₹${policy.processingFee} processing fee)
+• Cancel within 24 hours of check-in: No refund
 
-• Non-Refundable: Cancellations within ${policy.partialRefundDays} days of check-in are non-refundable
+• Owner cancellation: 100% refund (full amount returned)
 
-• Refunds are processed within 5-7 business days
+• Refunds are processed within 5-7 business days to your original payment method
   `.trim();
 }
 

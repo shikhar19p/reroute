@@ -4,7 +4,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTheme } from '../../context/ThemeContext';
 import { Booking, updateBookingStatus, updatePaymentStatus } from '../../services/bookingService';
+import { cancelBookingWithRefund } from '../../services/cancellationService';
 import { useDialog } from '../../components/CustomDialog';
+import { useAuth } from '../../authContext';
 
 type RootStackParamList = {
   OwnerBookingDetails: { booking: Booking };
@@ -15,6 +17,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'OwnerBookingDetails'>;
 export default function OwnerBookingDetailScreen({ route, navigation }: Props) {
   const { colors } = useTheme();
   const { showDialog } = useDialog();
+  const { user } = useAuth();
   const { booking } = route.params;
 
   const statusColor = (status: Booking['status']) => {
@@ -46,6 +49,56 @@ export default function OwnerBookingDetailScreen({ route, navigation }: Props) {
             });
           }
         }}
+      ]
+    });
+  };
+
+  const handleOwnerCancel = async () => {
+    if (!user) {
+      showDialog({
+        title: 'Error',
+        message: 'You must be logged in to cancel bookings',
+        type: 'error'
+      });
+      return;
+    }
+
+    showDialog({
+      title: 'Cancel Booking',
+      message: `Are you sure you want to cancel this booking?\n\n⚠️ Guest will receive 100% refund (₹${booking.totalPrice}) as per owner cancellation policy.`,
+      type: 'warning',
+      buttons: [
+        { text: 'No, Keep Booking', style: 'cancel' },
+        {
+          text: 'Yes, Cancel & Refund',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const result = await cancelBookingWithRefund(
+                booking.id,
+                user.uid,
+                'Cancelled by property owner',
+                true // isOwnerCancellation = true (100% refund)
+              );
+
+              showDialog({
+                title: 'Booking Cancelled',
+                message: `Booking cancelled successfully.\n\nRefund: ₹${result.refundAmount} (${result.refundPercentage}%)\n${result.message}`,
+                type: 'success',
+                buttons: [{
+                  text: 'OK',
+                  onPress: () => navigation.goBack()
+                }]
+              });
+            } catch (error: any) {
+              showDialog({
+                title: 'Cancellation Failed',
+                message: error.message || 'Failed to cancel booking. Please try again.',
+                type: 'error'
+              });
+            }
+          }
+        }
       ]
     });
   };
@@ -91,8 +144,8 @@ export default function OwnerBookingDetailScreen({ route, navigation }: Props) {
           </TouchableOpacity>
         )}
         {(booking.status === 'pending' || booking.status === 'confirmed') && (
-          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#ef4444' }]} onPress={() => confirmAction('Cancel booking', 'Are you sure to cancel?', () => updateBookingStatus(booking.id, 'cancelled'))}>
-            <Text style={[styles.actionText, { color: '#fff' }]}>Cancel</Text>
+          <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#ef4444' }]} onPress={handleOwnerCancel}>
+            <Text style={[styles.actionText, { color: '#fff' }]}>Cancel & Refund</Text>
           </TouchableOpacity>
         )}
         {booking.paymentStatus !== 'paid' && (

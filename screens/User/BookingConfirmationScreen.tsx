@@ -13,7 +13,7 @@ import { useToast } from '../../components/Toast';
 import { useDialog } from '../../components/CustomDialog';
 import { useScrollHandler } from '../../context/TabBarVisibilityContext';
 import { useCoupons, useGlobalData } from '../../GlobalDataContext';
-import { createBooking } from '../../services/bookingService';
+import { createBooking, cleanupPendingBooking } from '../../services/bookingService';
 import { completePaymentFlow, savePaymentRecord } from '../../services/paymentService';
 
 const { width } = Dimensions.get('window');
@@ -34,6 +34,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
   const { data: availableCoupons, loading: couponsLoading, refresh: refreshCoupons } = useCoupons();
 
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<{ name: string; email: string; phone: string } | null>(null);
@@ -42,11 +43,31 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
   const [couponError, setCouponError] = useState('');
 
   const [farmhouseDetails, setFarmhouseDetails] = useState<any>(null);
+  const [currentBookingId, setCurrentBookingId] = useState<string | null>(null);
+  const cleanupTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     fetchUserProfile();
     fetchFarmhouseDetails();
   }, [user, farmhouseId]);
+
+  // Cleanup on unmount or when user navigates away
+  useEffect(() => {
+    return () => {
+      // Clear any pending timeout
+      if (cleanupTimeoutRef.current) {
+        clearTimeout(cleanupTimeoutRef.current);
+      }
+
+      // Cleanup pending booking if exists
+      if (currentBookingId) {
+        console.log('🧹 Component unmounting, cleaning up pending booking...');
+        cleanupPendingBooking(currentBookingId).catch(error => {
+          console.error('Failed to cleanup on unmount:', error);
+        });
+      }
+    };
+  }, [currentBookingId]);
 
   const fetchUserProfile = async () => {
     if (!user) {
@@ -163,6 +184,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
     }
 
     setLoading(true);
+    setLoadingMessage('Creating booking...');
     let bookingId: string | null = null;
     let paymentId: string | null = null;
 
@@ -189,9 +211,18 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
 
       bookingId = await createBooking(bookingData);
       console.log('✅ Booking created with ID:', bookingId);
+      setCurrentBookingId(bookingId);
+
+      // Set up automatic cleanup after 2 minutes
+      cleanupTimeoutRef.current = setTimeout(() => {
+        console.log('⏰ 2 minutes elapsed, cleaning up pending booking...');
+        cleanupPendingBooking(bookingId).catch(error => {
+          console.error('Failed to auto-cleanup:', error);
+        });
+      }, 2 * 60 * 1000); // 2 minutes
 
       // Step 2: Process payment via Razorpay
-      showToast('Opening payment gateway...', 'info');
+      setLoadingMessage('Preparing payment...');
 
       const paymentResponse = await completePaymentFlow(
         finalPrice, // amount in rupees
@@ -228,7 +259,15 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
         totalBookings: increment(1)
       });
 
+      // Clear cleanup timeout and bookingId since payment succeeded
+      if (cleanupTimeoutRef.current) {
+        clearTimeout(cleanupTimeoutRef.current);
+        cleanupTimeoutRef.current = null;
+      }
+      setCurrentBookingId(null);
+
       setLoading(false);
+      setLoadingMessage('');
       showDialog({
         title: 'Booking Confirmed! 🎉',
         message: `Your payment of ₹${finalPrice} was successful. Your booking for ${farmhouseDetails?.name || farmhouseName} is confirmed.`,
@@ -250,9 +289,27 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
       });
     } catch (error: any) {
       setLoading(false);
+      setLoadingMessage('');
+
+      // Cleanup the pending booking since payment failed/cancelled
+      if (bookingId) {
+        console.log('🧹 Payment failed/cancelled, cleaning up pending booking...');
+        cleanupPendingBooking(bookingId).catch(err => {
+          console.error('Failed to cleanup after error:', err);
+        });
+
+        // Clear timeout and reset booking ID
+        if (cleanupTimeoutRef.current) {
+          clearTimeout(cleanupTimeoutRef.current);
+          cleanupTimeoutRef.current = null;
+        }
+        setCurrentBookingId(null);
+      }
 
       // Parse error message from various formats
       let errorMessage = 'Failed to create booking';
+      let isCancellation = false;
+      let isPaymentError = false;
 
       // Handle Razorpay payment errors (comes as JSON string)
       if (error?.description) {
@@ -263,13 +320,18 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
 
           if (parsedError?.error) {
             const razorpayError = parsedError.error;
+            isPaymentError = true;
+
             // Map Razorpay error codes to user-friendly messages
             switch (razorpayError.code) {
               case 'BAD_REQUEST_ERROR':
-                if (razorpayError.reason === 'payment_error') {
-                  errorMessage = 'Payment failed. Please check your payment details and try again.';
+                if (razorpayError.reason === 'payment_error' || razorpayError.step === 'payment_authentication') {
+                  isCancellation = true;
+                  errorMessage = 'Payment was cancelled or failed during authentication.';
+                } else if (razorpayError.description && razorpayError.description !== 'undefined') {
+                  errorMessage = razorpayError.description;
                 } else {
-                  errorMessage = razorpayError.description || 'Invalid payment request. Please try again.';
+                  errorMessage = 'Payment could not be processed. Please try again.';
                 }
                 break;
               case 'GATEWAY_ERROR':
@@ -279,15 +341,23 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
                 errorMessage = 'Payment server error. Please try again later.';
                 break;
               default:
-                errorMessage = razorpayError.description || 'Payment failed. Please try again.';
+                if (razorpayError.description && razorpayError.description !== 'undefined') {
+                  errorMessage = razorpayError.description;
+                } else {
+                  errorMessage = 'Payment failed. Please try again.';
+                }
             }
           }
         } catch (parseErr) {
-          // If parsing fails, use the original error
-          errorMessage = error.description;
+          // If parsing fails, treat as payment error
+          errorMessage = 'Payment could not be completed. Please try again.';
+          isPaymentError = true;
         }
       } else if (error instanceof Error) {
         errorMessage = error.message;
+        if (errorMessage.includes('cancelled') || errorMessage.includes('canceled')) {
+          isCancellation = true;
+        }
       } else if (typeof error === 'string') {
         errorMessage = error;
       }
@@ -295,19 +365,15 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
       console.error('❌ Booking/Payment error:', error);
 
       // Handle different error scenarios
-      if (errorMessage.includes('Payment was cancelled') || errorMessage.includes('cancelled')) {
-        // Payment cancelled by user - booking remains pending
+      if (isCancellation || errorMessage.toLowerCase().includes('cancel')) {
+        // Payment cancelled by user
         showDialog({
           title: 'Payment Cancelled',
-          message: 'You cancelled the payment. Your booking is saved as pending. You can try paying again from your bookings.',
+          message: 'Your payment was cancelled. The dates have been unblocked and you can try booking again.',
           type: 'warning',
           buttons: [{
-            text: 'Go to Bookings',
+            text: 'OK',
             style: 'default',
-            onPress: () => navigation.navigate('Bookings')
-          }, {
-            text: 'Try Again',
-            style: 'cancel',
             onPress: () => {}
           }]
         });
@@ -318,9 +384,9 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
           message: 'Your payment may have been processed, but we need to verify it. Please check your bookings or contact support.',
           type: 'warning',
           buttons: [{
-            text: 'Contact Support',
+            text: 'Check Bookings',
             style: 'default',
-            onPress: () => {} // Add support navigation
+            onPress: () => navigation.navigate('Bookings')
           }]
         });
       } else if (errorMessage.includes('Validation failed')) {
@@ -333,9 +399,14 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
         showDialog({
           title: 'Dates Unavailable',
           message: 'The selected dates are no longer available. Please choose different dates.',
-          type: 'error'
+          type: 'error',
+          buttons: [{
+            text: 'Choose New Dates',
+            style: 'default',
+            onPress: () => navigation.goBack()
+          }]
         });
-      } else {
+      } else if (isPaymentError) {
         showDialog({
           title: 'Payment Failed',
           message: errorMessage,
@@ -345,6 +416,12 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
             style: 'default',
             onPress: () => {}
           }]
+        });
+      } else {
+        showDialog({
+          title: 'Booking Failed',
+          message: errorMessage,
+          type: 'error'
         });
       }
     }
@@ -501,15 +578,20 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
             <Text style={[styles.bottomOriginalPrice, { color: colors.placeholder }]}>₹{totalPrice}</Text>
           )}
         </View>
-        <TouchableOpacity 
-          style={[styles.proceedButton, { 
-            backgroundColor: (loading || profileLoading) ? colors.border : colors.buttonBackground 
+        <TouchableOpacity
+          style={[styles.proceedButton, {
+            backgroundColor: (loading || profileLoading) ? colors.border : colors.buttonBackground
           }]}
           onPress={handleConfirmBooking}
           disabled={loading || profileLoading}
         >
           {loading ? (
-            <ActivityIndicator color={colors.buttonText} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <ActivityIndicator color={colors.buttonText} size="small" />
+              <Text style={[styles.proceedButtonText, { color: colors.buttonText }]}>
+                {loadingMessage || 'Processing...'}
+              </Text>
+            </View>
           ) : (
             <Text style={[styles.proceedButtonText, { color: colors.buttonText }]}>Confirm Booking</Text>
           )}

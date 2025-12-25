@@ -76,6 +76,69 @@ import { RootStackParamList, TabParamList } from './types/navigation';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
+// Component that waits for auth before completing splash
+function AnimatedSplashWithAuth({ message, onReady, onComplete }: {
+  message: string;
+  onReady: () => void;
+  onComplete: () => void;
+}) {
+  return (
+    <ErrorBoundary>
+      <AuthProvider>
+        <SplashWithAuthCheck
+          message={message}
+          onReady={onReady}
+          onComplete={onComplete}
+        />
+      </AuthProvider>
+    </ErrorBoundary>
+  );
+}
+
+// Inner component that has access to auth context
+function SplashWithAuthCheck({ message, onReady, onComplete }: {
+  message: string;
+  onReady: () => void;
+  onComplete: () => void;
+}) {
+  const { loading: authLoading } = useAuth();
+  const [animationDone, setAnimationDone] = React.useState(false);
+  const MIN_SPLASH_TIME = 1500; // Minimum 1.5 seconds
+  const [minTimeElapsed, setMinTimeElapsed] = React.useState(false);
+  const startTimeRef = React.useRef(Date.now());
+
+  // Ensure minimum splash display time
+  React.useEffect(() => {
+    const elapsed = Date.now() - startTimeRef.current;
+    const remaining = Math.max(0, MIN_SPLASH_TIME - elapsed);
+
+    const timer = setTimeout(() => {
+      setMinTimeElapsed(true);
+    }, remaining);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Wait for: animation done + auth ready + minimum time
+  React.useEffect(() => {
+    if (animationDone && !authLoading && minTimeElapsed) {
+      console.log('✅ Splash animation, auth, and min time complete');
+      setTimeout(onComplete, 200);
+    }
+  }, [animationDone, authLoading, minTimeElapsed, onComplete]);
+
+  return (
+    <AnimatedSplashScreen
+      message={authLoading ? "Initializing..." : message}
+      onReady={onReady}
+      onAnimationComplete={() => {
+        console.log('✅ Splash animation complete, waiting for auth...');
+        setAnimationDone(true);
+      }}
+    />
+  );
+}
+
 // Wrapper component to check if owner has farmhouses and route accordingly
 function OwnerNavigator({ navigation }: any) {
   const { user } = useAuth();
@@ -164,13 +227,12 @@ function AppNavigator() {
 
   console.log('📄 AppNavigator render - loading:', loading, 'user:', user?.email, 'role:', user?.role);
 
-  // Show loading screen while Firebase initializes
+  // Show a minimal loading indicator while auth initializes
   if (loading) {
-    console.log('⏳ Showing loading screen...');
+    console.log('⏳ Auth still loading...');
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="rgb(244, 173, 50)" />
-        <Text style={styles.loadingText}>Initializing...</Text>
       </View>
     );
   }
@@ -388,6 +450,9 @@ export default function App() {
     'Seasons-BoldItalic': require('./assets/fonts/Fontspring-DEMO-theseasons-bdit.otf'),
   });
 
+  // Track auth loading state to prevent showing app before ready
+  const [authInitialized, setAuthInitialized] = React.useState(false);
+
   // Keep native splash visible until custom splash is ready
   React.useEffect(() => {
     console.log('🚀 App component mounted');
@@ -435,14 +500,15 @@ export default function App() {
   }, []);
 
   // Show custom splash (native splash still visible until onReady called)
+  // Splash waits for auth to initialize before completing
   if (!showApp && !SKIP_SPLASH) {
     return (
       <View style={{ flex: 1, backgroundColor: 'rgb(249, 248, 239)' }}>
-        <AnimatedSplashScreen
+        <AnimatedSplashWithAuth
           message="Loading..."
           onReady={onCustomSplashReady}
-          onAnimationComplete={() => {
-            console.log('✅ Splash animation complete, showing app');
+          onComplete={() => {
+            console.log('✅ Splash complete, showing app');
             setShowApp(true);
           }}
         />

@@ -6,6 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../authContext';
 import { getFarmhousesByOwner } from '../../services/farmhouseService';
 import { Booking, getFarmhouseBookings, updateBookingStatus, updatePaymentStatus } from '../../services/bookingService';
+import { cancelBookingWithRefund } from '../../services/cancellationService';
 import { useDialog } from '../../components/CustomDialog';
 
 type RootStackParamList = {
@@ -100,6 +101,56 @@ export default function BookingsListScreen({ route, navigation }: Props) {
     });
   };
 
+  const handleOwnerCancel = async (booking: Booking) => {
+    if (!user) {
+      showDialog({
+        title: 'Error',
+        message: 'You must be logged in to cancel bookings',
+        type: 'error'
+      });
+      return;
+    }
+
+    showDialog({
+      title: 'Cancel Booking',
+      message: `Are you sure you want to cancel this booking?\n\n⚠️ Guest will receive 100% refund (₹${booking.totalPrice}) as per owner cancellation policy.`,
+      type: 'warning',
+      buttons: [
+        { text: 'No, Keep Booking', style: 'cancel' },
+        {
+          text: 'Yes, Cancel & Refund',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const result = await cancelBookingWithRefund(
+                booking.id,
+                user.uid,
+                'Cancelled by property owner',
+                true // isOwnerCancellation = true (100% refund)
+              );
+
+              showDialog({
+                title: 'Booking Cancelled',
+                message: `Booking cancelled successfully.\n\nRefund: ₹${result.refundAmount} (${result.refundPercentage}%)\n${result.message}`,
+                type: 'success',
+                buttons: [{
+                  text: 'OK',
+                  onPress: () => loadBookings()
+                }]
+              });
+            } catch (error: any) {
+              showDialog({
+                title: 'Cancellation Failed',
+                message: error.message || 'Failed to cancel booking. Please try again.',
+                type: 'error'
+              });
+            }
+          }
+        }
+      ]
+    });
+  };
+
   const renderBooking = ({ item }: { item: Booking }) => (
     <TouchableOpacity
       style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
@@ -142,8 +193,8 @@ export default function BookingsListScreen({ route, navigation }: Props) {
           </TouchableOpacity>
         )}
         {(item.status === 'pending' || item.status === 'confirmed') && (
-          <TouchableOpacity style={[styles.actionBtn, { borderColor: colors.border }]} onPress={() => confirmAction('Cancel booking', 'Are you sure you want to cancel?', () => updateBookingStatus(item.id, 'cancelled'))}>
-            <Text style={[styles.actionText, { color: '#ef4444' }]}>Cancel</Text>
+          <TouchableOpacity style={[styles.actionBtn, { borderColor: colors.border }]} onPress={() => handleOwnerCancel(item)}>
+            <Text style={[styles.actionText, { color: '#ef4444' }]}>Cancel & Refund</Text>
           </TouchableOpacity>
         )}
         {item.paymentStatus !== 'paid' && (

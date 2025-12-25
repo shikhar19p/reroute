@@ -1,14 +1,15 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { 
-  collection, 
-  query, 
-  where, 
-  orderBy, 
+import {
+  collection,
+  query,
+  where,
+  orderBy,
   onSnapshot
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import { useAuth } from './authContext';
 import { Farmhouse } from './types/navigation';
+import { cleanupAbandonedBookings } from './services/bookingService';
 
 // ==================== TYPES ====================
 
@@ -342,6 +343,36 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     coupons: 0,
     wishlist: 0,
   });
+
+  // ==================== CLEANUP ABANDONED BOOKINGS ====================
+  // Run when user logs in to clean up any pending bookings older than 2 minutes
+  useEffect(() => {
+    if (!user?.uid) {
+      return;
+    }
+
+    const runCleanup = async () => {
+      try {
+        console.log('🧹 Running cleanup for abandoned bookings...');
+        const cleanedCount = await cleanupAbandonedBookings(user.uid, 2); // 2 minutes
+        if (cleanedCount > 0) {
+          console.log(`✅ Cleanup completed: ${cleanedCount} booking(s) cleaned up`);
+        }
+      } catch (error) {
+        console.error('❌ Cleanup failed:', error);
+      }
+    };
+
+    // Run cleanup when user logs in
+    runCleanup();
+
+    // Also run cleanup periodically every 5 minutes
+    const intervalId = setInterval(() => {
+      runCleanup();
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(intervalId);
+  }, [user?.uid]); // Run when user changes
 
   // ==================== MY BOOKINGS ====================
   useEffect(() => {

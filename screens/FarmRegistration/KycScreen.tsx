@@ -93,7 +93,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -138,40 +138,102 @@ export default function KycScreen({ navigation }: KycScreenProps) {
             </View>
 
             <View style={styles.field}>
-              <Text style={styles.label}>Aadhaar Number*</Text>
+              <Text style={styles.label}>PAN Card*</Text>
               <TextInput
-                value={farm.kyc.person1.aadhaarNumber}
-                onChangeText={(text) => updateField(['kyc', 'person1', 'aadhaarNumber'], text.replace(/[^0-9]/g, ''))}
+                value={farm.kyc.person1.panCard}
+                onChangeText={(text) => updateField(['kyc', 'person1', 'panCard'], text.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
                 style={styles.input}
-                placeholder="12-digit Aadhaar number"
+                placeholder="ABCDE1234F"
                 placeholderTextColor="#9CA3AF"
-                keyboardType="number-pad"
-                maxLength={12}
+                autoCapitalize="characters"
+                maxLength={10}
               />
-              {errors['person1.aadhaarNumber'] && <Text style={styles.error}>{errors['person1.aadhaarNumber']}</Text>}
+              {errors['person1.panCard'] && <Text style={styles.error}>{errors['person1.panCard']}</Text>}
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>ID Proof Type*</Text>
+              <View style={styles.idProofTypeContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.idProofTypeButton,
+                    farm.kyc.person1.idProofType === 'driving_license' && styles.idProofTypeButtonActive
+                  ]}
+                  onPress={() => updateField(['kyc', 'person1', 'idProofType'], 'driving_license')}
+                >
+                  <Text style={[
+                    styles.idProofTypeButtonText,
+                    farm.kyc.person1.idProofType === 'driving_license' && styles.idProofTypeButtonTextActive
+                  ]}>
+                    Driving License
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.idProofTypeButton,
+                    farm.kyc.person1.idProofType === 'passport' && styles.idProofTypeButtonActive
+                  ]}
+                  onPress={() => updateField(['kyc', 'person1', 'idProofType'], 'passport')}
+                >
+                  <Text style={[
+                    styles.idProofTypeButtonText,
+                    farm.kyc.person1.idProofType === 'passport' && styles.idProofTypeButtonTextActive
+                  ]}>
+                    Passport
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.idProofTypeButton,
+                    farm.kyc.person1.idProofType === 'voter_id' && styles.idProofTypeButtonActive
+                  ]}
+                  onPress={() => updateField(['kyc', 'person1', 'idProofType'], 'voter_id')}
+                >
+                  <Text style={[
+                    styles.idProofTypeButtonText,
+                    farm.kyc.person1.idProofType === 'voter_id' && styles.idProofTypeButtonTextActive
+                  ]}>
+                    Voter ID
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {errors['person1.idProofType'] && <Text style={styles.error}>{errors['person1.idProofType']}</Text>}
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>ID Proof Number*</Text>
+              <TextInput
+                value={farm.kyc.person1.idProofNumber}
+                onChangeText={(text) => updateField(['kyc', 'person1', 'idProofNumber'], text.toUpperCase())}
+                style={styles.input}
+                placeholder="Enter ID proof number"
+                placeholderTextColor="#9CA3AF"
+                autoCapitalize="characters"
+              />
+              {errors['person1.idProofNumber'] && <Text style={styles.error}>{errors['person1.idProofNumber']}</Text>}
             </View>
 
             <TouchableOpacity
               style={styles.uploadButton}
-              onPress={() => pickDocument(['kyc', 'person1', 'aadhaarFront'])}
+              onPress={() => pickDocument(['kyc', 'person1', 'idProofFront'])}
             >
               <Text style={styles.uploadIcon}>⬆️</Text>
               <Text style={styles.uploadText}>
-                {farm.kyc.person1.aadhaarFront ? 'Aadhaar Front ✓' : 'Upload Aadhaar Front*'}
+                {farm.kyc.person1.idProofFront ? 'ID Proof Front ✓' : 'Upload ID Proof Front*'}
               </Text>
             </TouchableOpacity>
-            {errors['person1.aadhaarFront'] && <Text style={styles.error}>{errors['person1.aadhaarFront']}</Text>}
+            {errors['person1.idProofFront'] && <Text style={styles.error}>{errors['person1.idProofFront']}</Text>}
 
             <TouchableOpacity
               style={styles.uploadButton}
-              onPress={() => pickDocument(['kyc', 'person1', 'aadhaarBack'])}
+              onPress={() => pickDocument(['kyc', 'person1', 'idProofBack'])}
             >
               <Text style={styles.uploadIcon}>⬆️</Text>
               <Text style={styles.uploadText}>
-                {farm.kyc.person1.aadhaarBack ? 'Aadhaar Back ✓' : 'Upload Aadhaar Back*'}
+                {farm.kyc.person1.idProofBack ? 'ID Proof Back ✓' : 'Upload ID Proof Back*'}
               </Text>
             </TouchableOpacity>
-            {errors['person1.aadhaarBack'] && <Text style={styles.error}>{errors['person1.aadhaarBack']}</Text>}
+            {errors['person1.idProofBack'] && <Text style={styles.error}>{errors['person1.idProofBack']}</Text>}
           </View>
 
           {/* Person 2 Contact */}
@@ -205,40 +267,102 @@ export default function KycScreen({ navigation }: KycScreenProps) {
             </View>
 
             <View style={styles.field}>
-              <Text style={styles.label}>Aadhaar Number*</Text>
+              <Text style={styles.label}>PAN Card*</Text>
               <TextInput
-                value={farm.kyc.person2.aadhaarNumber}
-                onChangeText={(text) => updateField(['kyc', 'person2', 'aadhaarNumber'], text.replace(/[^0-9]/g, ''))}
+                value={farm.kyc.person2.panCard}
+                onChangeText={(text) => updateField(['kyc', 'person2', 'panCard'], text.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
                 style={styles.input}
-                placeholder="12-digit Aadhaar number"
+                placeholder="ABCDE1234F"
                 placeholderTextColor="#9CA3AF"
-                keyboardType="number-pad"
-                maxLength={12}
+                autoCapitalize="characters"
+                maxLength={10}
               />
-              {errors['person2.aadhaarNumber'] && <Text style={styles.error}>{errors['person2.aadhaarNumber']}</Text>}
+              {errors['person2.panCard'] && <Text style={styles.error}>{errors['person2.panCard']}</Text>}
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>ID Proof Type*</Text>
+              <View style={styles.idProofTypeContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.idProofTypeButton,
+                    farm.kyc.person2.idProofType === 'driving_license' && styles.idProofTypeButtonActive
+                  ]}
+                  onPress={() => updateField(['kyc', 'person2', 'idProofType'], 'driving_license')}
+                >
+                  <Text style={[
+                    styles.idProofTypeButtonText,
+                    farm.kyc.person2.idProofType === 'driving_license' && styles.idProofTypeButtonTextActive
+                  ]}>
+                    Driving License
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.idProofTypeButton,
+                    farm.kyc.person2.idProofType === 'passport' && styles.idProofTypeButtonActive
+                  ]}
+                  onPress={() => updateField(['kyc', 'person2', 'idProofType'], 'passport')}
+                >
+                  <Text style={[
+                    styles.idProofTypeButtonText,
+                    farm.kyc.person2.idProofType === 'passport' && styles.idProofTypeButtonTextActive
+                  ]}>
+                    Passport
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.idProofTypeButton,
+                    farm.kyc.person2.idProofType === 'voter_id' && styles.idProofTypeButtonActive
+                  ]}
+                  onPress={() => updateField(['kyc', 'person2', 'idProofType'], 'voter_id')}
+                >
+                  <Text style={[
+                    styles.idProofTypeButtonText,
+                    farm.kyc.person2.idProofType === 'voter_id' && styles.idProofTypeButtonTextActive
+                  ]}>
+                    Voter ID
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {errors['person2.idProofType'] && <Text style={styles.error}>{errors['person2.idProofType']}</Text>}
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>ID Proof Number*</Text>
+              <TextInput
+                value={farm.kyc.person2.idProofNumber}
+                onChangeText={(text) => updateField(['kyc', 'person2', 'idProofNumber'], text.toUpperCase())}
+                style={styles.input}
+                placeholder="Enter ID proof number"
+                placeholderTextColor="#9CA3AF"
+                autoCapitalize="characters"
+              />
+              {errors['person2.idProofNumber'] && <Text style={styles.error}>{errors['person2.idProofNumber']}</Text>}
             </View>
 
             <TouchableOpacity
               style={styles.uploadButton}
-              onPress={() => pickDocument(['kyc', 'person2', 'aadhaarFront'])}
+              onPress={() => pickDocument(['kyc', 'person2', 'idProofFront'])}
             >
               <Text style={styles.uploadIcon}>⬆️</Text>
               <Text style={styles.uploadText}>
-                {farm.kyc.person2.aadhaarFront ? 'Aadhaar Front ✓' : 'Upload Aadhaar Front*'}
+                {farm.kyc.person2.idProofFront ? 'ID Proof Front ✓' : 'Upload ID Proof Front*'}
               </Text>
             </TouchableOpacity>
-            {errors['person2.aadhaarFront'] && <Text style={styles.error}>{errors['person2.aadhaarFront']}</Text>}
+            {errors['person2.idProofFront'] && <Text style={styles.error}>{errors['person2.idProofFront']}</Text>}
 
             <TouchableOpacity
               style={styles.uploadButton}
-              onPress={() => pickDocument(['kyc', 'person2', 'aadhaarBack'])}
+              onPress={() => pickDocument(['kyc', 'person2', 'idProofBack'])}
             >
               <Text style={styles.uploadIcon}>⬆️</Text>
               <Text style={styles.uploadText}>
-                {farm.kyc.person2.aadhaarBack ? 'Aadhaar Back ✓' : 'Upload Aadhaar Back*'}
+                {farm.kyc.person2.idProofBack ? 'ID Proof Back ✓' : 'Upload ID Proof Back*'}
               </Text>
             </TouchableOpacity>
-            {errors['person2.aadhaarBack'] && <Text style={styles.error}>{errors['person2.aadhaarBack']}</Text>}
+            {errors['person2.idProofBack'] && <Text style={styles.error}>{errors['person2.idProofBack']}</Text>}
           </View>
 
           {/* Company Details */}
@@ -310,6 +434,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
                 placeholderTextColor="#9CA3AF"
                 keyboardType="number-pad"
                 maxLength={18}
+                secureTextEntry
               />
               {errors['bankDetails.accountNumber'] && (
                 <Text style={styles.error}>{errors['bankDetails.accountNumber']}</Text>
@@ -391,6 +516,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
+    paddingBottom: 120, // Extra padding for bottom buttons
   },
   mainTitle: {
     fontSize: 28,
@@ -430,6 +556,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
+  },
+  idProofTypeContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  idProofTypeButton: {
+    flex: 1,
+    minWidth: '30%',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  idProofTypeButtonActive: {
+    backgroundColor: '#4CAF50',
+    borderColor: '#4CAF50',
+  },
+  idProofTypeButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    textAlign: 'center',
+  },
+  idProofTypeButtonTextActive: {
+    color: '#FFFFFF',
   },
   error: {
     marginTop: 4,

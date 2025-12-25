@@ -48,5 +48,9 @@ const app = initializeApp(firebaseConfig);
 export const auth = initializeAuth(app, {
   persistence: getReactNativePersistence(ReactNativeAsyncStorage)
 });
+
+// Initialize Firestore with default cache (memory cache for React Native)
+// Note: IndexedDB persistence is not available in React Native
 export const db = getFirestore(app);
+
 export const storage = getStorage(app);

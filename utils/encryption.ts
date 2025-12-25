@@ -5,6 +5,8 @@
  */
 
 import * as Crypto from 'expo-crypto';
+import CryptoJS from 'crypto-js';
+import Constants from 'expo-constants';
 
 /**
  * Hash sensitive data using SHA-256
@@ -141,4 +143,82 @@ export function sanitizePII(data: string, type: 'aadhaar' | 'pan' | 'phone' | 'i
     default:
       return cleaned;
   }
+}
+
+// ==================== AES ENCRYPTION (For Bank Details) ====================
+
+/**
+ * Encryption secret key - should be stored in environment variables
+ * DO NOT commit this key to git in production!
+ */
+const ENCRYPTION_SECRET = Constants.expoConfig?.extra?.encryptionSecret ||
+  process.env.ENCRYPTION_SECRET ||
+  'reroute-encryption-key-2024-CHANGE-IN-PRODUCTION';
+
+/**
+ * Derive encryption key from user ID for user-specific encryption
+ */
+function deriveKey(userId: string): string {
+  return CryptoJS.SHA256(userId + ENCRYPTION_SECRET).toString();
+}
+
+/**
+ * Encrypt sensitive data (bank account numbers, IFSC codes)
+ * Uses AES-256 encryption with user-specific keys
+ */
+export function encryptSensitiveData(plainText: string, userId: string): string {
+  if (!plainText) {
+    throw new Error('Data to encrypt cannot be empty');
+  }
+
+  if (!userId) {
+    throw new Error('User ID is required for encryption');
+  }
+
+  try {
+    const key = deriveKey(userId);
+    const encrypted = CryptoJS.AES.encrypt(plainText, key).toString();
+    return `enc_v1_${encrypted}`; // Version prefix for future migrations
+  } catch (error) {
+    console.error('Encryption error:', error);
+    throw new Error('Failed to encrypt sensitive data');
+  }
+}
+
+/**
+ * Decrypt sensitive data
+ * Returns the original plain text
+ */
+export function decryptSensitiveData(encryptedText: string, userId: string): string {
+  if (!encryptedText) {
+    throw new Error('Encrypted data cannot be empty');
+  }
+
+  if (!userId) {
+    throw new Error('User ID is required for decryption');
+  }
+
+  try {
+    // Remove version prefix
+    const encrypted = encryptedText.replace(/^enc_v\d+_/, '');
+    const key = deriveKey(userId);
+    const decrypted = CryptoJS.AES.decrypt(encrypted, key);
+    const plainText = decrypted.toString(CryptoJS.enc.Utf8);
+
+    if (!plainText) {
+      throw new Error('Decryption failed - invalid key or corrupted data');
+    }
+
+    return plainText;
+  } catch (error) {
+    console.error('Decryption error:', error);
+    throw new Error('Failed to decrypt sensitive data');
+  }
+}
+
+/**
+ * Check if data is encrypted
+ */
+export function isEncrypted(data: string): boolean {
+  return data?.startsWith('enc_v') || false;
 }

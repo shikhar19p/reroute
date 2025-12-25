@@ -5,10 +5,11 @@ const SESSION_KEY = '@user_session';
 export interface UserSession {
   uid: string;
   email: string;
-  role?: 'owner' | 'customer';
+  role?: 'owner' | 'customer'; // Current active role (for backward compatibility)
+  roles?: ('owner' | 'customer')[]; // All roles user has
   displayName?: string;
   photoURL?: string;
-  phoneNumber?: string | null; // Added phoneNumber
+  phoneNumber?: string | null;
 }
 
 export async function saveSession(user: UserSession): Promise<void> {
@@ -49,9 +50,10 @@ export async function loadSession(): Promise<UserSession | null> {
       uid: parsed.uid,
       email: parsed.email,
       role: parsed.role,
+      roles: parsed.roles || (parsed.role ? [parsed.role] : []), // Support multi-role
       displayName: parsed.displayName,
       photoURL: parsed.photoURL,
-      phoneNumber: parsed.phoneNumber, // Added phoneNumber
+      phoneNumber: parsed.phoneNumber,
     };
   } catch (error) {
     console.error('Failed to load session:', error);
