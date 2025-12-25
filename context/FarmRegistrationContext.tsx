@@ -1,4 +1,6 @@
-import React, { createContext, useCallback, useContext, useMemo, useState, ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useState, ReactNode, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '../authContext';
 
 interface Photo {
   uri: string;
@@ -35,9 +37,11 @@ interface FileData {
 interface Person {
   name: string;
   phone: string;
-  aadhaarNumber: string;
-  aadhaarFront: FileData | null;
-  aadhaarBack: FileData | null;
+  panCard: string;
+  idProofType: 'driving_license' | 'passport' | 'voter_id';
+  idProofNumber: string;
+  idProofFront: FileData | null;
+  idProofBack: FileData | null;
 }
 
 interface BankDetails {
@@ -97,6 +101,10 @@ interface FarmRegistrationContextType {
   removePhoto: (index: number) => void;
   incAmenity: (key: string) => void;
   decAmenity: (key: string) => void;
+  saveDraft: () => Promise<void>;
+  loadDraft: () => Promise<boolean>;
+  clearDraft: () => Promise<void>;
+  hasDraft: boolean;
 }
 
 const createInitialFarm = (): Farm => ({
@@ -138,16 +146,20 @@ const createInitialFarm = (): Farm => ({
     person1: {
       name: '',
       phone: '',
-      aadhaarNumber: '',
-      aadhaarFront: null,
-      aadhaarBack: null,
+      panCard: '',
+      idProofType: 'driving_license',
+      idProofNumber: '',
+      idProofFront: null,
+      idProofBack: null,
     },
     person2: {
       name: '',
       phone: '',
-      aadhaarNumber: '',
-      aadhaarFront: null,
-      aadhaarBack: null,
+      panCard: '',
+      idProofType: 'driving_license',
+      idProofNumber: '',
+      idProofFront: null,
+      idProofBack: null,
     },
     panNumber: '',
     companyPAN: null,
@@ -176,12 +188,104 @@ const cloneForPathSegment = (value: any): any => {
   return {};
 };
 
+const DRAFT_STORAGE_KEY = 'farm_registration_draft';
+
 export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) => {
+  const { user } = useAuth();
   const [farm, setFarm] = useState<Farm>(createInitialFarm);
+  const [hasDraft, setHasDraft] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Get user-specific draft key
+  const getDraftKey = useCallback(() => {
+    return user?.uid ? `${DRAFT_STORAGE_KEY}_${user.uid}` : DRAFT_STORAGE_KEY;
+  }, [user?.uid]);
+
+  // Save draft to AsyncStorage
+  const saveDraft = useCallback(async () => {
+    try {
+      const draftKey = getDraftKey();
+      // Only save if there's meaningful data (not just initial empty state)
+      const hasData = farm.name || farm.contactPhone1 || farm.city || farm.area || farm.photos.length > 0;
+
+      if (hasData) {
+        await AsyncStorage.setItem(draftKey, JSON.stringify(farm));
+        setHasDraft(true);
+        console.log('✅ Draft saved successfully');
+      }
+    } catch (error) {
+      console.error('❌ Error saving draft:', error);
+    }
+  }, [farm, getDraftKey]);
+
+  // Load draft from AsyncStorage
+  const loadDraft = useCallback(async (): Promise<boolean> => {
+    try {
+      const draftKey = getDraftKey();
+      const draftData = await AsyncStorage.getItem(draftKey);
+
+      if (draftData) {
+        const parsedDraft = JSON.parse(draftData);
+        setFarm(parsedDraft);
+        setHasDraft(true);
+        console.log('✅ Draft loaded successfully');
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('❌ Error loading draft:', error);
+      return false;
+    }
+  }, [getDraftKey]);
+
+  // Clear draft from AsyncStorage
+  const clearDraft = useCallback(async () => {
+    try {
+      const draftKey = getDraftKey();
+      await AsyncStorage.removeItem(draftKey);
+      setHasDraft(false);
+      console.log('✅ Draft cleared successfully');
+    } catch (error) {
+      console.error('❌ Error clearing draft:', error);
+    }
+  }, [getDraftKey]);
+
+  // Check for draft on mount
+  useEffect(() => {
+    const checkForDraft = async () => {
+      try {
+        const draftKey = getDraftKey();
+        const draftData = await AsyncStorage.getItem(draftKey);
+        setHasDraft(!!draftData);
+        setIsInitialized(true);
+      } catch (error) {
+        console.error('❌ Error checking for draft:', error);
+        setIsInitialized(true);
+      }
+    };
+
+    if (user) {
+      checkForDraft();
+    } else {
+      setIsInitialized(true);
+    }
+  }, [user, getDraftKey]);
+
+  // Auto-save draft when farm data changes (debounced)
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    const timeoutId = setTimeout(() => {
+      saveDraft();
+    }, 1000); // Save 1 second after last change
+
+    return () => clearTimeout(timeoutId);
+  }, [farm, saveDraft, isInitialized]);
 
   const resetFarm = useCallback(() => {
     setFarm(createInitialFarm());
-  }, []);
+    clearDraft();
+  }, [clearDraft]);
 
   const setField = useCallback((path: string | string[], newValue: any) => {
     if (!path) {
@@ -260,8 +364,21 @@ export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) 
   }, []);
 
   const value = useMemo(
-    () => ({ farm, setFarm, resetFarm, setField, addPhoto, removePhoto, incAmenity, decAmenity }),
-    [farm, resetFarm, setField, addPhoto, removePhoto, incAmenity, decAmenity]
+    () => ({
+      farm,
+      setFarm,
+      resetFarm,
+      setField,
+      addPhoto,
+      removePhoto,
+      incAmenity,
+      decAmenity,
+      saveDraft,
+      loadDraft,
+      clearDraft,
+      hasDraft,
+    }),
+    [farm, resetFarm, setField, addPhoto, removePhoto, incAmenity, decAmenity, saveDraft, loadDraft, clearDraft, hasDraft]
   );
 
   return (

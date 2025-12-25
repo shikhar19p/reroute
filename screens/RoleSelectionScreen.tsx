@@ -82,13 +82,30 @@ export default function RoleSelectionScreen({ navigation }: any) {
         const userDocRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userDocRef);
 
+        let existingRoles: ('owner' | 'customer')[] = [];
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          // Get existing roles or create array from existing role
+          if (userData?.roles && Array.isArray(userData.roles)) {
+            existingRoles = userData.roles;
+          } else if (userData?.role) {
+            existingRoles = [userData.role];
+          }
+        }
+
+        // Add new role if not already present
+        if (!existingRoles.includes(role)) {
+          existingRoles.push(role);
+        }
+
         if (userDoc.exists()) {
           await setDoc(userDocRef, {
             ...userDoc.data(),
-            role,
+            role, // Current active role
+            roles: existingRoles, // All roles user has
             updatedAt: new Date().toISOString(),
           }, { merge: true });
-          console.log('✅ Role saved to Firestore');
+          console.log('✅ Role saved to Firestore, roles:', existingRoles);
         } else {
           await setDoc(userDocRef, {
             uid: user.uid,
@@ -96,21 +113,28 @@ export default function RoleSelectionScreen({ navigation }: any) {
             displayName: user.displayName,
             photoURL: user.photoURL,
             role,
+            roles: [role], // Initialize with selected role
             createdAt: new Date().toISOString(),
           });
-          console.log('✅ User document created in Firestore');
+          console.log('✅ New user document created in Firestore');
         }
       } catch (firestoreError: any) {
         console.warn('⚠️ Could not save to Firestore:', firestoreError.message);
         console.log('💡 Continuing with local storage only');
       }
 
-      // Update local session
+      // Update local session with role and roles array
+      const userRoles = user.roles || [];
+      if (!userRoles.includes(role)) {
+        userRoles.push(role);
+      }
+
       await saveSession({
         ...user,
         role,
+        roles: userRoles,
       });
-      console.log('✅ Role saved to local storage');
+      console.log('✅ Role saved to local storage, roles:', userRoles);
 
       setLoading(false);
       console.log('🎉 Role selection complete!');

@@ -22,7 +22,9 @@
       "Bash(firebase deploy:*)",
       "Bash(adb logcat:*)",
       "Bash(Select-Object -Last 50)",
-      "Bash(keytool -list -v -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android:*)"
+      "Bash(keytool -list -v -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android:*)",
+      "Bash(npm install:*)",
+      "Bash(npm uninstall:*)"
     ],
     "deny": [],
     "ask": []

@@ -11,55 +11,95 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFarmRegistration } from '../../context/FarmRegistrationContext';
 import { saveFarmRegistration } from '../../services/farmService';
 import { useDialog } from '../../components/CustomDialog';
+import { useAuth } from '../../authContext';
+import {
+  completePaymentFlow,
+} from '../../services/paymentService';
+import { parseError } from '../../utils/errorHandler';
 
 type RegistrationFeeScreenProps = {
   navigation: NativeStackNavigationProp<any, any>;
 };
 
 export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScreenProps) {
-  const { farm, resetFarm } = useFarmRegistration();
+  const { farm, resetFarm, clearDraft } = useFarmRegistration();
   const { showDialog } = useDialog();
+  const { user } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const REGISTRATION_FEE = 5000; // Placeholder amount - can be changed
+  const REGISTRATION_FEE = 5000; // ₹5000 registration fee
 
   const handlePayment = async () => {
+    if (!user) {
+      showDialog({
+        title: 'Error',
+        message: 'Please login to continue with payment',
+        type: 'error',
+      });
+      return;
+    }
+
     setIsProcessing(true);
 
-    // Simulate payment processing delay
-    setTimeout(async () => {
-      try {
-        // Show payment success
-        showDialog({
-          title: 'Payment Successful',
-          message: `Registration fee of ₹${REGISTRATION_FEE} paid successfully!`,
-          type: 'success',
-        });
+    try {
+      console.log('🔄 Starting registration fee payment...');
 
-        // Now submit the farm registration
-        console.log('RegistrationFeeScreen: About to call saveFarmRegistration');
-        const result = await saveFarmRegistration(farm);
-        console.log('RegistrationFeeScreen: Registration successful!', result);
+      // Complete Razorpay payment flow (skip server verification for registration)
+      await completePaymentFlow(
+        REGISTRATION_FEE, // Amount in rupees - completePaymentFlow handles conversion to paise
+        'INR',
+        'registration-' + Date.now(), // Unique registration ID
+        user.uid,
+        user.displayName || farm.kyc.person1.name || 'Farmhouse Owner',
+        user.email || '',
+        farm.contactPhone1 || '',
+        'Farmhouse Registration Fee',
+        true // Skip server-side verification for registration payments
+      );
 
-        showDialog({
-          title: 'Success',
-          message: 'Farm registration submitted for review!',
-          type: 'success',
-        });
+      console.log('✅ Payment successful!');
 
-        resetFarm();
-        navigation.reset({ index: 0, routes: [{ name: 'MyFarmhouses' }] });
-      } catch (error) {
-        console.error('RegistrationFeeScreen: Submission error:', error);
-        showDialog({
-          title: 'Error',
-          message: `Failed to submit registration: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          type: 'error',
-        });
-      } finally {
-        setIsProcessing(false);
-      }
-    }, 2000); // 2 second delay to simulate payment processing
+      // Save the farm registration after successful payment
+      console.log('📝 Saving farm registration...');
+      const result = await saveFarmRegistration(farm);
+      console.log('✅ Registration successful!', result);
+
+      // Clear draft after successful registration
+      await clearDraft();
+
+      showDialog({
+        title: 'Success!',
+        message: 'Payment successful! Your farmhouse has been submitted for review. You will be notified once verified.',
+        type: 'success',
+        buttons: [{
+          text: 'OK',
+          onPress: () => {
+            resetFarm();
+            navigation.reset({ index: 0, routes: [{ name: 'MyFarmhouses' }] });
+          }
+        }]
+      });
+    } catch (error: any) {
+      console.error('❌ Payment/Registration error:', error);
+
+      // Parse error into user-friendly message
+      const { title, message, isCancellation } = parseError(error);
+
+      showDialog({
+        title: isCancellation ? 'Payment Cancelled' : title,
+        message: isCancellation
+          ? 'You cancelled the payment. Please try again when you are ready to complete registration.'
+          : message,
+        type: isCancellation ? 'warning' : 'error',
+        buttons: [{
+          text: isCancellation ? 'OK' : 'Try Again',
+          style: 'default',
+          onPress: () => {}
+        }]
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (

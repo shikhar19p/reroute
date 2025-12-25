@@ -58,17 +58,24 @@ export const photosSchema = z
   .array(photoItemSchema)
   .max(10, 'You can upload up to 10 photos');
 
-const aadhaarFileSchema = z
+const idProofFileSchema = z
   .object({
     uri: z.string().trim().min(1),
   })
   .passthrough()
   .nullable();
 
-const aadhaarNumberSchema = z
+const panCardSchema = z
   .string()
   .trim()
-  .regex(/^\d{12}$/, 'Please enter a valid 12-digit Aadhaar number');
+  .regex(/^[A-Z]{5}[0-9]{4}[A-Z]$/, 'Please enter a valid PAN card (e.g., ABCDE1234F)');
+
+const idProofTypeSchema = z.enum(['driving_license', 'passport', 'voter_id']);
+
+const idProofNumberSchema = z
+  .string()
+  .trim()
+  .min(5, 'ID proof number must be at least 5 characters');
 
 const ifscSchema = z
   .string()
@@ -89,16 +96,20 @@ export const kycSchema = z.object({
   person1: z.object({
     name: z.string().trim().min(1, 'Name is required').regex(/^[a-zA-Z\s]+$/, 'Name must contain only alphabets'),
     phone: phoneSchema,
-    aadhaarNumber: aadhaarNumberSchema,
-    aadhaarFront: aadhaarFileSchema.refine((val) => val !== null, 'Aadhaar front photo is required'),
-    aadhaarBack: aadhaarFileSchema.refine((val) => val !== null, 'Aadhaar back photo is required'),
+    panCard: panCardSchema,
+    idProofType: idProofTypeSchema,
+    idProofNumber: idProofNumberSchema,
+    idProofFront: idProofFileSchema.refine((val) => val !== null, 'ID proof front photo is required'),
+    idProofBack: idProofFileSchema.refine((val) => val !== null, 'ID proof back photo is required'),
   }),
   person2: z.object({
     name: z.string().trim().min(1, 'Name is required').regex(/^[a-zA-Z\s]+$/, 'Name must contain only alphabets'),
     phone: phoneSchema,
-    aadhaarNumber: aadhaarNumberSchema,
-    aadhaarFront: aadhaarFileSchema.refine((val) => val !== null, 'Aadhaar front photo is required'),
-    aadhaarBack: aadhaarFileSchema.refine((val) => val !== null, 'Aadhaar back photo is required'),
+    panCard: panCardSchema,
+    idProofType: idProofTypeSchema,
+    idProofNumber: idProofNumberSchema,
+    idProofFront: idProofFileSchema.refine((val) => val !== null, 'ID proof front photo is required'),
+    idProofBack: idProofFileSchema.refine((val) => val !== null, 'ID proof back photo is required'),
   }),
   panNumber: panNumberSchema,
   companyPAN: z.any().refine((val) => val !== null, 'Company PAN document is required'),

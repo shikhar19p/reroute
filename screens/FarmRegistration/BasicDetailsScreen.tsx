@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { basicSchema } from '../../utils/validation';
 import { useFarmRegistration } from '../../context/FarmRegistrationContext';
+import { useDialog } from '../../components/CustomDialog';
 
 type RootStackParamList = {
   FarmPrices: undefined;
@@ -35,8 +36,38 @@ const fieldConfigs = [
 ];
 
 export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenProps) {
-  const { farm, setField } = useFarmRegistration();
+  const { farm, setField, hasDraft, loadDraft, clearDraft } = useFarmRegistration();
+  const { showDialog } = useDialog();
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [draftChecked, setDraftChecked] = useState(false);
+
+  // Check for saved draft on mount
+  useEffect(() => {
+    if (hasDraft && !draftChecked) {
+      setDraftChecked(true);
+      showDialog({
+        title: 'Resume Draft?',
+        message: 'You have a saved draft of your farmhouse registration. Would you like to continue where you left off?',
+        type: 'info',
+        buttons: [
+          {
+            text: 'Start Fresh',
+            style: 'cancel',
+            onPress: async () => {
+              await clearDraft();
+            }
+          },
+          {
+            text: 'Resume Draft',
+            style: 'default',
+            onPress: async () => {
+              await loadDraft();
+            }
+          }
+        ]
+      });
+    }
+  }, [hasDraft, draftChecked, showDialog, loadDraft, clearDraft]);
 
   const formValues = useMemo(
     () => ({
@@ -168,7 +199,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingBottom: 32,
+    paddingBottom: 120, // Extra padding for bottom buttons
   },
   sectionTitle: {
     fontSize: 24,

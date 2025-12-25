@@ -1,6 +1,7 @@
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage, auth } from '../firebaseConfig';
+import { encryptSensitiveData } from '../utils/encryption';
 
 const uriToBlob = async (uri: string): Promise<Blob> => {
   try {
@@ -145,31 +146,33 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
   console.log('Photo URLs:', photoUrls);
   console.log('Now uploading KYC documents to Storage...');
 
-  const person1AadhaarFrontUrl = farmData.kyc.person1.aadhaarFront
+  // Person 1 ID Proof uploads (NO AADHAAR)
+  const person1IdProofFrontUrl = farmData.kyc.person1.idProofFront
     ? await uploadDocument(
-        farmData.kyc.person1.aadhaarFront,
-        `farms/${userId}/${timestamp}/kyc/person1_aadhaar_front`
+        farmData.kyc.person1.idProofFront,
+        `farms/${userId}/${timestamp}/kyc/person1_id_proof_front`
       )
     : null;
 
-  const person1AadhaarBackUrl = farmData.kyc.person1.aadhaarBack
+  const person1IdProofBackUrl = farmData.kyc.person1.idProofBack
     ? await uploadDocument(
-        farmData.kyc.person1.aadhaarBack,
-        `farms/${userId}/${timestamp}/kyc/person1_aadhaar_back`
+        farmData.kyc.person1.idProofBack,
+        `farms/${userId}/${timestamp}/kyc/person1_id_proof_back`
       )
     : null;
 
-  const person2AadhaarFrontUrl = farmData.kyc.person2.aadhaarFront
+  // Person 2 ID Proof uploads (NO AADHAAR)
+  const person2IdProofFrontUrl = farmData.kyc.person2.idProofFront
     ? await uploadDocument(
-        farmData.kyc.person2.aadhaarFront,
-        `farms/${userId}/${timestamp}/kyc/person2_aadhaar_front`
+        farmData.kyc.person2.idProofFront,
+        `farms/${userId}/${timestamp}/kyc/person2_id_proof_front`
       )
     : null;
 
-  const person2AadhaarBackUrl = farmData.kyc.person2.aadhaarBack
+  const person2IdProofBackUrl = farmData.kyc.person2.idProofBack
     ? await uploadDocument(
-        farmData.kyc.person2.aadhaarBack,
-        `farms/${userId}/${timestamp}/kyc/person2_aadhaar_back`
+        farmData.kyc.person2.idProofBack,
+        `farms/${userId}/${timestamp}/kyc/person2_id_proof_back`
       )
     : null;
 
@@ -186,6 +189,18 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
         `farms/${userId}/${timestamp}/kyc/labour_doc`
       )
     : null;
+
+  console.log('Encrypting bank details...');
+  // Encrypt sensitive bank details
+  const encryptedAccountNumber = encryptSensitiveData(
+    farmData.kyc.bankDetails.accountNumber,
+    userId
+  );
+  const encryptedIFSC = encryptSensitiveData(
+    farmData.kyc.bankDetails.ifscCode,
+    userId
+  );
+  console.log('Bank details encrypted successfully');
 
   const farmDoc = {
     basicDetails: {
@@ -231,25 +246,30 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
       person1: {
         name: farmData.kyc.person1.name,
         phone: farmData.kyc.person1.phone,
-        aadhaarNumber: farmData.kyc.person1.aadhaarNumber,
-        aadhaarFrontUrl: person1AadhaarFrontUrl,
-        aadhaarBackUrl: person1AadhaarBackUrl,
+        panCard: farmData.kyc.person1.panCard,
+        idProofType: farmData.kyc.person1.idProofType,
+        idProofNumber: farmData.kyc.person1.idProofNumber,
+        idProofFrontUrl: person1IdProofFrontUrl,
+        idProofBackUrl: person1IdProofBackUrl,
       },
       person2: {
         name: farmData.kyc.person2.name || null,
         phone: farmData.kyc.person2.phone || null,
-        aadhaarNumber: farmData.kyc.person2.aadhaarNumber || null,
-        aadhaarFrontUrl: person2AadhaarFrontUrl,
-        aadhaarBackUrl: person2AadhaarBackUrl,
+        panCard: farmData.kyc.person2.panCard || null,
+        idProofType: farmData.kyc.person2.idProofType || null,
+        idProofNumber: farmData.kyc.person2.idProofNumber || null,
+        idProofFrontUrl: person2IdProofFrontUrl,
+        idProofBackUrl: person2IdProofBackUrl,
       },
       panNumber: farmData.kyc.panNumber,
       companyPANUrl,
       labourDocUrl,
       bankDetails: {
         accountHolderName: farmData.kyc.bankDetails.accountHolderName,
-        accountNumber: farmData.kyc.bankDetails.accountNumber,
-        ifscCode: farmData.kyc.bankDetails.ifscCode,
+        accountNumber: encryptedAccountNumber, // ENCRYPTED
+        ifscCode: encryptedIFSC, // ENCRYPTED
         branchName: farmData.kyc.bankDetails.branchName,
+        encrypted: true, // Flag to indicate encryption
       },
       agreedToTerms: farmData.kyc.agreedToTerms,
     },

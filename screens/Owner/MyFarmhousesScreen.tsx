@@ -19,6 +19,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { getFarmhousesByOwner, Farmhouse } from '../../services/farmhouseService';
 import { getResponsivePadding, isSmallDevice } from '../../utils/responsive';
 import { useDialog } from '../../components/CustomDialog';
+import { useFarmRegistration } from '../../context/FarmRegistrationContext';
 
 type RootStackParamList = {
   MyFarmhouses: undefined;
@@ -32,6 +33,7 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
   const { user, logout } = useAuth();
   const { colors, isDark } = useTheme();
   const { showDialog } = useDialog();
+  const { hasDraft, loadDraft, clearDraft } = useFarmRegistration();
   const [farmhouses, setFarmhouses] = useState<Farmhouse[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -210,6 +212,50 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
         </View>
       </View>
 
+      {/* Draft Resume Banner */}
+      {hasDraft && (
+        <TouchableOpacity
+          style={[styles.draftBanner, { backgroundColor: isDark ? '#1E3A8A' : '#DBEAFE', borderColor: '#3B82F6' }]}
+          onPress={async () => {
+            showDialog({
+              title: 'Resume Draft?',
+              message: 'You have a saved draft of your farmhouse registration. Would you like to continue where you left off?',
+              type: 'info',
+              buttons: [
+                {
+                  text: 'Delete Draft',
+                  style: 'destructive',
+                  onPress: async () => {
+                    await clearDraft();
+                  }
+                },
+                {
+                  text: 'Resume',
+                  style: 'default',
+                  onPress: async () => {
+                    await loadDraft();
+                    navigation.navigate('FarmBasicDetails' as never);
+                  }
+                }
+              ]
+            });
+          }}
+        >
+          <View style={styles.draftContent}>
+            <Text style={styles.draftIcon}>📝</Text>
+            <View style={styles.draftTextContainer}>
+              <Text style={[styles.draftTitle, { color: isDark ? '#93C5FD' : '#1E40AF' }]}>
+                Continue Registration
+              </Text>
+              <Text style={[styles.draftSubtitle, { color: isDark ? '#BFDBFE' : '#3B82F6' }]}>
+                You have an incomplete farmhouse registration
+              </Text>
+            </View>
+          </View>
+          <Text style={[styles.draftArrow, { color: isDark ? '#93C5FD' : '#1E40AF' }]}>→</Text>
+        </TouchableOpacity>
+      )}
+
       {farmhouses.length === 0 ? (
         renderEmptyState()
       ) : (
@@ -280,6 +326,42 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
+  },
+  draftBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: getResponsivePadding(20),
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+  },
+  draftContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  draftIcon: {
+    fontSize: 28,
+    marginRight: 12,
+  },
+  draftTextContainer: {
+    flex: 1,
+  },
+  draftTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  draftSubtitle: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  draftArrow: {
+    fontSize: 24,
+    fontWeight: '600',
+    marginLeft: 8,
   },
   listContent: {
     padding: 20,

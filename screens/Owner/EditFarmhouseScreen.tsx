@@ -22,6 +22,7 @@ import { db, storage } from '../../firebaseConfig';
 import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { useDialog } from '../../components/CustomDialog';
+import { encryptSensitiveData, decryptSensitiveData, isEncrypted } from '../../utils/encryption';
 
 type RootStackParamList = {
   MyFarmhouses: undefined;
@@ -39,6 +40,20 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
   const [uploadingImage, setUploadingImage] = useState(false);
 
   const rawData = farmhouse as any;
+
+  // Decrypt bank details if encrypted
+  const decryptBankDetails = (field: string) => {
+    if (!field) return '';
+    try {
+      if (isEncrypted(field)) {
+        return decryptSensitiveData(field, farmhouse.ownerId);
+      }
+      return field;
+    } catch (error) {
+      console.error('Error decrypting bank details:', error);
+      return field; // Return as-is if decryption fails
+    }
+  };
 
   const [formData, setFormData] = useState({
     name: farmhouse.name || '',
@@ -67,8 +82,8 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
     quietHours: farmhouse.rules?.quietHours || false,
     additionalRules: rawData.rules?.additionalRules || '',
     accountHolderName: rawData.kyc?.bankDetails?.accountHolderName || '',
-    accountNumber: rawData.kyc?.bankDetails?.accountNumber || '',
-    ifscCode: rawData.kyc?.bankDetails?.ifscCode || '',
+    accountNumber: decryptBankDetails(rawData.kyc?.bankDetails?.accountNumber),
+    ifscCode: decryptBankDetails(rawData.kyc?.bankDetails?.ifscCode),
     branchName: rawData.kyc?.bankDetails?.branchName || '',
     photos: farmhouse.photos || [],
   });
@@ -291,9 +306,10 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
         'rules.quietHours': formData.quietHours,
         'rules.additionalRules': formData.additionalRules.trim(),
         'kyc.bankDetails.accountHolderName': formData.accountHolderName.trim(),
-        'kyc.bankDetails.accountNumber': formData.accountNumber.trim(),
-        'kyc.bankDetails.ifscCode': formData.ifscCode.trim().toUpperCase(),
+        'kyc.bankDetails.accountNumber': encryptSensitiveData(formData.accountNumber.trim(), farmhouse.ownerId),
+        'kyc.bankDetails.ifscCode': encryptSensitiveData(formData.ifscCode.trim().toUpperCase(), farmhouse.ownerId),
         'kyc.bankDetails.branchName': formData.branchName.trim(),
+        'kyc.bankDetails.encrypted': true, // Flag to indicate encryption
         photoUrls: formData.photos,
         updatedAt: new Date().toISOString(),
       };
@@ -813,7 +829,7 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollView: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 20 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 120 }, // Extra padding for bottom buttons
   headerSection: { paddingVertical: 20 },
   headerTitle: { fontSize: 28, fontWeight: 'bold', marginBottom: 4 },
   headerSubtitle: { fontSize: 14 },

@@ -225,6 +225,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
+    paddingBottom: 120, // Extra padding for bottom buttons
   },
   header: {
     flexDirection: 'row',

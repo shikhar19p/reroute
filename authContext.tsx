@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { auth, db } from './firebaseConfig';
 import { saveSession, loadSession, clearSession, UserSession } from './sessionManager';
@@ -10,6 +10,7 @@ interface AuthContextType {
   loading: boolean;
   error: string | null;
   logout: () => Promise<void>;
+  switchRole: (role: 'owner' | 'customer') => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -29,7 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.warn('⚠️ Auth initialization timeout - proceeding anyway');
         setLoading(false);
       }
-    }, 3000); // 3 second timeout
+    }, 5000); // 5 second timeout (increased for slower connections)
 
     // Try to restore session on app start
     loadSession()
@@ -84,14 +85,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('🔄 Auth state changed, loading user data for:', firebaseUser.uid);
 
-      // Try to get user role from Firestore first
+      // Try to get user roles from Firestore first
       let firestoreRole = undefined;
+      let firestoreRoles: ('owner' | 'customer')[] = [];
       try {
         const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
         if (userDoc.exists()) {
           const userData = userDoc.data();
-          firestoreRole = userData?.role;
-          console.log('✅ User document found in Firestore, role:', firestoreRole);
+          firestoreRole = userData?.role; // Current active role
+          // Support both old single role and new multi-role system
+          if (userData?.roles && Array.isArray(userData.roles)) {
+            firestoreRoles = userData.roles;
+          } else if (firestoreRole) {
+            firestoreRoles = [firestoreRole]; // Convert single role to array
+          }
+          console.log('✅ User document found in Firestore, role:', firestoreRole, 'roles:', firestoreRoles);
         } else {
           console.log('⚠️ User document not found in Firestore');
         }
@@ -99,33 +107,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.warn('⚠️ Could not read from Firestore:', firestoreError.message);
       }
 
-      // Check local storage for role
+      // Check local storage for session continuity (app restart without logout)
       const localSession = await loadSession();
       const localRole = localSession?.role;
+      const localRoles = localSession?.roles || [];
       const hadLocalSession = localSession !== null;
-      console.log('📱 Local storage role:', localRole, '| Had session:', hadLocalSession);
+      console.log('📱 Local storage role:', localRole, 'roles:', localRoles);
+      console.log('🗄️ Firestore role:', firestoreRole, 'roles:', firestoreRoles);
 
-      // If this is a fresh sign-in (no local session), force role selection
-      // Otherwise, use local role first, then fall back to Firestore
-      let finalRole = undefined;
-      if (hadLocalSession) {
-        // User had a session before, use local or Firestore role
-        finalRole = localRole || firestoreRole;
-        console.log('✅ Using role:', finalRole, '(source:', localRole ? 'LocalStorage' : 'Firestore', ')');
+      // Merge roles from both sources (Firestore is source of truth)
+      const mergedRoles = firestoreRoles.length > 0 ? firestoreRoles : localRoles;
+
+      // IMPORTANT: User's role is not fixed - they choose their role every time
+      // Always force role selection on fresh auth (no local session)
+      // This allows users to switch between customer and owner roles
+      let finalRole: string | undefined;
+
+      if (hadLocalSession && localRole) {
+        // User is resuming an existing session (app restart without logout)
+        // Use the stored role to maintain session continuity
+        finalRole = localRole;
+        console.log('🔄 Resuming session with role:', finalRole);
       } else {
-        // Fresh sign-in, force role selection (ignore Firestore)
-        console.log('🆕 Fresh sign-in detected - forcing role selection');
+        // Fresh login or session expired - force role selection
+        console.log('🆕 Login detected - user must select role');
         finalRole = undefined;
       }
+
+      console.log('✅ Final role:', finalRole, 'available roles:', mergedRoles);
 
       // Create user session
       const userSession: UserSession = {
         uid: firebaseUser.uid,
         email: firebaseUser.email || '',
         role: finalRole,
+        roles: mergedRoles.length > 0 ? mergedRoles : undefined,
         displayName: firebaseUser.displayName || undefined,
         photoURL: firebaseUser.photoURL || undefined,
-        phoneNumber: firebaseUser.phoneNumber || undefined, // <-- Added phone number
+        phoneNumber: firebaseUser.phoneNumber || undefined,
       };
 
       console.log('💾 Saving user session with role:', userSession.role);
@@ -144,6 +163,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error('User account no longer exists. Please sign in again.');
       }
       throw err;
+    }
+  };
+
+  const switchRole = async (newRole: 'owner' | 'customer') => {
+    if (!user) return;
+
+    try {
+      console.log('🔄 Switching role to:', newRole);
+
+      // Check if user has this role
+      const userRoles = user.roles || [];
+      if (!userRoles.includes(newRole)) {
+        // Add the new role if they don't have it
+        userRoles.push(newRole);
+      }
+
+      // Update user session with new active role
+      const updatedSession: UserSession = {
+        ...user,
+        role: newRole,
+        roles: userRoles,
+      };
+
+      // Update Firestore
+      try {
+        await setDoc(doc(db, 'users', user.uid), {
+          role: newRole,
+          roles: userRoles,
+        }, { merge: true });
+        console.log('✅ Role updated in Firestore');
+      } catch (err) {
+        console.warn('⚠️ Could not update role in Firestore:', err);
+      }
+
+      // Update local session
+      await saveSession(updatedSession);
+      setUser(updatedSession);
+
+      console.log('✅ Role switched to:', newRole);
+    } catch (err: any) {
+      console.error('❌ Error switching role:', err);
+      setError('Failed to switch role');
     }
   };
 
@@ -178,7 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, error, logout }}>
+    <AuthContext.Provider value={{ user, loading, error, logout, switchRole }}>
       {children}
     </AuthContext.Provider>
   );
