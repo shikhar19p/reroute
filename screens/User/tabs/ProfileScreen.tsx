@@ -234,31 +234,33 @@ export default function ProfileScreen({ navigation }: any) {
         </View>
 
         <View style={[styles.menuCard, { backgroundColor: colors.cardBackground }]}>
-          <MenuButton title="Edit Profile" onPress={() => navigation.navigate('EditProfile', { profile })} />
+          <View style={{ borderBottomColor: isDark ? colors.border : '#E5E7EB' }}>
+            <MenuButton title="Edit Profile" onPress={() => navigation.navigate('EditProfile', { profile })} />
+          </View>
 
-          <View style={styles.menuItem}>
+          <View style={[styles.menuItem, { borderBottomColor: isDark ? colors.border : '#E5E7EB' }]}>
             <Text style={[styles.menuText, { color: colors.text }]}>Push Notifications</Text>
             <Switch
               value={notificationsEnabled}
               onValueChange={setNotificationsEnabled}
-              trackColor={{ false: '#767577', true: colors.buttonBackground }}
-              thumbColor={notificationsEnabled ? '#fff' : '#f4f3f4'}
+              trackColor={{ false: isDark ? '#555' : '#D1D5DB', true: '#D4AF37' }}
+              thumbColor="#FFFFFF"
+              ios_backgroundColor={isDark ? '#555' : '#D1D5DB'}
             />
           </View>
 
-          <View style={styles.menuItem}>
-            <Text style={[styles.menuText, { color: colors.text }]}>
-              Dark Mode
-            </Text>
+          <View style={[styles.menuItem, { borderBottomColor: isDark ? colors.border : '#E5E7EB' }]}>
+            <Text style={[styles.menuText, { color: colors.text }]}>Dark Mode</Text>
             <Switch
               value={isDark}
               onValueChange={toggleTheme}
-              trackColor={{ false: '#767577', true: colors.buttonBackground }}
-              thumbColor={isDark ? '#fff' : '#f4f3f4'}
+              trackColor={{ false: isDark ? '#555' : '#D1D5DB', true: '#D4AF37' }}
+              thumbColor="#FFFFFF"
+              ios_backgroundColor={isDark ? '#555' : '#D1D5DB'}
             />
           </View>
 
-          <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
+          <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={handleLogout}>
             <Text style={[styles.menuText, { color: '#F44336' }]}>Logout</Text>
             <Text style={[styles.menuArrow, { color: '#F44336' }]}>›</Text>
           </TouchableOpacity>
@@ -307,7 +309,7 @@ const styles = StyleSheet.create({
   statNumber: { fontSize: 24, fontWeight: 'bold' },
   statLabel: { fontSize: 12, textAlign: 'center' },
   menuCard: { margin: 20, marginTop: 0, borderRadius: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
-  menuItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+  menuItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 20, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
   menuText: { fontSize: 16, fontWeight: '500' },
   menuArrow: { fontSize: 20, fontWeight: 'bold' },
 });

@@ -17,7 +17,7 @@ export default function RulesRestrictionsScreen({ navigation }: RulesRestriction
   const { amenities, rules } = farm;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom']} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <Text style={styles.title}>Review Configuration</Text>
         <Text style={styles.subtitle}>Please review your amenities and rules before proceeding</Text>
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   yesText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#4CAF50',
+    color: '#D4AF37',
   },
   noIcon: {
     flexDirection: 'row',
@@ -284,11 +284,11 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
-    shadowColor: '#4CAF50',
+    shadowColor: '#D4AF37',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,

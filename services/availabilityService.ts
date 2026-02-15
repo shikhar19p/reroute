@@ -8,7 +8,6 @@ import {
   query,
   where,
   getDocs,
-  Timestamp,
   doc,
   getDoc,
   updateDoc,
@@ -388,46 +387,3 @@ export async function removeBookedDatesFromFarmhouse(
   }
 }
 
-/**
- * Check if dates exist in farmhouse bookedDates
- */
-export async function checkDatesInFarmhouse(
-  farmhouseId: string,
-  checkInDate: string,
-  checkOutDate: string
-): Promise<{ exists: boolean; conflictingDates: string[] }> {
-  try {
-    const farmhouseRef = doc(db, 'farmhouses', farmhouseId);
-    const farmhouseSnap = await getDoc(farmhouseRef);
-    
-    if (!farmhouseSnap.exists()) {
-      return { exists: false, conflictingDates: [] };
-    }
-    
-    // Cast to avoid TypeScript errors
-    const farmhouseData = farmhouseSnap.data() as {
-      bookedDates?: string[];
-      blockedDates?: string[];
-      [key: string]: any;
-    };
-    const bookedDates = farmhouseData.bookedDates || [];
-    const blockedDates = farmhouseData.blockedDates || [];
-    const unavailableDates = [...bookedDates, ...blockedDates];
-    
-    // Generate requested dates
-    const requestedDates = generateDateRange(checkInDate, checkOutDate);
-    
-    // Find conflicting dates
-    const conflictingDates = requestedDates.filter(date => 
-      unavailableDates.includes(date)
-    );
-    
-    return {
-      exists: conflictingDates.length > 0,
-      conflictingDates
-    };
-  } catch (error) {
-    console.error('Error checking dates in farmhouse:', error);
-    return { exists: false, conflictingDates: [] };
-  }
-}

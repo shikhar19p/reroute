@@ -284,26 +284,3 @@ export async function previewCancellationRefund(
   }
 }
 
-/**
- * Check if booking can be modified (dates, guests, etc.)
- * Typically allowed within 24-48 hours before check-in
- */
-export function canModifyBooking(checkInDate: string): boolean {
-  const now = new Date();
-  const checkIn = new Date(checkInDate);
-  const hoursUntilCheckIn = (checkIn.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-  // Allow modifications if check-in is more than 48 hours away
-  return hoursUntilCheckIn > 48;
-}
-
-/**
- * Get cancellation statistics for analytics
- */
-export interface CancellationStats {
-  totalCancellations: number;
-  freeRefunds: number;
-  partialRefunds: number;
-  noRefunds: number;
-  totalRefundAmount: number;
-}

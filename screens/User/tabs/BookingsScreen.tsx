@@ -7,7 +7,8 @@ import { useAuth } from '../../../authContext';
 import { useToast } from '../../../components/Toast';
 import { useDialog } from '../../../components/CustomDialog';
 import { useScrollHandler } from '../../../context/TabBarVisibilityContext';
-import { cancelBooking, Booking } from '../../../services/bookingService';
+import { Booking } from '../../../services/bookingService';
+import { cancelBookingWithRefund, previewCancellationRefund } from '../../../services/cancellationService';
 import { useFocusEffect } from '@react-navigation/native';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
@@ -154,28 +155,46 @@ export default function BookingsScreen({ navigation }: any) {
   };
 
   const handleCancelBooking = async (bookingId: string, farmhouseName: string) => {
-    showDialog({
-      title: 'Cancel Booking',
-      message: `Are you sure you want to cancel your booking for ${farmhouseName}?`,
-      type: 'warning',
-      buttons: [
-        { text: 'No', style: 'cancel' },
-        {
-          text: 'Yes, Cancel',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              // cancelBooking service handles both status update and date removal
-              await cancelBooking(bookingId);
-              showToast('Booking cancelled successfully', 'success');
-            } catch (error) {
-              console.error('Error cancelling booking:', error);
-              showToast('Failed to cancel booking. Please try again.', 'error');
+    if (!user) return;
+
+    try {
+      // Preview refund before confirming
+      const preview = await previewCancellationRefund(bookingId);
+
+      showDialog({
+        title: 'Cancel Booking',
+        message: `Are you sure you want to cancel your booking for ${farmhouseName}?\n\n${preview.policyDescription}\n\nRefund: ₹${preview.refundAmount.toLocaleString('en-IN')} (${preview.refundPercentage}%)`,
+        type: 'warning',
+        buttons: [
+          { text: 'No, Keep Booking', style: 'cancel' },
+          {
+            text: 'Yes, Cancel',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                const result = await cancelBookingWithRefund(
+                  bookingId,
+                  user.uid,
+                  'User requested cancellation'
+                );
+
+                showDialog({
+                  title: 'Booking Cancelled',
+                  message: `${result.message}\n\nRefund: ₹${result.refundAmount.toLocaleString('en-IN')} (${result.refundPercentage}%)`,
+                  type: result.refundAmount > 0 ? 'success' : 'info',
+                });
+              } catch (error) {
+                console.error('Error cancelling booking:', error);
+                showToast('Failed to cancel booking. Please try again.', 'error');
+              }
             }
           }
-        }
-      ]
-    });
+        ]
+      });
+    } catch (error) {
+      console.error('Error previewing cancellation:', error);
+      showToast('Failed to process cancellation. Please try again.', 'error');
+    }
   };
 
   const getBookingCategory = (booking: Booking): string => {

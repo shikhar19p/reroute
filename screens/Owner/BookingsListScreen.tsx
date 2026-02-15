@@ -8,6 +8,7 @@ import { getFarmhousesByOwner } from '../../services/farmhouseService';
 import { Booking, getFarmhouseBookings, updateBookingStatus, updatePaymentStatus } from '../../services/bookingService';
 import { cancelBookingWithRefund } from '../../services/cancellationService';
 import { useDialog } from '../../components/CustomDialog';
+import { getStatusColor } from '../../utils/statusColors';
 
 type RootStackParamList = {
   OwnerBookings: { farmhouseId?: string } | undefined;
@@ -65,16 +66,6 @@ export default function BookingsListScreen({ route, navigation }: Props) {
     if (filter === 'all') return bookings;
     return bookings.filter(b => b.status === filter);
   }, [bookings, filter]);
-
-  const statusColor = (status: Booking['status']) => {
-    switch (status) {
-      case 'pending': return '#f59e0b';
-      case 'confirmed': return '#10b981';
-      case 'completed': return '#3b82f6';
-      case 'cancelled': return '#ef4444';
-      default: return colors.placeholder;
-    }
-  };
 
   const handleCall = (phone?: string) => {
     if (!phone) return;
@@ -158,7 +149,7 @@ export default function BookingsListScreen({ route, navigation }: Props) {
     >
       <View style={styles.rowBetween}>
         <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>{item.farmhouseName}</Text>
-        <View style={[styles.badge, { backgroundColor: statusColor(item.status) }]}>
+        <View style={[styles.badge, { backgroundColor: getStatusColor(item.status) }]}>
           <Text style={styles.badgeText}>{item.status}</Text>
         </View>
       </View>

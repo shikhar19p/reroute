@@ -211,10 +211,9 @@ export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) 
       if (hasData) {
         await AsyncStorage.setItem(draftKey, JSON.stringify(farm));
         setHasDraft(true);
-        console.log('✅ Draft saved successfully');
       }
     } catch (error) {
-      console.error('❌ Error saving draft:', error);
+      console.warn('Error saving draft:', error);
     }
   }, [farm, getDraftKey]);
 
@@ -226,14 +225,20 @@ export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) 
 
       if (draftData) {
         const parsedDraft = JSON.parse(draftData);
-        setFarm(parsedDraft);
-        setHasDraft(true);
-        console.log('✅ Draft loaded successfully');
-        return true;
+        // Validate parsed draft has expected structure
+        if (parsedDraft && typeof parsedDraft === 'object' && 'kyc' in parsedDraft) {
+          setFarm(parsedDraft);
+          setHasDraft(true);
+          return true;
+        }
+        // Corrupted draft - clear it
+        await AsyncStorage.removeItem(draftKey);
+        setHasDraft(false);
+        return false;
       }
       return false;
     } catch (error) {
-      console.error('❌ Error loading draft:', error);
+      console.warn('Error loading draft:', error);
       return false;
     }
   }, [getDraftKey]);
@@ -244,9 +249,8 @@ export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) 
       const draftKey = getDraftKey();
       await AsyncStorage.removeItem(draftKey);
       setHasDraft(false);
-      console.log('✅ Draft cleared successfully');
     } catch (error) {
-      console.error('❌ Error clearing draft:', error);
+      console.warn('Error clearing draft:', error);
     }
   }, [getDraftKey]);
 
@@ -259,7 +263,7 @@ export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) 
         setHasDraft(!!draftData);
         setIsInitialized(true);
       } catch (error) {
-        console.error('❌ Error checking for draft:', error);
+        console.warn('Error checking for draft:', error);
         setIsInitialized(true);
       }
     };

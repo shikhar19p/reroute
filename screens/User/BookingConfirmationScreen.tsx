@@ -45,23 +45,22 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
   const [farmhouseDetails, setFarmhouseDetails] = useState<any>(null);
   const [currentBookingId, setCurrentBookingId] = useState<string | null>(null);
   const cleanupTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const cleanupDoneRef = React.useRef<boolean>(false);
 
   useEffect(() => {
     fetchUserProfile();
     fetchFarmhouseDetails();
   }, [user, farmhouseId]);
 
-  // Cleanup on unmount or when user navigates away
+  // Cleanup on unmount only (not on every currentBookingId change)
   useEffect(() => {
     return () => {
-      // Clear any pending timeout
       if (cleanupTimeoutRef.current) {
         clearTimeout(cleanupTimeoutRef.current);
       }
-
-      // Cleanup pending booking if exists
-      if (currentBookingId) {
-        console.log('🧹 Component unmounting, cleaning up pending booking...');
+      // Only cleanup if not already cleaned up by error handler
+      if (currentBookingId && !cleanupDoneRef.current) {
+        console.log('Component unmounting, cleaning up pending booking...');
         cleanupPendingBooking(currentBookingId).catch(error => {
           console.error('Failed to cleanup on unmount:', error);
         });
@@ -185,6 +184,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
 
     setLoading(true);
     setLoadingMessage('Creating booking...');
+    cleanupDoneRef.current = false;
     let bookingId: string | null = null;
     let paymentId: string | null = null;
 
@@ -293,7 +293,9 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
 
       // Cleanup the pending booking since payment failed/cancelled
       if (bookingId) {
-        console.log('🧹 Payment failed/cancelled, cleaning up pending booking...');
+        // Mark cleanup as done so unmount effect doesn't double-cleanup
+        cleanupDoneRef.current = true;
+        console.log('Payment failed/cancelled, cleaning up pending booking...');
         cleanupPendingBooking(bookingId).catch(err => {
           console.error('Failed to cleanup after error:', err);
         });
@@ -459,7 +461,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
         }
       >
         <View style={[styles.summaryCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-          <Image source={{ uri: displayImage }} style={styles.farmhouseImage} />
+          <Image source={{ uri: displayImage }} style={styles.farmhouseImage} resizeMode="cover" />
           <View style={styles.farmhouseInfo}>
             <Text style={[styles.farmhouseName, { color: colors.text }]}>{displayName}</Text>
             <Text style={[styles.farmhouseLocation, { color: colors.placeholder }]}>{displayLocation}</Text>

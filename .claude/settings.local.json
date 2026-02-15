@@ -24,7 +24,14 @@
       "Bash(Select-Object -Last 50)",
       "Bash(keytool -list -v -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android:*)",
       "Bash(npm install:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(npx expo start --web --no-dev)",
+      "Bash(curl:*)",
+      "Bash(npx expo start:*)",
+      "Bash(npm ls:*)",
+      "Bash(netstat:*)",
+      "Bash(npx firebase deploy --only firestore:rules)",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []

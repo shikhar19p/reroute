@@ -43,7 +43,7 @@ export default function AmenitiesGamesScreen({ navigation }: AmenitiesGamesScree
   );
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -69,7 +69,7 @@ export default function AmenitiesGamesScreen({ navigation }: AmenitiesGamesScree
                 <Switch
                   value={(farm.amenities as any)[item.key]}
                   onValueChange={(value) => setField(['amenities', item.key], value)}
-                  trackColor={{ false: '#E5E7EB', true: '#4CAF50' }}
+                  trackColor={{ false: '#E5E7EB', true: '#D4AF37' }}
                   thumbColor="#FFFFFF"
                 />
               ) : (
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   counterButtonActive: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
   },
   chevronDown: {
     fontSize: 18,
@@ -326,11 +326,11 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
-    shadowColor: '#4CAF50',
+    shadowColor: '#D4AF37',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,

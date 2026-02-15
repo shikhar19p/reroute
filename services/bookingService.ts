@@ -289,13 +289,11 @@ export async function updateRefundStatus(
     const bookingRef = doc(db, 'bookings', bookingId);
     const updateData: any = {
       refundStatus,
-      refund_status: refundStatus,
       updatedAt: serverTimestamp(),
     };
 
     if (refundDate) {
       updateData.refundDate = refundDate;
-      updateData.refund_date = refundDate;
     }
 
     await updateDoc(bookingRef, updateData);
@@ -391,9 +389,9 @@ export async function cleanupPendingBooking(bookingId: string): Promise<boolean>
 
     // Only cleanup if still pending
     if (booking.status === 'pending' && booking.paymentStatus === 'pending') {
-      console.log(`🧹 Cleaning up pending booking ${bookingId}`);
+      console.log(`Cleaning up pending booking ${bookingId}`);
 
-      // Remove dates from farmhouse
+      // Remove dates from farmhouse first
       if (booking.farmhouseId && booking.checkInDate && booking.checkOutDate) {
         try {
           await removeBookedDatesFromFarmhouse(
@@ -406,16 +404,23 @@ export async function cleanupPendingBooking(bookingId: string): Promise<boolean>
         }
       }
 
-      // Delete the booking
-      await deleteDoc(bookingRef);
-      console.log('✅ Pending booking cleaned up successfully');
+      // Update booking status to cancelled instead of deleting
+      // (avoids Firestore delete permission issues)
+      await updateDoc(bookingRef, {
+        status: 'cancelled',
+        paymentStatus: 'failed',
+        cancelReason: 'Payment not completed',
+        cancelledAt: new Date().toISOString(),
+        updatedAt: serverTimestamp(),
+      });
+      console.log('Pending booking cleaned up successfully');
       return true;
     } else {
       console.log('Booking is no longer pending, skipping cleanup');
       return false;
     }
   } catch (error) {
-    console.error('❌ Error cleaning up pending booking:', error);
+    console.error('Error cleaning up pending booking:', error);
     return false;
   }
 }

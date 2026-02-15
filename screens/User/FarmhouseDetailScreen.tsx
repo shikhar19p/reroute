@@ -422,25 +422,12 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   const getMarkedDates = () => {
     const marked: any = {};
     
-    // Mark unavailable dates
+    // Mark unavailable dates (period marking type uses color/textColor, not customStyles)
     unavailableDates.forEach(date => {
       marked[date] = {
         disabled: true,
         disableTouchEvent: true,
-        customStyles: {
-          container: {
-            backgroundColor: isDark ? '#3F1F1F' : '#FEE2E2',
-            borderWidth: 1,
-            borderColor: '#EF4444',
-          },
-          text: {
-            color: '#EF4444',
-            fontWeight: '600',
-            textDecorationLine: 'line-through',
-            textDecorationStyle: 'solid',
-            textDecorationColor: '#EF4444',
-          }
-        }
+        textColor: '#999999',
       };
     });
 
@@ -619,7 +606,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
               setCurrentImageIndex(index);
             }}>
             {images.map((img, index) => (
-              <Image key={index} source={{ uri: img }} style={styles.image} />
+              <Image key={index} source={{ uri: img }} style={styles.image} resizeMode="cover" />
             ))}
           </ScrollView>
           <View style={styles.imageCounter}>
@@ -800,7 +787,18 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
                 monthTextColor: colors.text,
                 arrowColor: colors.buttonBackground,
                 textDisabledColor: '#999999',
+                // @ts-ignore - remove gaps between period-marked days
+                'stylesheet.day.period': {
+                  base: {
+                    overflow: 'hidden',
+                    height: 34,
+                    width: 38,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  },
+                },
               }}
+              style={{ marginHorizontal: -4 }}
             />
 
             {selectedDates.start && selectedDates.end && (
@@ -866,8 +864,8 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   mainScroll: { flex: 1 },
-  imageSection: { position: 'relative', height: 300 },
-  image: { width, height: 300 },
+  imageSection: { position: 'relative', aspectRatio: 16 / 10 },
+  image: { width, aspectRatio: 16 / 10 },
   imageCounter: { position: 'absolute', bottom: 15, right: 15, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 15 },
   imageCounterText: { color: '#fff', fontSize: 12, fontWeight: '500' },
   topActions: { position: 'absolute', top: 16, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16 },

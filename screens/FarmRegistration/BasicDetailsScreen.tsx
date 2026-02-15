@@ -129,7 +129,7 @@ export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenPro
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -247,11 +247,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   primaryButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
-    shadowColor: '#4CAF50',
+    shadowColor: '#D4AF37',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,

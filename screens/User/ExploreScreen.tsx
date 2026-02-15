@@ -42,6 +42,7 @@ const FarmhouseCard = React.memo(({
       <Image
         source={{ uri: item.photos?.[0] || 'https://via.placeholder.com/400x300' }}
         style={styles.propertyImage}
+        resizeMode="cover"
       />
 
       <View style={styles.imageActions}>
@@ -501,7 +502,7 @@ const styles = StyleSheet.create({
   listContent: { paddingHorizontal: 16, paddingBottom: 20 },
   propertyCard: { borderRadius: 16, overflow: 'hidden', marginBottom: 24, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   imageContainer: { position: 'relative' },
-  propertyImage: { width: '100%', height: 200 },
+  propertyImage: { width: '100%', aspectRatio: 16 / 10 },
   imageActions: { position: 'absolute', top: 12, right: 12, flexDirection: 'row', gap: 8 },
   actionButton: { backgroundColor: 'rgba(255, 255, 255, 0.9)', borderRadius: 20, padding: 8 },
   propertyDetails: { padding: 16 },
@@ -522,8 +523,8 @@ const styles = StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
   loadingText: { marginTop: 12, fontSize: 16 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
-  filterModalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '85%' },
+  modalContent: { borderRadius: 20, padding: 20, marginHorizontal: 8, marginBottom: 8 },
+  filterModalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, borderBottomLeftRadius: 20, borderBottomRightRadius: 20, padding: 20, maxHeight: '85%', marginHorizontal: 8, marginBottom: 8 },
   filterScrollView: { flexGrow: 0, flexShrink: 1 },
   modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 20 },
   modalOption: { padding: 15, borderRadius: 8, marginBottom: 10 },
@@ -531,9 +532,9 @@ const styles = StyleSheet.create({
   closeButton: { padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 10 },
   closeButtonText: { fontSize: 16, fontWeight: '600' },
   filterLabel: { fontSize: 14, fontWeight: '600', marginTop: 15, marginBottom: 8 },
-  filterInput: { height: 45, borderRadius: 8, paddingHorizontal: 12, fontSize: 14, borderWidth: 1 },
-  priceRow: { flexDirection: 'row', gap: 10 },
-  filterInputHalf: { flex: 1, height: 45, borderRadius: 8, paddingHorizontal: 12, fontSize: 14, borderWidth: 1 },
+  filterInput: { height: 48, borderRadius: 12, paddingHorizontal: 14, fontSize: 14, borderWidth: 1 },
+  priceRow: { flexDirection: 'row', gap: 12 },
+  filterInputHalf: { flex: 1, height: 48, borderRadius: 12, paddingHorizontal: 14, fontSize: 14, borderWidth: 1, minWidth: 0 },
   filterButtons: { flexDirection: 'row', gap: 10, marginTop: 20, marginBottom: 10 },
   clearButton: { flex: 1, padding: 15, borderRadius: 8, alignItems: 'center' },
   applyButton: { flex: 1, padding: 15, borderRadius: 8, alignItems: 'center' },

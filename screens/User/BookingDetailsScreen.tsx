@@ -716,11 +716,11 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
               </View>
             )}
 
-            {booking.refundAmount !== undefined && booking.refundAmount > 0 && (
-              <>
-                <View style={[styles.divider, { backgroundColor: colors.border }]} />
-                <Text style={[styles.subsectionTitle, { color: colors.text }]}>Refund Information</Text>
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            <Text style={[styles.subsectionTitle, { color: colors.text }]}>Refund Information</Text>
 
+            {booking.refundAmount !== undefined && booking.refundAmount > 0 ? (
+              <>
                 <View style={styles.infoRow}>
                   <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Refund Amount</Text>
                   <Text style={[styles.refundAmount, { color: '#10B981' }]}>
@@ -786,9 +786,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
                   For refund queries, please contact support with your Booking ID and Transaction ID
                 </Text>
               </>
-            )}
-
-            {booking.refundAmount === 0 && (
+            ) : (
               <View style={[styles.infoBox, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEE2E2', borderColor: '#EF4444' }]}>
                 <AlertCircle size={16} color="#EF4444" />
                 <Text style={[styles.infoBoxText, { color: colors.text }]}>

@@ -18,6 +18,7 @@ import { ArrowLeft, Edit, MapPin, Users, Home, Star } from 'lucide-react-native'
 import { useTheme } from '../../context/ThemeContext';
 import { getFarmhouseById, Farmhouse } from '../../services/farmhouseService';
 import { useDialog } from '../../components/CustomDialog';
+import { getStatusColor, getStatusText } from '../../utils/statusColors';
 
 const { width } = Dimensions.get('window');
 
@@ -100,23 +101,6 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
     return list;
   }, [farmhouse?.rules]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return '#10b981';
-      case 'pending':
-        return '#f59e0b';
-      case 'rejected':
-        return '#ef4444';
-      default:
-        return colors.placeholder;
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    return status.charAt(0).toUpperCase() + status.slice(1);
-  };
-
   const handleEdit = () => {
     if (farmhouse) {
       navigation.navigate('EditFarmhouse', { farmhouse });
@@ -125,7 +109,16 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
 
   const openGoogleMaps = () => {
     if (farmhouse?.mapLink) {
-      Linking.openURL(farmhouse.mapLink);
+      const url = farmhouse.mapLink;
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        Linking.openURL(url);
+      } else {
+        showDialog({
+          title: 'Invalid URL',
+          message: 'The map link is not a valid URL. It must start with http:// or https://.',
+          type: 'error',
+        });
+      }
     }
   };
 

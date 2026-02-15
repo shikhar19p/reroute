@@ -1,15 +1,13 @@
 import { initializeApp } from 'firebase/app';
-import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
+import { initializeAuth, getReactNativePersistence, getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
 // Get Firebase config from environment variables (via expo-constants)
 // SECURITY: In production, all values must come from environment variables.
 // In development, fallback values are allowed for convenience.
-
-const isDevelopment = __DEV__;
 
 // Firebase configuration values
 // These can be overridden by environment variables via expo-constants
@@ -45,9 +43,15 @@ if (missingFields.length > 0) {
 
 const app = initializeApp(firebaseConfig);
 
-export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(ReactNativeAsyncStorage)
-});
+// Web: use getAuth which includes browser popup/redirect resolvers
+// Native: use initializeAuth with AsyncStorage persistence
+export const auth = Platform.OS === 'web'
+  ? getAuth(app)
+  : initializeAuth(app, {
+      persistence: getReactNativePersistence(
+        require('@react-native-async-storage/async-storage').default
+      ),
+    });
 
 // Initialize Firestore with default cache (memory cache for React Native)
 // Note: IndexedDB persistence is not available in React Native
