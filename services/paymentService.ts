@@ -1,4 +1,9 @@
-import RazorpayCheckout from 'react-native-razorpay';
+import { Platform } from 'react-native';
+
+let RazorpayCheckout: any = null;
+if (Platform.OS !== 'web') {
+  RazorpayCheckout = require('react-native-razorpay').default;
+}
 import { collection, addDoc, updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '../firebaseConfig';
@@ -131,6 +136,10 @@ export async function initiatePayment(paymentDetails: PaymentDetails): Promise<P
 
     console.log('🔐 Initiating Razorpay payment with options:', options);
 
+    if (!RazorpayCheckout) {
+      throw new Error('Payments are not supported on web. Please use the mobile app.');
+    }
+
     // Open Razorpay checkout
     const data = await RazorpayCheckout.open(options);
 
@@ -140,7 +149,7 @@ export async function initiatePayment(paymentDetails: PaymentDetails): Promise<P
     console.error('❌ Payment failed:', error);
 
     // Handle user cancellation vs actual error
-    if (error.code === RazorpayCheckout.PAYMENT_CANCELLED) {
+    if (RazorpayCheckout && error.code === RazorpayCheckout.PAYMENT_CANCELLED) {
       throw new Error('Payment was cancelled by user');
     }
 
@@ -300,30 +309,6 @@ export async function verifyPaymentSignature(
 
     throw new Error('Payment verification failed. Please contact support with your transaction ID.');
   }
-}
-
-/**
- * Calculate processing fees (if applicable)
- */
-export function calculateProcessingFee(amount: number): number {
-  // Example: 2% + ₹3 processing fee
-  const percentageFee = amount * 0.02;
-  const flatFee = 3;
-  return Math.round(percentageFee + flatFee);
-}
-
-/**
- * Format amount to Razorpay format (paise)
- */
-export function formatAmountToPaise(rupees: number): number {
-  return Math.round(rupees * 100);
-}
-
-/**
- * Format amount from paise to rupees
- */
-export function formatAmountToRupees(paise: number): number {
-  return paise / 100;
 }
 
 /**

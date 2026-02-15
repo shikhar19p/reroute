@@ -7,21 +7,20 @@ import {
   ActivityIndicator,
   StatusBar,
   SafeAreaView,
-  Dimensions,
   Image,
+  Platform,
 } from 'react-native';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithCredential, signInWithPopup } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
 import { useDialog } from '../components/CustomDialog';
 import Constants from 'expo-constants';
 
-const { width } = Dimensions.get('window');
+let GoogleSignin: any = null;
+if (Platform.OS !== 'web') {
+  GoogleSignin = require('@react-native-google-signin/google-signin').GoogleSignin;
+}
 
-// Define the primary color for accents (the gold/ochre color in the design)
-const PRIMARY_COLOR = '#C5A565';
-const TEXT_COLOR = '#333333';
-const LIGHT_GREY = '#666666';
+const PRIMARY_COLOR = '#D4AF37';
 
 export default function LoginWithRoleScreen({ navigation }: any) {
   const { showDialog } = useDialog();
@@ -29,20 +28,17 @@ export default function LoginWithRoleScreen({ navigation }: any) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Configure Google Sign-In
+    if (Platform.OS === 'web' || !GoogleSignin) return;
+
     const webClientId = Constants.expoConfig?.extra?.googleWebClientId ||
       '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com';
 
     GoogleSignin.configure({
       webClientId,
-      // Force account selection every time
       forceCodeForRefreshToken: true,
     });
 
-    // Clear cached Google account when screen loads to force account selection
-    GoogleSignin.signOut().catch(() => {
-      // Ignore errors if not signed in
-    });
+    GoogleSignin.signOut().catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -60,29 +56,29 @@ export default function LoginWithRoleScreen({ navigation }: any) {
       setLoading(true);
       setError(null);
 
-      console.log('🔐 Starting Google Sign-In...');
+      let userCredential;
 
-      await GoogleSignin.hasPlayServices();
-      const response = await GoogleSignin.signIn();
+      if (Platform.OS === 'web') {
+        const provider = new GoogleAuthProvider();
+        userCredential = await signInWithPopup(auth, provider);
+      } else {
+        await GoogleSignin.hasPlayServices();
+        const response = await GoogleSignin.signIn();
 
-      const idToken = response.idToken || response.data?.idToken;
+        const idToken = response.idToken || response.data?.idToken;
 
-      if (!idToken) {
-        throw new Error('No ID token received');
+        if (!idToken) {
+          throw new Error('No ID token received');
+        }
+
+        const credential = GoogleAuthProvider.credential(idToken);
+        userCredential = await signInWithCredential(auth, credential);
       }
 
-      console.log('✅ Google Sign-In successful');
-      const credential = GoogleAuthProvider.credential(idToken);
-      const userCredential = await signInWithCredential(auth, credential);
-
-      console.log('✅ Firebase sign-in successful, user:', userCredential.user.uid);
-
+      console.log('Firebase sign-in successful, user:', userCredential.user.uid);
       setLoading(false);
-
-      // The AuthContext will handle the user state and navigation
-      console.log('✅ Authentication complete, waiting for navigation...');
     } catch (err: any) {
-      console.error('❌ Google Sign-In Error:', err);
+      console.error('Google Sign-In Error:', err);
       if (err.code === 'auth/invalid-credential') {
         setError('Invalid credentials. Please try again.');
       } else if (err.code === '-5' || err.code === '12501') {
@@ -94,68 +90,50 @@ export default function LoginWithRoleScreen({ navigation }: any) {
     }
   };
 
-  const handleBack = () => {
-    navigation.goBack();
-  };
-
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="dark-content" backgroundColor="#F9F8EF" />
 
       <View style={styles.container}>
+        <View style={styles.topSection}>
+          <View style={styles.iconContainer}>
+            <Image
+              source={require('../assets/icon.png')}
+              style={styles.iconImage}
+              resizeMode="cover"
+            />
+          </View>
 
-        {/* --- 1. Logo Icon --- */}
-        <View style={styles.iconContainer}>
-          <Image
-            source={require('../assets/icon.png')}
-            style={styles.iconImage}
-            resizeMode="cover"
-          />
+          <Text style={styles.title}>ReRoute</Text>
+          <Text style={styles.subtitle}>Discover and book premium farmhouses</Text>
         </View>
 
-        {/* --- 2 & 3. Titles and Subtitle --- */}
-        <Text style={styles.title}>Welcome to Reroute</Text>
-        <Text style={styles.subtitle}>Sign in to continue your journey</Text>
+        <View style={styles.bottomSection}>
+          <TouchableOpacity
+            style={[styles.googleButton, loading && styles.googleButtonDisabled]}
+            onPress={handleGoogleSignIn}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator color={PRIMARY_COLOR} size="small" />
+            ) : (
+              <View style={styles.buttonContent}>
+                <Text style={styles.googleIcon}>G</Text>
+                <Text style={styles.googleButtonText}>Sign in with Google</Text>
+              </View>
+            )}
+          </TouchableOpacity>
 
-        {/* --- 4. Google Sign In Button --- */}
-        <TouchableOpacity
-          style={styles.googleButton}
-          onPress={handleGoogleSignIn}
-          disabled={loading}
-          activeOpacity={0.8}
-        >
-          {loading ? (
-            <ActivityIndicator color={PRIMARY_COLOR} size="small" />
-          ) : (
-            <View style={styles.buttonContent}>
-              {/* Google Logo Placeholder */}
-              <Text style={styles.googleIconPlaceholder}>G</Text>
+          <Text style={styles.infoText}>
+            You'll choose your role after signing in
+          </Text>
 
-              <Text style={styles.googleButtonText}>Sign in with Google</Text>
-
-              {/* Arrow Icon Placeholder */}
-              <Text style={styles.arrowIconPlaceholder}>→</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-
-        {/* Info Text */}
-        <Text style={styles.infoText}>You'll choose your role after signing in</Text>
-
+          <Text style={styles.termsText}>
+            By signing in, you agree to our Terms of Service and Privacy Policy
+          </Text>
+        </View>
       </View>
-
-      {/* --- Back Button (Fixed at Bottom) --- */}
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={handleBack}
-        activeOpacity={0.7}
-      >
-        <View style={styles.backButtonContent}>
-          <Text style={styles.backArrow}>&lt;</Text>
-          <Text style={styles.backText}>Back</Text>
-        </View>
-      </TouchableOpacity>
-
     </SafeAreaView>
   );
 }
@@ -163,131 +141,100 @@ export default function LoginWithRoleScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F9F8EF',
   },
   container: {
     flex: 1,
+    paddingHorizontal: 32,
+    justifyContent: 'space-between',
+  },
+  topSection: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: width * 0.08,
-    paddingTop: 20,
+    paddingBottom: 40,
   },
-
-  // --- Icon Styles ---
   iconContainer: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 32,
-    borderWidth: 2,
-    borderColor: PRIMARY_COLOR,
+    marginBottom: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
     elevation: 4,
-    overflow: 'hidden', // Important for clipping the image to circular shape
+    overflow: 'hidden',
   },
   iconImage: {
-    width: 86,
-    height: 86,
-    borderRadius: 43,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
   },
-
-  // --- Title Styles ---
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '700',
-    color: TEXT_COLOR,
-    marginBottom: 12,
+    color: '#1A1A1A',
+    marginBottom: 8,
     letterSpacing: 0.5,
-    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 17,
-    color: LIGHT_GREY,
-    marginBottom: 50,
+    fontSize: 15,
+    color: '#6B7280',
     textAlign: 'center',
-    fontWeight: '400',
-    lineHeight: 24,
+    lineHeight: 22,
   },
-
-  // --- Google Button Styles ---
+  bottomSection: {
+    paddingBottom: 48,
+    alignItems: 'center',
+  },
   googleButton: {
     width: '100%',
-    maxWidth: 320,
     paddingVertical: 16,
-    borderRadius: 30,
+    borderRadius: 12,
     backgroundColor: '#FFFFFF',
-    borderColor: PRIMARY_COLOR,
-    borderWidth: 1.5,
-    shadowColor: PRIMARY_COLOR,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 6,
-    marginBottom: 24,
+    borderColor: '#E5E7EB',
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
+    marginBottom: 16,
+  },
+  googleButtonDisabled: {
+    opacity: 0.6,
   },
   buttonContent: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    gap: 12,
   },
-  googleIconPlaceholder: {
+  googleIcon: {
     fontSize: 20,
     color: PRIMARY_COLOR,
     fontWeight: 'bold',
   },
   googleButtonText: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '600',
-    color: TEXT_COLOR,
-    letterSpacing: 0.3,
+    color: '#1A1A1A',
   },
-  arrowIconPlaceholder: {
-    fontSize: 20,
-    color: PRIMARY_COLOR,
-    fontWeight: 'bold',
-  },
-
-  // --- Info Text ---
   infoText: {
-    fontSize: 15,
-    color: LIGHT_GREY,
+    fontSize: 13,
+    color: '#9CA3AF',
     textAlign: 'center',
-    marginTop: 12,
-    fontWeight: '400',
-    lineHeight: 22,
+    marginBottom: 16,
   },
-
-  // --- Back Button Styles (Footer) ---
-  backButton: {
-    position: 'absolute',
-    bottom: 40,
-    width: '100%',
-    alignItems: 'center',
-    paddingBottom: 20,
-  },
-  backButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-  },
-  backArrow: {
-    fontSize: 22,
-    color: PRIMARY_COLOR,
-    marginRight: 6,
-    fontWeight: '400',
-  },
-  backText: {
-    fontSize: 17,
-    color: PRIMARY_COLOR,
-    fontWeight: '600',
-    letterSpacing: 0.3,
+  termsText: {
+    fontSize: 12,
+    color: '#D1D5DB',
+    textAlign: 'center',
+    lineHeight: 18,
+    paddingHorizontal: 20,
   },
 });

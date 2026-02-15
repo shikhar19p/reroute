@@ -23,6 +23,8 @@ type PricesScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, any>;
 };
 
+const HIGH_PRICE_THRESHOLD = 50000;
+
 const priceFields = [
   { key: 'weeklyDay', label: 'Day Price*', placeholder: '₹ Enter weekday day price', section: 'Weekday Rates' },
   { key: 'weeklyNight', label: 'Night Price*', placeholder: '₹ Enter weekday night price', section: 'Weekday Rates' },
@@ -65,7 +67,7 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
     new Promise<boolean>((resolve) => {
       showDialog({
         title: 'High Price Detected',
-        message: 'One or more prices exceed ₹50,000. Please confirm this is correct.',
+        message: `One or more prices exceed ₹${HIGH_PRICE_THRESHOLD.toLocaleString()}. Please confirm this is correct.`,
         type: 'warning',
         buttons: [
           { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
@@ -91,7 +93,7 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
     const values = result.data;
     const hasHighPrice = Object.entries(values).some(([key, value]) => {
       if (key !== 'customPricing' && typeof value === 'string') {
-        return Number(value) > 50000;
+        return Number(value) > HIGH_PRICE_THRESHOLD;
       }
       return false;
     });
@@ -108,7 +110,7 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -306,7 +308,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     borderWidth: 2,
-    borderColor: '#4CAF50',
+    borderColor: '#D4AF37',
     borderRadius: 12,
     borderStyle: 'dashed',
     paddingVertical: 14,
@@ -314,7 +316,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   addButtonText: {
-    color: '#4CAF50',
+    color: '#D4AF37',
     fontSize: 16,
     fontWeight: '600',
   },
@@ -342,11 +344,11 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
-    shadowColor: '#4CAF50',
+    shadowColor: '#D4AF37',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,

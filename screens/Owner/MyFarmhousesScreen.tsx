@@ -20,6 +20,7 @@ import { getFarmhousesByOwner, Farmhouse } from '../../services/farmhouseService
 import { getResponsivePadding, isSmallDevice } from '../../utils/responsive';
 import { useDialog } from '../../components/CustomDialog';
 import { useFarmRegistration } from '../../context/FarmRegistrationContext';
+import { getStatusColor, getStatusText } from '../../utils/statusColors';
 
 type RootStackParamList = {
   MyFarmhouses: undefined;
@@ -65,23 +66,6 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
     } finally {
       setLoading(false);
     }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return '#10b981';
-      case 'pending':
-        return '#f59e0b';
-      case 'rejected':
-        return '#ef4444';
-      default:
-        return colors.placeholder;
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    return status.charAt(0).toUpperCase() + status.slice(1);
   };
 
   const handleLogout = () => {

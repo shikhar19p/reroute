@@ -447,10 +447,10 @@ export default function KycScreen({ navigation }: KycScreenProps) {
                 value={farm.kyc.bankDetails.ifscCode}
                 onChangeText={(text) => updateField(['kyc', 'bankDetails', 'ifscCode'], text.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
                 style={styles.input}
-                placeholder="Alphanumeric (9-18 chars)"
+                placeholder="e.g., SBIN0001234"
                 placeholderTextColor="#9CA3AF"
                 autoCapitalize="characters"
-                maxLength={18}
+                maxLength={11}
               />
               {errors['bankDetails.ifscCode'] && (
                 <Text style={styles.error}>{errors['bankDetails.ifscCode']}</Text>
@@ -575,8 +575,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   idProofTypeButtonActive: {
-    backgroundColor: '#4CAF50',
-    borderColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
+    borderColor: '#D4AF37',
   },
   idProofTypeButtonText: {
     fontSize: 14,
@@ -599,7 +599,7 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#4CAF50',
+    borderColor: '#D4AF37',
     borderRadius: 12,
     marginBottom: 12,
   },
@@ -647,11 +647,11 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
-    shadowColor: '#4CAF50',
+    shadowColor: '#D4AF37',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,

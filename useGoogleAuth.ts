@@ -1,15 +1,22 @@
 import { useState, useEffect } from 'react';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+import { Platform } from 'react-native';
+import { GoogleAuthProvider, signInWithCredential, signInWithPopup } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import Constants from 'expo-constants';
 import { auth, db } from './firebaseConfig';
+
+let GoogleSignin: any = null;
+if (Platform.OS !== 'web') {
+  GoogleSignin = require('@react-native-google-signin/google-signin').GoogleSignin;
+}
 
 export function useGoogleAuth() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (Platform.OS === 'web' || !GoogleSignin) return;
+
     const webClientId = Constants.expoConfig?.extra?.googleWebClientId ||
       '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com';
 
@@ -23,48 +30,47 @@ export function useGoogleAuth() {
       setLoading(true);
       setError(null);
 
-      console.log('🔐 Starting Google Sign-In with role:', role);
+      console.log('Starting Google Sign-In with role:', role);
 
-      // Completely revoke access to get a truly fresh token
-      try {
-        const isSignedIn = await GoogleSignin.isSignedIn();
-        if (isSignedIn) {
-          console.log('📤 Revoking Google access to force fresh token...');
-          await GoogleSignin.revokeAccess();
-          await GoogleSignin.signOut();
-          console.log('✅ Google access revoked');
-        } else {
-          console.log('📤 No active Google session');
-        }
-      } catch (revokeError) {
-        console.log('⚠️ Could not revoke access:', revokeError);
-        // Try regular sign out as fallback
+      let userCredential;
+
+      if (Platform.OS === 'web') {
+        // Web: Use Firebase's built-in Google sign-in popup
+        const provider = new GoogleAuthProvider();
+        userCredential = await signInWithPopup(auth, provider);
+      } else {
+        // Native: Use Google Sign-In SDK
+        // Completely revoke access to get a truly fresh token
         try {
-          await GoogleSignin.signOut();
-        } catch (e) {
-          // Ignore
+          const isSignedIn = await GoogleSignin.isSignedIn();
+          if (isSignedIn) {
+            await GoogleSignin.revokeAccess();
+            await GoogleSignin.signOut();
+          }
+        } catch (revokeError) {
+          try {
+            await GoogleSignin.signOut();
+          } catch (e) {
+            // Ignore
+          }
         }
+
+        // Small delay to ensure cleanup is complete
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        await GoogleSignin.hasPlayServices();
+        const response = await GoogleSignin.signIn();
+
+        // Handle different response structures
+        const idToken = response.idToken || response.data?.idToken;
+
+        if (!idToken) {
+          throw new Error('No ID token received');
+        }
+
+        const credential = GoogleAuthProvider.credential(idToken);
+        userCredential = await signInWithCredential(auth, credential);
       }
-
-      // Small delay to ensure cleanup is complete
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      console.log('🔄 Starting fresh Google Sign-In...');
-      await GoogleSignin.hasPlayServices();
-      const response = await GoogleSignin.signIn();
-
-      // Handle different response structures
-      const idToken = response.idToken || response.data?.idToken;
-
-      if (!idToken) {
-        throw new Error('No ID token received');
-      }
-
-      console.log('✅ Google Sign-In successful, got fresh token');
-      console.log('🔐 Signing in to Firebase...');
-
-      const credential = GoogleAuthProvider.credential(idToken);
-      const userCredential = await signInWithCredential(auth, credential);
 
       console.log('✅ Firebase sign-in successful, user:', userCredential.user.uid);
 

@@ -153,7 +153,7 @@ export default function PhotosScreen({ navigation }: PhotosScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom']} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <Text style={styles.title}>Farm Photos</Text>
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
     color: '#1F2937',
   },
   counterBadge: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 2,
     borderStyle: 'dashed',
-    borderColor: '#4CAF50',
+    borderColor: '#D4AF37',
     backgroundColor: '#F0F9FF',
     alignItems: 'center',
     justifyContent: 'center',
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
   addText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#4CAF50',
+    color: '#D4AF37',
   },
   footer: {
     flexDirection: 'row',
@@ -336,11 +336,11 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
-    shadowColor: '#4CAF50',
+    shadowColor: '#D4AF37',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,

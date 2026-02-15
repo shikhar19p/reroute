@@ -2,7 +2,7 @@ import React, { useEffect, useCallback } from 'react';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, View, StyleSheet, Text, Platform } from 'react-native';
 import {
   useFonts,
   Inter_400Regular,
@@ -13,10 +13,12 @@ import {
 import * as Font from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 
-// Prevent native splash from auto-hiding
-SplashScreen.preventAutoHideAsync().catch(() => {
-  // Handle error silently
-});
+// Prevent native splash from auto-hiding (not needed on web)
+if (Platform.OS !== 'web') {
+  SplashScreen.preventAutoHideAsync().catch(() => {
+    // Handle error silently
+  });
+}
 
 // Contexts
 import { AuthProvider, useAuth } from './authContext';
@@ -488,8 +490,10 @@ export default function App() {
     }, 5000); // Delay by 5 seconds to not block startup
   }, []);
 
+  // Skip splash on web (BlurView and SplashScreen APIs not fully supported)
+  const IS_WEB = Platform.OS === 'web';
   // DEV MODE: Skip splash for faster development
-  const SKIP_SPLASH = __DEV__ && false; // Change to true to skip splash
+  const SKIP_SPLASH = IS_WEB || (__DEV__ && false); // Change to true to skip splash
 
   React.useEffect(() => {
     if (SKIP_SPLASH) {

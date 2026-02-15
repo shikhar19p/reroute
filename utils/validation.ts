@@ -3,7 +3,7 @@ import { z } from 'zod';
 const phoneSchema = z
   .string()
   .trim()
-  .regex(/^\d{10}$/, 'Please enter a valid 10-digit phone number');
+  .regex(/^[6-9]\d{9}$/, 'Please enter a valid 10-digit phone number starting with 6-9');
 
 const optionalPhoneSchema = z.union([z.literal(''), phoneSchema]).optional();
 
@@ -80,7 +80,7 @@ const idProofNumberSchema = z
 const ifscSchema = z
   .string()
   .trim()
-  .regex(/^[A-Z0-9]{9,18}$/, 'Please enter a valid IFSC code (9-18 alphanumeric characters)');
+  .regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, 'Please enter a valid IFSC code (e.g., SBIN0001234)');
 
 const panNumberSchema = z
   .string()

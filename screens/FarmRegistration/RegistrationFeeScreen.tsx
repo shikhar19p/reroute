@@ -5,6 +5,8 @@ import {
   TouchableOpacity,
   View,
   ActivityIndicator,
+  ScrollView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -21,13 +23,21 @@ type RegistrationFeeScreenProps = {
   navigation: NativeStackNavigationProp<any, any>;
 };
 
+const BRAND_COLOR = '#D4AF37';
+
 export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScreenProps) {
   const { farm, resetFarm, clearDraft } = useFarmRegistration();
   const { showDialog } = useDialog();
   const { user } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const REGISTRATION_FEE = 5000; // ₹5000 registration fee
+  const REGISTRATION_FEE = 5000;
+
+  const generateUniqueId = () => {
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substring(2, 8);
+    return `reg-${timestamp}-${random}`;
+  };
 
   const handlePayment = async () => {
     if (!user) {
@@ -39,32 +49,31 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
       return;
     }
 
+    if (Platform.OS === 'web') {
+      showDialog({
+        title: 'Not Available',
+        message: 'Payments are only available on the mobile app. Please use the Android or iOS app to complete registration.',
+        type: 'warning',
+      });
+      return;
+    }
+
     setIsProcessing(true);
 
     try {
-      console.log('🔄 Starting registration fee payment...');
-
-      // Complete Razorpay payment flow (skip server verification for registration)
       await completePaymentFlow(
-        REGISTRATION_FEE, // Amount in rupees - completePaymentFlow handles conversion to paise
+        REGISTRATION_FEE,
         'INR',
-        'registration-' + Date.now(), // Unique registration ID
+        generateUniqueId(),
         user.uid,
         user.displayName || farm.kyc.person1.name || 'Farmhouse Owner',
         user.email || '',
         farm.contactPhone1 || '',
         'Farmhouse Registration Fee',
-        true // Skip server-side verification for registration payments
+        true
       );
 
-      console.log('✅ Payment successful!');
-
-      // Save the farm registration after successful payment
-      console.log('📝 Saving farm registration...');
-      const result = await saveFarmRegistration(farm);
-      console.log('✅ Registration successful!', result);
-
-      // Clear draft after successful registration
+      await saveFarmRegistration(farm);
       await clearDraft();
 
       showDialog({
@@ -80,9 +89,6 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
         }]
       });
     } catch (error: any) {
-      console.error('❌ Payment/Registration error:', error);
-
-      // Parse error into user-friendly message
       const { title, message, isCancellation } = parseError(error);
 
       showDialog({
@@ -104,66 +110,63 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <View style={styles.container}>
-        <View style={styles.content}>
-          <View style={styles.iconContainer}>
-            <Text style={styles.icon}>💳</Text>
-          </View>
-
-          <Text style={styles.title}>Registration Fee</Text>
-          <Text style={styles.subtitle}>
-            One-time registration fee to list your farmhouse on our platform
-          </Text>
-
-          <View style={styles.feeCard}>
-            <Text style={styles.feeLabel}>Registration Fee</Text>
-            <Text style={styles.feeAmount}>₹{REGISTRATION_FEE}</Text>
-            <Text style={styles.feeNote}>One-time payment</Text>
-          </View>
-
-          <View style={styles.benefitsContainer}>
-            <Text style={styles.benefitsTitle}>What you get:</Text>
-            <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>✓</Text>
-              <Text style={styles.benefitText}>Premium listing on platform</Text>
-            </View>
-            <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>✓</Text>
-              <Text style={styles.benefitText}>Verified farmhouse badge</Text>
-            </View>
-            <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>✓</Text>
-              <Text style={styles.benefitText}>Access to booking management</Text>
-            </View>
-            <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>✓</Text>
-              <Text style={styles.benefitText}>24/7 customer support</Text>
-            </View>
-          </View>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.iconContainer}>
+          <Text style={styles.icon}>💳</Text>
         </View>
 
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.8}
-            disabled={isProcessing}
-          >
-            <Text style={styles.secondaryButtonText}>Back</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.primaryButton, isProcessing && styles.buttonDisabled]}
-            onPress={handlePayment}
-            activeOpacity={0.8}
-            disabled={isProcessing}
-          >
-            {isProcessing ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Text style={styles.primaryButtonText}>Pay Now</Text>
-            )}
-          </TouchableOpacity>
+        <Text style={styles.title}>Registration Fee</Text>
+        <Text style={styles.subtitle}>
+          One-time registration fee to list your farmhouse on our platform
+        </Text>
+
+        <View style={styles.feeCard}>
+          <Text style={styles.feeLabel}>Registration Fee</Text>
+          <Text style={styles.feeAmount}>₹{REGISTRATION_FEE}</Text>
+          <Text style={styles.feeNote}>One-time payment</Text>
         </View>
+
+        <View style={styles.benefitsContainer}>
+          <Text style={styles.benefitsTitle}>What you get:</Text>
+          {[
+            'Premium listing on platform',
+            'Verified farmhouse badge',
+            'Access to booking management',
+            '24/7 customer support',
+          ].map((benefit, index) => (
+            <View key={index} style={styles.benefitItem}>
+              <Text style={styles.benefitIcon}>✓</Text>
+              <Text style={styles.benefitText}>{benefit}</Text>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+
+      <View style={styles.footer}>
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.8}
+          disabled={isProcessing}
+        >
+          <Text style={styles.secondaryButtonText}>Back</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.primaryButton, isProcessing && styles.buttonDisabled]}
+          onPress={handlePayment}
+          activeOpacity={0.8}
+          disabled={isProcessing}
+        >
+          {isProcessing ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.primaryButtonText}>Pay ₹{REGISTRATION_FEE}</Text>
+          )}
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -174,65 +177,66 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  container: {
+  scrollView: {
     flex: 1,
   },
-  content: {
-    flex: 1,
+  scrollContent: {
     padding: 24,
+    paddingBottom: 100,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   iconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#F0F9FF',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(212, 175, 55, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
+    marginTop: 20,
   },
   icon: {
-    fontSize: 50,
+    fontSize: 40,
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '700',
     color: '#1F2937',
-    marginBottom: 12,
+    marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#6B7280',
     textAlign: 'center',
-    marginBottom: 32,
-    paddingHorizontal: 20,
+    marginBottom: 28,
+    paddingHorizontal: 16,
+    lineHeight: 20,
   },
   feeCard: {
     width: '100%',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: 'rgba(212, 175, 55, 0.05)',
     borderWidth: 2,
-    borderColor: '#4CAF50',
+    borderColor: BRAND_COLOR,
     borderRadius: 16,
     padding: 24,
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 24,
   },
   feeLabel: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#6B7280',
     marginBottom: 8,
   },
   feeAmount: {
-    fontSize: 48,
+    fontSize: 40,
     fontWeight: '700',
-    color: '#4CAF50',
-    marginBottom: 8,
+    color: BRAND_COLOR,
+    marginBottom: 4,
   },
   feeNote: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: 13,
+    color: '#9CA3AF',
   },
   benefitsContainer: {
     width: '100%',
@@ -249,11 +253,11 @@ const styles = StyleSheet.create({
   benefitItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   benefitIcon: {
-    fontSize: 18,
-    color: '#4CAF50',
+    fontSize: 16,
+    color: BRAND_COLOR,
     marginRight: 12,
     fontWeight: '700',
   },
@@ -265,9 +269,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     padding: 20,
+    paddingBottom: 28,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#F3F4F6',
   },
   secondaryButton: {
     flex: 1,
@@ -284,11 +289,11 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: '#4CAF50',
+    backgroundColor: BRAND_COLOR,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
-    shadowColor: '#4CAF50',
+    shadowColor: BRAND_COLOR,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,

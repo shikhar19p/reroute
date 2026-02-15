@@ -1,7 +1,15 @@
-export default ({ config }) => ({
-  ...config,
+const IS_PROD = process.env.ENVIRONMENT === 'production';
+const IS_PREVIEW = process.env.ENVIRONMENT === 'preview';
+
+const getAppName = () => {
+  if (IS_PROD) return 'ReRoute';
+  if (IS_PREVIEW) return 'ReRoute (Preview)';
+  return 'ReRoute (Dev)';
+};
+
+export default {
   expo: {
-    name: "reroute",
+    name: getAppName(),
     slug: "reroute",
     version: "1.0.0",
     orientation: "portrait",
@@ -14,7 +22,8 @@ export default ({ config }) => ({
       backgroundColor: "#F9F8EF"
     },
     ios: {
-      supportsTablet: true
+      supportsTablet: true,
+      bundleIdentifier: "com.reroute.app"
     },
     android: {
       package: "com.reroute.app",
@@ -23,14 +32,24 @@ export default ({ config }) => ({
         backgroundColor: "#F9F8EF"
       },
       edgeToEdgeEnabled: true,
-      predictiveBackGestureEnabled: false
+      googleServicesFile: "./google-services.json"
     },
     web: {
-      favicon: "./assets/favicon.png"
+      favicon: "./assets/favicon.png",
+      bundler: "metro",
+      name: "ReRoute",
+      shortName: "ReRoute",
     },
     plugins: [
       "expo-web-browser",
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      [
+        "expo-image-picker",
+        {
+          photosPermission: "Allow $(PRODUCT_NAME) to access your photos to upload property images.",
+          cameraPermission: "Allow $(PRODUCT_NAME) to access your camera to take photos of your property."
+        }
+      ]
     ],
     extra: {
       firebaseApiKey: process.env.FIREBASE_API_KEY,
@@ -41,7 +60,10 @@ export default ({ config }) => ({
       firebaseAppId: process.env.FIREBASE_APP_ID,
       googleWebClientId: process.env.GOOGLE_WEB_CLIENT_ID,
       razorpayKeyId: process.env.RAZORPAY_KEY_ID,
-      environment: process.env.ENVIRONMENT || 'development'
+      environment: process.env.ENVIRONMENT || 'development',
+      eas: {
+        projectId: "b4fd15d4-8419-4cd7-b47a-ba697e65979e"
+      }
     }
   }
-});
+};

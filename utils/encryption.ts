@@ -8,6 +8,26 @@ import * as Crypto from 'expo-crypto';
 import CryptoJS from 'crypto-js';
 import Constants from 'expo-constants';
 
+// Fix CryptoJS random number generation for React Native
+// CryptoJS expects crypto.getRandomValues which may not be available
+if (typeof global !== 'undefined' && !global.crypto) {
+  (global as any).crypto = {
+    getRandomValues: (array: Uint8Array) => {
+      for (let i = 0; i < array.length; i++) {
+        array[i] = Math.floor(Math.random() * 256);
+      }
+      return array;
+    },
+  };
+} else if (typeof global !== 'undefined' && global.crypto && !global.crypto.getRandomValues) {
+  (global.crypto as any).getRandomValues = (array: Uint8Array) => {
+    for (let i = 0; i < array.length; i++) {
+      array[i] = Math.floor(Math.random() * 256);
+    }
+    return array;
+  };
+}
+
 /**
  * Hash sensitive data using SHA-256
  * Used for storing sensitive information like Aadhaar/PAN for verification
