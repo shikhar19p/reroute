@@ -42,7 +42,12 @@ export default {
     },
     plugins: [
       "expo-web-browser",
-      "@react-native-google-signin/google-signin",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          iosUrlScheme: "com.googleusercontent.apps.272634614965-64lm03jaaj2vk3sbu351u7cr3iebmqrm"
+        }
+      ],
       [
         "expo-image-picker",
         {
@@ -60,6 +65,7 @@ export default {
       firebaseAppId: process.env.FIREBASE_APP_ID,
       googleWebClientId: process.env.GOOGLE_WEB_CLIENT_ID,
       razorpayKeyId: process.env.RAZORPAY_KEY_ID,
+      encryptionSecret: process.env.ENCRYPTION_SECRET,
       environment: process.env.ENVIRONMENT || 'development',
       eas: {
         projectId: "b4fd15d4-8419-4cd7-b47a-ba697e65979e"
