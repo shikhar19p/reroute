@@ -168,12 +168,18 @@ export function sanitizePII(data: string, type: 'aadhaar' | 'pan' | 'phone' | 'i
 // ==================== AES ENCRYPTION (For Bank Details) ====================
 
 /**
- * Encryption secret key - should be stored in environment variables
- * DO NOT commit this key to git in production!
+ * Encryption secret key - MUST be stored in environment variables
+ * CRITICAL: Never commit encryption keys to version control!
+ * Generate using: openssl rand -base64 32
  */
 const ENCRYPTION_SECRET = Constants.expoConfig?.extra?.encryptionSecret ||
-  process.env.ENCRYPTION_SECRET ||
-  'reroute-encryption-key-2024-CHANGE-IN-PRODUCTION';
+  process.env.ENCRYPTION_SECRET;
+
+if (!ENCRYPTION_SECRET || ENCRYPTION_SECRET.length < 32) {
+  console.error('❌ CRITICAL: ENCRYPTION_SECRET not configured or too weak!');
+  console.error('Set ENCRYPTION_SECRET in .env with minimum 32 characters');
+  throw new Error('Encryption not configured. Cannot proceed with sensitive data operations.');
+}
 
 /**
  * Derive encryption key from user ID for user-specific encryption

@@ -30,15 +30,19 @@ export default function LoginWithRoleScreen({ navigation }: any) {
   useEffect(() => {
     if (Platform.OS === 'web' || !GoogleSignin) return;
 
-    const webClientId = Constants.expoConfig?.extra?.googleWebClientId ||
-      '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com';
+    try {
+      const webClientId = Constants.expoConfig?.extra?.googleWebClientId ||
+        '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com';
 
-    GoogleSignin.configure({
-      webClientId,
-      forceCodeForRefreshToken: true,
-    });
+      GoogleSignin.configure({
+        webClientId,
+        forceCodeForRefreshToken: true,
+      });
 
-    GoogleSignin.signOut().catch(() => {});
+      GoogleSignin.signOut().catch(() => {});
+    } catch (error) {
+      console.warn('Google Sign-In not available - requires development build');
+    }
   }, []);
 
   useEffect(() => {

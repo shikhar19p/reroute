@@ -478,15 +478,26 @@ export default function App() {
   // For development, push notifications will gracefully fail if FCM is not set up
   useEffect(() => {
     // Run in background without blocking
-    setTimeout(() => {
-      registerForPushNotifications().then((token) => {
+    setTimeout(async () => {
+      try {
+        const token = await registerForPushNotifications();
         if (token) {
-          console.log('✅ Push notification token:', token);
-          // TODO: Save token to user profile in Firestore
+          console.log('✅ Push notification token obtained');
+          // Save token to user profile in Firestore
+          const { auth, db } = await import('./firebaseConfig');
+          const { doc, updateDoc } = await import('firebase/firestore');
+          const currentUser = auth.currentUser;
+          if (currentUser) {
+            await updateDoc(doc(db, 'users', currentUser.uid), {
+              pushToken: token,
+              pushTokenUpdatedAt: new Date().toISOString(),
+            });
+            console.log('✅ Push token saved to user profile');
+          }
         }
-      }).catch(err => {
+      } catch (err: any) {
         console.log('⚠️ Push notifications not available:', err.message);
-      });
+      }
     }, 5000); // Delay by 5 seconds to not block startup
   }, []);
 

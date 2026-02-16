@@ -17,12 +17,16 @@ export function useGoogleAuth() {
   useEffect(() => {
     if (Platform.OS === 'web' || !GoogleSignin) return;
 
-    const webClientId = Constants.expoConfig?.extra?.googleWebClientId ||
-      '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com';
+    try {
+      const webClientId = Constants.expoConfig?.extra?.googleWebClientId ||
+        '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com';
 
-    GoogleSignin.configure({
-      webClientId,
-    });
+      GoogleSignin.configure({
+        webClientId,
+      });
+    } catch (error) {
+      console.warn('Google Sign-In not available - requires development build');
+    }
   }, []);
 
   const signIn = async (role: 'customer' | 'owner') => {
