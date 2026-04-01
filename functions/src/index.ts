@@ -15,8 +15,10 @@ import Razorpay from 'razorpay';
 import * as crypto from 'crypto';
 import * as nodemailer from 'nodemailer';
 import * as dotenv from 'dotenv';
+import * as path from 'path';
 
-dotenv.config();
+// Load from single root .env (two levels up from functions/src/)
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 admin.initializeApp();
 const db = admin.firestore();
