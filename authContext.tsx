@@ -29,15 +29,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('🔐 AuthProvider: Starting initialization...');
     let mounted = true;
 
-    // Set a timeout to ensure we don't hang forever
+    // Fallback timeout — ONLY fires if onAuthStateChanged never calls back at all
+    // (e.g. Firebase SDK fails to initialise). Cancelled immediately once we get
+    // any auth state, so Firestore latency can never trigger it.
     const loadingTimeout = setTimeout(() => {
-      if (mounted && loading) {
-        console.warn('⚠️ Auth initialization timeout - proceeding anyway');
+      if (mounted) {
+        console.warn('⚠️ Auth initialization timeout - Firebase did not respond');
         setLoading(false);
       }
-    }, 5000); // 5 second timeout (increased for slower connections)
+    }, 15000); // 15 s — absolute last resort
 
-    // Try to restore session on app start
+    // Restore last-known session from AsyncStorage so the UI has *something*
+    // to show immediately while Firebase resolves the real state.
     loadSession()
       .then((session) => {
         if (session && mounted) {
@@ -49,14 +52,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('❌ Failed to restore session:', err);
       });
 
-    // Listen to Firebase auth state changes
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      // Firebase has responded — kill the fallback timeout immediately so it
+      // can never race with slow Firestore reads inside handleUserSignIn.
+      clearTimeout(loadingTimeout);
+
       try {
         console.log('🔄 Auth state changed:', firebaseUser ? firebaseUser.email : 'signed out');
         if (firebaseUser) {
           await handleUserSignIn(firebaseUser);
         } else {
-          // User signed out
           await clearSession();
           if (mounted) {
             setUser(null);
@@ -71,7 +76,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
         }
       } finally {
-        clearTimeout(loadingTimeout);
         if (mounted) {
           console.log('✅ Auth initialization complete');
           setLoading(false);
