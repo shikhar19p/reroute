@@ -130,11 +130,11 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
     : null;
 
   // Encrypt sensitive bank details
-  const encryptedAccountNumber = encryptSensitiveData(
+  const encryptedAccountNumber = await encryptSensitiveData(
     farmData.kyc.bankDetails.accountNumber,
     userId
   );
-  const encryptedIFSC = encryptSensitiveData(
+  const encryptedIFSC = await encryptSensitiveData(
     farmData.kyc.bankDetails.ifscCode,
     userId
   );

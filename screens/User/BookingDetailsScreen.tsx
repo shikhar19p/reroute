@@ -41,6 +41,8 @@ interface Booking {
   refundDate?: any;
   cancellationReason?: string;
   cancelledAt?: any;
+  razorpayRefundId?: string;
+  refundNote?: string;
 }
 
 interface Farmhouse {
@@ -177,6 +179,8 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
         refundDate: rawBookingData?.refundDate || undefined,
         cancellationReason: rawBookingData?.cancellationReason || undefined,
         cancelledAt: rawBookingData?.cancelledAt || undefined,
+        razorpayRefundId: rawBookingData?.razorpayRefundId || undefined,
+        refundNote: rawBookingData?.refundNote || undefined,
       } as Booking;
       
       setBooking(bookingData);
@@ -299,7 +303,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
     );
   }
 
-  if (!booking || !farmhouse) {
+  if (!booking) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
         <View style={styles.errorContainer}>
@@ -388,9 +392,9 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
 
         <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <Text style={[styles.farmhouseName, { color: colors.text }]}>
-            {farmhouse.name || 'Unknown Property'}
+            {farmhouse?.name || booking.farmhouseName || 'Unknown Property'}
           </Text>
-          {(farmhouse.area || farmhouse.city) && (
+          {farmhouse && (farmhouse.area || farmhouse.city) && (
             <View style={styles.locationRow}>
               <MapPin size={16} color={colors.placeholder} />
               <Text style={[styles.locationText, { color: colors.placeholder }]}>
@@ -398,7 +402,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
               </Text>
             </View>
           )}
-          {farmhouse.description && (
+          {farmhouse?.description && (
             <Text style={[styles.description, { color: colors.text }]}>
               {farmhouse.description}
             </Text>
@@ -484,9 +488,10 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
           </View>
         </View>
 
+        {farmhouse && (
         <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Property Details</Text>
-          
+
           <View style={styles.statsRow}>
             <View style={[styles.statBox, { backgroundColor: colors.background }]}>
               <Users size={24} color={colors.buttonBackground} />
@@ -505,7 +510,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
             </View>
 
             {farmhouse.mapLink && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.statBox, { backgroundColor: colors.background }]}
                 onPress={openMap}
               >
@@ -568,9 +573,10 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
             </>
           )}
         </View>
+        )}
 
         {/* Only show owner contact if payment is completed */}
-        {booking.paymentStatus === 'paid' && (farmhouse.contactPhone1 || farmhouse.contactPhone2) && (
+        {booking.paymentStatus === 'paid' && farmhouse && (farmhouse.contactPhone1 || farmhouse.contactPhone2) && (
           <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Owner Contact</Text>
             <Text style={[styles.contactNote, { color: colors.placeholder }]}>
@@ -603,7 +609,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
           </View>
         )}
 
-        {farmhouse.rules && Object.values(farmhouse.rules).some(v => v) && (
+        {farmhouse?.rules && Object.values(farmhouse.rules).some(v => v) && (
           <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
             <View style={styles.cardHeader}>
               <Shield size={20} color={colors.buttonBackground} />
@@ -761,9 +767,18 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
 
                 {booking.transactionId && (
                   <View style={[styles.infoRow, { marginTop: 12 }]}>
-                    <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Original Transaction ID</Text>
+                    <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Payment ID</Text>
                     <Text style={[styles.transactionId, { color: colors.text }]} numberOfLines={1}>
                       {booking.transactionId}
+                    </Text>
+                  </View>
+                )}
+
+                {booking.razorpayRefundId && (
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Refund ID</Text>
+                    <Text style={[styles.transactionId, { color: colors.text }]} numberOfLines={1}>
+                      {booking.razorpayRefundId}
                     </Text>
                   </View>
                 )}
@@ -782,8 +797,14 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
                   </Text>
                 </View>
 
+                {booking.refundNote && (
+                  <Text style={[styles.supportText, { color: '#F59E0B', marginBottom: 4 }]}>
+                    ⚠️ {booking.refundNote}
+                  </Text>
+                )}
+
                 <Text style={[styles.supportText, { color: colors.placeholder }]}>
-                  For refund queries, please contact support with your Booking ID and Transaction ID
+                  For refund queries, contact support with your Booking ID and Refund ID
                 </Text>
               </>
             ) : (

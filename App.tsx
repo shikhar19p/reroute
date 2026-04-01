@@ -2,7 +2,8 @@ import React, { useEffect, useCallback } from 'react';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { ActivityIndicator, View, StyleSheet, Text, Platform } from 'react-native';
+import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   useFonts,
   Inter_400Regular,
@@ -12,13 +13,17 @@ import {
 } from '@expo-google-fonts/inter';
 import * as Font from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
-// Prevent native splash from auto-hiding (not needed on web)
-if (Platform.OS !== 'web') {
-  SplashScreen.preventAutoHideAsync().catch(() => {
-    // Handle error silently
-  });
-}
+// Configure Google Sign-In once at app startup
+GoogleSignin.configure({
+  webClientId: '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com',
+});
+
+// Prevent native splash from auto-hiding
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // Handle error silently
+});
 
 // Contexts
 import { AuthProvider, useAuth } from './authContext';
@@ -478,33 +483,20 @@ export default function App() {
   // For development, push notifications will gracefully fail if FCM is not set up
   useEffect(() => {
     // Run in background without blocking
-    setTimeout(async () => {
-      try {
-        const token = await registerForPushNotifications();
+    setTimeout(() => {
+      registerForPushNotifications().then((token) => {
         if (token) {
-          console.log('✅ Push notification token obtained');
-          // Save token to user profile in Firestore
-          const { auth, db } = await import('./firebaseConfig');
-          const { doc, updateDoc } = await import('firebase/firestore');
-          const currentUser = auth.currentUser;
-          if (currentUser) {
-            await updateDoc(doc(db, 'users', currentUser.uid), {
-              pushToken: token,
-              pushTokenUpdatedAt: new Date().toISOString(),
-            });
-            console.log('✅ Push token saved to user profile');
-          }
+          console.log('✅ Push notification token:', token);
+          // TODO: Save token to user profile in Firestore
         }
-      } catch (err: any) {
+      }).catch(err => {
         console.log('⚠️ Push notifications not available:', err.message);
-      }
+      });
     }, 5000); // Delay by 5 seconds to not block startup
   }, []);
 
-  // Skip splash on web (BlurView and SplashScreen APIs not fully supported)
-  const IS_WEB = Platform.OS === 'web';
   // DEV MODE: Skip splash for faster development
-  const SKIP_SPLASH = IS_WEB || (__DEV__ && false); // Change to true to skip splash
+  const SKIP_SPLASH = __DEV__ && false; // Change to true to skip splash
 
   React.useEffect(() => {
     if (SKIP_SPLASH) {
@@ -535,23 +527,25 @@ export default function App() {
 
   // Show app only after splash completes
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <GlobalDataProvider>
-          <ThemeProvider>
-            <DialogProvider>
-              <ToastProvider>
-                <WishlistProvider>
-                  <FarmRegistrationProvider>
-                    <AppNavigator />
-                  </FarmRegistrationProvider>
-                </WishlistProvider>
-              </ToastProvider>
-            </DialogProvider>
-          </ThemeProvider>
-        </GlobalDataProvider>
-      </AuthProvider>
-    </ErrorBoundary>
+    <SafeAreaProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <GlobalDataProvider>
+            <ThemeProvider>
+              <DialogProvider>
+                <ToastProvider>
+                  <WishlistProvider>
+                    <FarmRegistrationProvider>
+                      <AppNavigator />
+                    </FarmRegistrationProvider>
+                  </WishlistProvider>
+                </ToastProvider>
+              </DialogProvider>
+            </ThemeProvider>
+          </GlobalDataProvider>
+        </AuthProvider>
+      </ErrorBoundary>
+    </SafeAreaProvider>
   );
 }
 

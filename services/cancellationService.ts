@@ -1,10 +1,13 @@
 import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '../firebaseConfig';
 import { Booking } from './bookingService';
 import { processRefund } from './paymentService';
 import { sendCancellationNotification } from './notificationService';
 import { logAuditEvent } from './auditService';
 import { removeBookedDatesFromFarmhouse } from './availabilityService';
+
+const functions = getFunctions();
 
 export interface CancellationPolicy {
   freeCancellationDays: number; // Days before check-in for free cancellation
@@ -211,6 +214,18 @@ export async function cancelBookingWithRefund(
         reason: reason || 'User requested cancellation',
       }
     );
+
+    // Send cancellation emails to user, owner, and admin via Cloud Function
+    try {
+      const notifyFn = httpsCallable(functions, 'notifyBookingCancellation');
+      await notifyFn({
+        bookingId,
+        refundAmount: refundCalc.refundAmount,
+        refundPercentage: refundCalc.refundPercentage,
+        reason: reason || 'User requested cancellation',
+        isOwnerCancellation,
+      });
+    } catch (_) {}
 
     console.log('✅ Booking cancelled successfully:', bookingId);
 

@@ -44,6 +44,9 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
 
   const [farmhouseDetails, setFarmhouseDetails] = useState<any>(null);
   const [currentBookingId, setCurrentBookingId] = useState<string | null>(null);
+  // Ref mirrors state so the unmount cleanup always has the latest bookingId
+  // (state closures can be stale at unmount time, refs are always current)
+  const currentBookingIdRef = React.useRef<string | null>(null);
   const cleanupTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const cleanupDoneRef = React.useRef<boolean>(false);
 
@@ -58,10 +61,13 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
       if (cleanupTimeoutRef.current) {
         clearTimeout(cleanupTimeoutRef.current);
       }
-      // Only cleanup if not already cleaned up by error handler
-      if (currentBookingId && !cleanupDoneRef.current) {
-        console.log('Component unmounting, cleaning up pending booking...');
-        cleanupPendingBooking(currentBookingId).catch(error => {
+      // Use ref (not state) — state closures can be stale at unmount time
+      if (currentBookingIdRef.current && !cleanupDoneRef.current) {
+        console.log('🧹 Component unmounting, cleaning up pending booking...');
+        cleanupDoneRef.current = true;
+        const bId = currentBookingIdRef.current;
+        currentBookingIdRef.current = null;
+        cleanupPendingBooking(bId).catch(error => {
           console.error('Failed to cleanup on unmount:', error);
         });
       }
@@ -212,6 +218,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
       bookingId = await createBooking(bookingData);
       console.log('✅ Booking created with ID:', bookingId);
       setCurrentBookingId(bookingId);
+      currentBookingIdRef.current = bookingId;
 
       // Set up automatic cleanup after 2 minutes
       cleanupTimeoutRef.current = setTimeout(() => {
@@ -264,6 +271,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
         clearTimeout(cleanupTimeoutRef.current);
         cleanupTimeoutRef.current = null;
       }
+      currentBookingIdRef.current = null;
       setCurrentBookingId(null);
 
       setLoading(false);
@@ -291,16 +299,40 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
       setLoading(false);
       setLoadingMessage('');
 
-      // Cleanup the pending booking since payment failed/cancelled
-      if (bookingId) {
-        // Mark cleanup as done so unmount effect doesn't double-cleanup
+      // Post payment parsing error: payment MAY have succeeded but response couldn't be parsed.
+      // DO NOT clean up the booking — the money may have been charged.
+      const errorDesc = error?.description || error?.message || '';
+      const isPostPaymentParseError =
+        (error as any)?.isPostPaymentParseError === true ||
+        errorDesc.includes('Post payment parsing error') ||
+        (error?.code === 0 && errorDesc.toLowerCase().includes('parsing'));
+
+      if (isPostPaymentParseError) {
+        if (cleanupTimeoutRef.current) {
+          clearTimeout(cleanupTimeoutRef.current);
+          cleanupTimeoutRef.current = null;
+        }
+        currentBookingIdRef.current = null;
+        setCurrentBookingId(null);
         cleanupDoneRef.current = true;
-        console.log('Payment failed/cancelled, cleaning up pending booking...');
+        showDialog({
+          title: 'Payment Status Unclear',
+          message: `Your payment may have been processed but we couldn't confirm it. Please check your bookings in a few minutes. If charged, your booking will appear there. Reference: ${bookingId || ''}`,
+          type: 'warning',
+          buttons: [{ text: 'Check Bookings', style: 'default', onPress: () => navigation.navigate('Bookings') }],
+        });
+        return;
+      }
+
+      // Cleanup the pending booking since payment genuinely failed/cancelled
+      if (bookingId && !cleanupDoneRef.current) {
+        cleanupDoneRef.current = true;
+        currentBookingIdRef.current = null;
+        console.log('🧹 Payment failed/cancelled, cleaning up pending booking...');
         cleanupPendingBooking(bookingId).catch(err => {
           console.error('Failed to cleanup after error:', err);
         });
 
-        // Clear timeout and reset booking ID
         if (cleanupTimeoutRef.current) {
           clearTimeout(cleanupTimeoutRef.current);
           cleanupTimeoutRef.current = null;

@@ -27,9 +27,11 @@ const amenitiesList = [
   { key: 'geyser', label: 'Geyser', type: 'counter' as const },
   { key: 'bonfire', label: 'Bonfire', type: 'counter' as const },
   { key: 'pool', label: 'Swimming Pool', type: 'toggle' as const },
-  { key: 'chess', label: 'Chess', type: 'counter' as const },
-  { key: 'carroms', label: 'Carroms', type: 'counter' as const },
-  { key: 'volleyball', label: 'Volleyball', type: 'counter' as const },
+  { key: 'decorService', label: 'Decor Service Availability', type: 'toggle' as const },
+  { key: 'restaurant', label: 'Restaurant', type: 'toggle' as const },
+  { key: 'foodPrepOnDemand', label: 'Food Prep on Demand', type: 'toggle' as const },
+  { key: 'djMusicSystem', label: 'DJ / Music System', type: 'toggle' as const },
+  { key: 'projector', label: 'Projector', type: 'toggle' as const },
 ];
 
 export default function AmenitiesGamesScreen({ navigation }: AmenitiesGamesScreenProps) {
@@ -43,11 +45,11 @@ export default function AmenitiesGamesScreen({ navigation }: AmenitiesGamesScree
   );
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        behavior="padding"
+        keyboardVerticalOffset={0}
       >
         <ScrollView
           style={styles.scrollView}
@@ -55,9 +57,6 @@ export default function AmenitiesGamesScreen({ navigation }: AmenitiesGamesScree
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-        <Text style={styles.mainTitle}>Amenities & Rules</Text>
-        <Text style={styles.subtitle}>Configure amenities, games, and property rules</Text>
-
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>🏠 Amenities & Games</Text>
 
@@ -69,7 +68,7 @@ export default function AmenitiesGamesScreen({ navigation }: AmenitiesGamesScree
                 <Switch
                   value={(farm.amenities as any)[item.key]}
                   onValueChange={(value) => setField(['amenities', item.key], value)}
-                  trackColor={{ false: '#E5E7EB', true: '#D4AF37' }}
+                  trackColor={{ false: '#E5E7EB', true: '#4CAF50' }}
                   thumbColor="#FFFFFF"
                 />
               ) : (
@@ -197,18 +196,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
-    paddingBottom: 120, // Extra padding for bottom buttons
-  },
-  mainTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#6B7280',
-    marginBottom: 24,
+    paddingBottom: 20,
   },
   section: {
     marginBottom: 32,
@@ -248,7 +236,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   counterButtonActive: {
-    backgroundColor: '#D4AF37',
+    backgroundColor: '#4CAF50',
   },
   chevronDown: {
     fontSize: 18,
@@ -326,11 +314,11 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: '#D4AF37',
+    backgroundColor: '#4CAF50',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
-    shadowColor: '#D4AF37',
+    shadowColor: '#4CAF50',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,

@@ -141,12 +141,27 @@ export async function initiatePayment(paymentDetails: PaymentDetails): Promise<P
     }
 
     // Open Razorpay checkout
-    const data = await RazorpayCheckout.open(options);
+    const rawData = await RazorpayCheckout.open(options);
+
+    // react-native-razorpay sometimes returns a stringified JSON
+    const data = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
 
     console.log('✅ Payment successful:', data);
     return data as PaymentResponse;
   } catch (error: any) {
     console.error('❌ Payment failed:', error);
+
+    // IMPORTANT: Check for post-payment parsing error BEFORE PAYMENT_CANCELLED.
+    // Razorpay uses code=0 for both user cancellation AND parsing errors.
+    // The description field distinguishes them. If we don't check first,
+    // parsing errors are misidentified as cancellations and the booking is
+    // incorrectly cleaned up even though the payment may have succeeded.
+    const desc: string = error?.description || '';
+    if (desc.includes('Post payment parsing error') || desc.toLowerCase().includes('parsing error')) {
+      const parseErr = new Error('Post payment parsing error');
+      (parseErr as any).isPostPaymentParseError = true;
+      throw parseErr;
+    }
 
     // Handle user cancellation vs actual error
     if (RazorpayCheckout && error.code === RazorpayCheckout.PAYMENT_CANCELLED) {
