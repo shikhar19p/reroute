@@ -36,7 +36,7 @@ const fieldConfigs = [
 ];
 
 export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenProps) {
-  const { farm, setField, hasDraft, loadDraft, clearDraft } = useFarmRegistration();
+  const { farm, setField, hasDraft, loadDraft, clearDraft, resetFarm } = useFarmRegistration();
   const { showDialog } = useDialog();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [draftChecked, setDraftChecked] = useState(false);
@@ -54,7 +54,7 @@ export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenPro
             text: 'Start Fresh',
             style: 'cancel',
             onPress: async () => {
-              await clearDraft();
+              await resetFarm();
             }
           },
           {
@@ -92,11 +92,6 @@ export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenPro
     if (keyboardType === 'phone-pad' || keyboardType === 'numeric') {
       processedValue = value.replace(/[^0-9]/g, '');
     }
-    // Strip non-alphabetic characters for farmhouse name (allow spaces)
-    else if (key === 'name') {
-      processedValue = value.replace(/[^a-zA-Z\s]/g, '');
-    }
-
     setField(key, processedValue);
     if (errors[key]) {
       setErrors((prev) => ({ ...prev, [key]: undefined }));
@@ -129,11 +124,11 @@ export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenPro
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        behavior="padding"
+        keyboardVerticalOffset={0}
       >
         <ScrollView
           style={styles.scrollView}
@@ -141,8 +136,6 @@ export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenPro
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.sectionTitle}>Basic Information</Text>
-
           {fieldConfigs.map(({ key, label, placeholder, keyboardType }) => (
             <View key={key} style={styles.fieldContainer}>
               <Text style={styles.label}>{label}</Text>
@@ -199,13 +192,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingBottom: 120, // Extra padding for bottom buttons
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 24,
+    paddingBottom: 20,
   },
   fieldContainer: {
     marginBottom: 20,
@@ -247,11 +234,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   primaryButton: {
-    backgroundColor: '#D4AF37',
+    backgroundColor: '#4CAF50',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
-    shadowColor: '#D4AF37',
+    shadowColor: '#4CAF50',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,

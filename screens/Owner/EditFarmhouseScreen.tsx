@@ -279,6 +279,9 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
 
       const farmhouseRef = doc(db, 'farmhouses', farmhouse.id);
 
+      const encryptedAccountNumber = await encryptSensitiveData(formData.accountNumber.trim(), farmhouse.ownerId);
+      const encryptedIFSC = await encryptSensitiveData(formData.ifscCode.trim().toUpperCase(), farmhouse.ownerId);
+
       const updateData = {
         'basicDetails.name': formData.name.trim(),
         'basicDetails.description': formData.description.trim(),
@@ -306,8 +309,8 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
         'rules.quietHours': formData.quietHours,
         'rules.additionalRules': formData.additionalRules.trim(),
         'kyc.bankDetails.accountHolderName': formData.accountHolderName.trim(),
-        'kyc.bankDetails.accountNumber': encryptSensitiveData(formData.accountNumber.trim(), farmhouse.ownerId),
-        'kyc.bankDetails.ifscCode': encryptSensitiveData(formData.ifscCode.trim().toUpperCase(), farmhouse.ownerId),
+        'kyc.bankDetails.accountNumber': encryptedAccountNumber,
+        'kyc.bankDetails.ifscCode': encryptedIFSC,
         'kyc.bankDetails.branchName': formData.branchName.trim(),
         'kyc.bankDetails.encrypted': true, // Flag to indicate encryption
         photoUrls: formData.photos,

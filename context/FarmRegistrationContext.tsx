@@ -14,9 +14,11 @@ interface Amenities {
   geyser: number;
   bonfire: number;
   pool: boolean;
-  chess: number;
-  carroms: number;
-  volleyball: number;
+  decorService: boolean;
+  restaurant: boolean;
+  foodPrepOnDemand: boolean;
+  djMusicSystem: boolean;
+  projector: boolean;
   customAmenities: string;
 }
 
@@ -95,7 +97,7 @@ interface Farm {
 interface FarmRegistrationContextType {
   farm: Farm;
   setFarm: React.Dispatch<React.SetStateAction<Farm>>;
-  resetFarm: () => void;
+  resetFarm: () => Promise<void>;
   setField: (path: string | string[], newValue: any) => void;
   addPhoto: (item: Photo) => void;
   removePhoto: (index: number) => void;
@@ -131,9 +133,11 @@ const createInitialFarm = (): Farm => ({
     geyser: 0,
     bonfire: 0,
     pool: false,
-    chess: 0,
-    carroms: 0,
-    volleyball: 0,
+    decorService: false,
+    restaurant: false,
+    foodPrepOnDemand: false,
+    djMusicSystem: false,
+    projector: false,
     customAmenities: '',
   },
   rules: {
@@ -286,9 +290,9 @@ export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) 
     return () => clearTimeout(timeoutId);
   }, [farm, saveDraft, isInitialized]);
 
-  const resetFarm = useCallback(() => {
+  const resetFarm = useCallback(async () => {
     setFarm(createInitialFarm());
-    clearDraft();
+    await clearDraft();
   }, [clearDraft]);
 
   const setField = useCallback((path: string | string[], newValue: any) => {

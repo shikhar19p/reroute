@@ -163,16 +163,21 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
       <View style={styles.header}>
-        <View style={{ flex: 1 }}>
+        <View style={styles.headerRow}>
           <Text style={[styles.headerTitle, { color: colors.text }]}>My Farmhouses</Text>
+          <TouchableOpacity
+            style={[styles.logoutButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+            onPress={handleLogout}
+          >
+            <LogOut size={20} color="#EF4444" />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.headerRow}>
           <Text style={[styles.headerSubtitle, { color: colors.placeholder }]}>
             {farmhouses.length} {farmhouses.length === 1 ? 'property' : 'properties'}
           </Text>
-        </View>
-
-        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
           {farmhouses.length > 0 && (
-            <>
+            <View style={styles.actionButtons}>
               <TouchableOpacity
                 style={[styles.smallPillButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
                 onPress={() => navigation.navigate('OwnerBookings' as never)}
@@ -185,14 +190,8 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
               >
                 <Text style={[styles.addIcon, { color: colors.buttonText }]}>+</Text>
               </TouchableOpacity>
-            </>
+            </View>
           )}
-          <TouchableOpacity
-            style={[styles.logoutButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
-            onPress={handleLogout}
-          >
-            <LogOut size={20} color="#EF4444" />
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -265,12 +264,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   header: {
+    paddingHorizontal: getResponsivePadding(20),
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: getResponsivePadding(20),
-    paddingVertical: 16,
-    minHeight: 80, // Ensure minimum height
+    marginBottom: 6,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: isSmallDevice() ? 24 : 28,

@@ -190,9 +190,9 @@ function deriveKey(userId: string): string {
 
 /**
  * Encrypt sensitive data (bank account numbers, IFSC codes)
- * Uses AES-256 encryption with user-specific keys
+ * Uses AES-256 encryption with user-specific keys and a random IV via expo-crypto
  */
-export function encryptSensitiveData(plainText: string, userId: string): string {
+export async function encryptSensitiveData(plainText: string, userId: string): Promise<string> {
   if (!plainText) {
     throw new Error('Data to encrypt cannot be empty');
   }
@@ -203,8 +203,14 @@ export function encryptSensitiveData(plainText: string, userId: string): string 
 
   try {
     const key = deriveKey(userId);
-    const encrypted = CryptoJS.AES.encrypt(plainText, key).toString();
-    return `enc_v1_${encrypted}`; // Version prefix for future migrations
+    // Use expo-crypto for secure random IV (avoids CryptoJS native module error)
+    const ivBytes = await Crypto.getRandomBytesAsync(16);
+    const ivArray = Array.from(ivBytes);
+    const iv = CryptoJS.lib.WordArray.create(ivArray);
+    const keyParsed = CryptoJS.enc.Hex.parse(key);
+    const encrypted = CryptoJS.AES.encrypt(plainText, keyParsed, { iv });
+    const ivHex = CryptoJS.enc.Hex.stringify(iv);
+    return `enc_v2_${ivHex}:${encrypted.toString()}`;
   } catch (error) {
     console.error('Encryption error:', error);
     throw new Error('Failed to encrypt sensitive data');
@@ -213,7 +219,7 @@ export function encryptSensitiveData(plainText: string, userId: string): string 
 
 /**
  * Decrypt sensitive data
- * Returns the original plain text
+ * Handles both enc_v1 (old passphrase format) and enc_v2 (IV-based format)
  */
 export function decryptSensitiveData(encryptedText: string, userId: string): string {
   if (!encryptedText) {
@@ -225,17 +231,28 @@ export function decryptSensitiveData(encryptedText: string, userId: string): str
   }
 
   try {
-    // Remove version prefix
-    const encrypted = encryptedText.replace(/^enc_v\d+_/, '');
     const key = deriveKey(userId);
-    const decrypted = CryptoJS.AES.decrypt(encrypted, key);
-    const plainText = decrypted.toString(CryptoJS.enc.Utf8);
 
-    if (!plainText) {
-      throw new Error('Decryption failed - invalid key or corrupted data');
+    if (encryptedText.startsWith('enc_v2_')) {
+      // New format: enc_v2_{ivHex}:{ciphertext}
+      const payload = encryptedText.slice('enc_v2_'.length);
+      const colonIdx = payload.indexOf(':');
+      const ivHex = payload.slice(0, colonIdx);
+      const ciphertext = payload.slice(colonIdx + 1);
+      const iv = CryptoJS.enc.Hex.parse(ivHex);
+      const keyParsed = CryptoJS.enc.Hex.parse(key);
+      const decrypted = CryptoJS.AES.decrypt(ciphertext, keyParsed, { iv });
+      const plainText = decrypted.toString(CryptoJS.enc.Utf8);
+      if (!plainText) throw new Error('Decryption failed - invalid key or corrupted data');
+      return plainText;
+    } else {
+      // Legacy format: enc_v1_{ciphertext} (passphrase-based, no explicit IV)
+      const encrypted = encryptedText.replace(/^enc_v\d+_/, '');
+      const decrypted = CryptoJS.AES.decrypt(encrypted, key);
+      const plainText = decrypted.toString(CryptoJS.enc.Utf8);
+      if (!plainText) throw new Error('Decryption failed - invalid key or corrupted data');
+      return plainText;
     }
-
-    return plainText;
   } catch (error) {
     console.error('Decryption error:', error);
     throw new Error('Failed to decrypt sensitive data');

@@ -354,7 +354,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     const runCleanup = async () => {
       try {
         console.log('🧹 Running cleanup for abandoned bookings...');
-        const cleanedCount = await cleanupAbandonedBookings(user.uid, 2); // 2 minutes
+        const cleanedCount = await cleanupAbandonedBookings(user.uid, 30); // 30 minutes
         if (cleanedCount > 0) {
           console.log(`✅ Cleanup completed: ${cleanedCount} booking(s) cleaned up`);
         }

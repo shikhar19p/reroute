@@ -25,13 +25,15 @@
       "Bash(keytool -list -v -keystore debug.keystore -alias androiddebugkey -storepass android -keypass android:*)",
       "Bash(npm install:*)",
       "Bash(npm uninstall:*)",
-      "Bash(npx expo start --web --no-dev)",
-      "Bash(curl:*)",
-      "Bash(npx expo start:*)",
-      "Bash(npm ls:*)",
-      "Bash(netstat:*)",
-      "Bash(npx firebase deploy --only firestore:rules)",
-      "Bash(ls:*)"
+      "Bash(find:*)",
+      "Bash(cd:*)",
+      "Bash(keytool:*)",
+      "Bash(sed -i \"s/edges={\\\\[''bottom''\\\\]} edges={\\\\[''top'', ''left'', ''right''\\\\]}/edges={[''left'', ''right'', ''bottom'']}/g\" D:/reroute/screens/FarmRegistration/PhotosScreen.tsx)",
+      "Bash(sed -i \"s/edges={\\\\[''top'', ''left'', ''right''\\\\]}/edges={[''left'', ''right'', ''bottom'']}/g\" D:/reroute/screens/FarmRegistration/KycScreen.tsx)",
+      "Bash(sed -i \"s/edges={\\\\[''top'', ''left'', ''right''\\\\]}/edges={[''left'', ''right'', ''bottom'']}/g\" D:/reroute/screens/FarmRegistration/RegistrationFeeScreen.tsx)",
+      "Bash(npm run:*)",
+      "Bash(firebase functions:log --only createOrder)",
+      "Bash(firebase:*)"
     ],
     "deny": [],
     "ask": []

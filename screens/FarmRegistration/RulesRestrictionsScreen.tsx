@@ -17,11 +17,8 @@ export default function RulesRestrictionsScreen({ navigation }: RulesRestriction
   const { amenities, rules } = farm;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Review Configuration</Text>
-        <Text style={styles.subtitle}>Please review your amenities and rules before proceeding</Text>
-
         <View style={styles.card}>
           <Text style={styles.cardTitle}>🏠 Amenities & Games</Text>
 
@@ -53,24 +50,38 @@ export default function RulesRestrictionsScreen({ navigation }: RulesRestriction
             </View>
           )}
 
-          {amenities.chess > 0 && (
+          {(amenities as any).decorService && (
             <View style={styles.itemRow}>
               <Text style={styles.checkIcon}>✅</Text>
-              <Text style={styles.itemText}>Chess: {amenities.chess}</Text>
+              <Text style={styles.itemText}>Decor Service Available</Text>
             </View>
           )}
 
-          {amenities.carroms > 0 && (
+          {(amenities as any).restaurant && (
             <View style={styles.itemRow}>
               <Text style={styles.checkIcon}>✅</Text>
-              <Text style={styles.itemText}>Carroms: {amenities.carroms}</Text>
+              <Text style={styles.itemText}>Restaurant</Text>
             </View>
           )}
 
-          {amenities.volleyball > 0 && (
+          {(amenities as any).foodPrepOnDemand && (
             <View style={styles.itemRow}>
               <Text style={styles.checkIcon}>✅</Text>
-              <Text style={styles.itemText}>Volleyball: {amenities.volleyball}</Text>
+              <Text style={styles.itemText}>Food Prep on Demand</Text>
+            </View>
+          )}
+
+          {(amenities as any).djMusicSystem && (
+            <View style={styles.itemRow}>
+              <Text style={styles.checkIcon}>✅</Text>
+              <Text style={styles.itemText}>DJ / Music System</Text>
+            </View>
+          )}
+
+          {(amenities as any).projector && (
+            <View style={styles.itemRow}>
+              <Text style={styles.checkIcon}>✅</Text>
+              <Text style={styles.itemText}>Projector</Text>
             </View>
           )}
 
@@ -161,18 +172,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
-    paddingBottom: 120, // Extra padding for bottom buttons
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#6B7280',
-    marginBottom: 24,
+    paddingBottom: 20,
   },
   card: {
     backgroundColor: '#FFFFFF',
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   yesText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#D4AF37',
+    color: '#4CAF50',
   },
   noIcon: {
     flexDirection: 'row',
@@ -284,11 +284,11 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: '#D4AF37',
+    backgroundColor: '#4CAF50',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
-    shadowColor: '#D4AF37',
+    shadowColor: '#4CAF50',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
