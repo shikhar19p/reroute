@@ -8,6 +8,7 @@ import { cancelBookingWithRefund } from '../../services/cancellationService';
 import { useDialog } from '../../components/CustomDialog';
 import { useAuth } from '../../authContext';
 import { getStatusColor } from '../../utils/statusColors';
+import { parseError } from '../../utils/errorHandler';
 
 type RootStackParamList = {
   OwnerBookingDetails: { booking: Booking };
@@ -72,7 +73,7 @@ export default function OwnerBookingDetailScreen({ route, navigation }: Props) {
 
     showDialog({
       title: 'Cancel Booking',
-      message: `Are you sure you want to cancel this booking?\n\nGuest will receive 100% refund (₹${booking.totalPrice}) as per owner cancellation policy.`,
+      message: `Are you sure you want to cancel this booking?\n\nThe guest will receive a full refund of Rs.${booking.totalPrice} as per the owner cancellation policy.`,
       type: 'warning',
       buttons: [
         { text: 'No, Keep Booking', style: 'cancel' },
@@ -100,7 +101,7 @@ export default function OwnerBookingDetailScreen({ route, navigation }: Props) {
             } catch (error: any) {
               showDialog({
                 title: 'Cancellation Failed',
-                message: error.message || 'Failed to cancel booking. Please try again.',
+                message: parseError(error).message,
                 type: 'error'
               });
             }

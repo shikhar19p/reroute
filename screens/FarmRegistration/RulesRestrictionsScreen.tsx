@@ -20,67 +20,67 @@ export default function RulesRestrictionsScreen({ navigation }: RulesRestriction
     <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>🏠 Amenities & Games</Text>
+          <Text style={styles.cardTitle}>Amenities & Games</Text>
 
           {amenities.tv > 0 && (
             <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✅</Text>
+              <Text style={styles.checkIcon}>✓</Text>
               <Text style={styles.itemText}>TV: {amenities.tv}</Text>
             </View>
           )}
 
           {amenities.geyser > 0 && (
             <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✅</Text>
+              <Text style={styles.checkIcon}>✓</Text>
               <Text style={styles.itemText}>Geyser: {amenities.geyser}</Text>
             </View>
           )}
 
           {amenities.bonfire > 0 && (
             <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✅</Text>
+              <Text style={styles.checkIcon}>✓</Text>
               <Text style={styles.itemText}>Bonfire: {amenities.bonfire}</Text>
             </View>
           )}
 
           {amenities.pool && (
             <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✅</Text>
+              <Text style={styles.checkIcon}>✓</Text>
               <Text style={styles.itemText}>Swimming Pool Available</Text>
             </View>
           )}
 
           {(amenities as any).decorService && (
             <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✅</Text>
+              <Text style={styles.checkIcon}>✓</Text>
               <Text style={styles.itemText}>Decor Service Available</Text>
             </View>
           )}
 
           {(amenities as any).restaurant && (
             <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✅</Text>
+              <Text style={styles.checkIcon}>✓</Text>
               <Text style={styles.itemText}>Restaurant</Text>
             </View>
           )}
 
           {(amenities as any).foodPrepOnDemand && (
             <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✅</Text>
+              <Text style={styles.checkIcon}>✓</Text>
               <Text style={styles.itemText}>Food Prep on Demand</Text>
             </View>
           )}
 
           {(amenities as any).djMusicSystem && (
             <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✅</Text>
+              <Text style={styles.checkIcon}>✓</Text>
               <Text style={styles.itemText}>DJ / Music System</Text>
             </View>
           )}
 
           {(amenities as any).projector && (
             <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✅</Text>
+              <Text style={styles.checkIcon}>✓</Text>
               <Text style={styles.itemText}>Projector</Text>
             </View>
           )}
@@ -94,18 +94,18 @@ export default function RulesRestrictionsScreen({ navigation }: RulesRestriction
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>📋 Rules & Restrictions</Text>
+          <Text style={styles.cardTitle}>Rules & Restrictions</Text>
 
           <View style={styles.ruleRow}>
             <Text style={styles.ruleLabel}>Unmarried couples allowed?</Text>
             {rules.unmarriedNotAllowed ? (
               <View style={styles.noIcon}>
-                <Text style={styles.crossIcon}>❌</Text>
+                <Text style={styles.crossIcon}>No</Text>
                 <Text style={styles.noText}>No</Text>
               </View>
             ) : (
               <View style={styles.yesIcon}>
-                <Text style={styles.checkIconGreen}>✅</Text>
+                <Text style={styles.checkIconGreen}>Yes</Text>
                 <Text style={styles.yesText}>Yes</Text>
               </View>
             )}
@@ -115,12 +115,12 @@ export default function RulesRestrictionsScreen({ navigation }: RulesRestriction
             <Text style={styles.ruleLabel}>Pets allowed?</Text>
             {rules.petsNotAllowed ? (
               <View style={styles.noIcon}>
-                <Text style={styles.crossIcon}>❌</Text>
+                <Text style={styles.crossIcon}>No</Text>
                 <Text style={styles.noText}>No</Text>
               </View>
             ) : (
               <View style={styles.yesIcon}>
-                <Text style={styles.checkIconGreen}>✅</Text>
+                <Text style={styles.checkIconGreen}>Yes</Text>
                 <Text style={styles.yesText}>Yes</Text>
               </View>
             )}

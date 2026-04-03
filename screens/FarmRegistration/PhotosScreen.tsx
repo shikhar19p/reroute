@@ -173,7 +173,7 @@ export default function PhotosScreen({ navigation }: PhotosScreenProps) {
                 onPress={() => handleRemovePhoto(index)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.removeIcon}>❌</Text>
+                <Text style={styles.removeIcon}>✕</Text>
               </TouchableOpacity>
             </View>
           ))}
@@ -186,7 +186,7 @@ export default function PhotosScreen({ navigation }: PhotosScreenProps) {
               disabled={isProcessing}
             >
               <View style={styles.addIconContainer}>
-                <Text style={styles.imageIcon}>🖼️</Text>
+                <Text style={styles.imageIcon}>+</Text>
               </View>
               <Text style={styles.addText}>Add Photo</Text>
             </TouchableOpacity>

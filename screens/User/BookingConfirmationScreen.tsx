@@ -14,6 +14,7 @@ import { useDialog } from '../../components/CustomDialog';
 import { useScrollHandler } from '../../context/TabBarVisibilityContext';
 import { useCoupons, useGlobalData } from '../../GlobalDataContext';
 import { createBooking, cleanupPendingBooking } from '../../services/bookingService';
+import { parseError } from '../../utils/errorHandler';
 import { completePaymentFlow, savePaymentRecord } from '../../services/paymentService';
 
 const { width } = Dimensions.get('window');
@@ -55,7 +56,10 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
     fetchFarmhouseDetails();
   }, [user, farmhouseId]);
 
-  // Cleanup on unmount only (not on every currentBookingId change)
+  // Cleanup on unmount only — empty deps so this NEVER re-runs mid-flow.
+  // Do NOT add currentBookingId to deps: React would fire the cleanup on every
+  // state change (when setCurrentBookingId is called), which deletes the booking
+  // before the payment flow even starts.
   useEffect(() => {
     return () => {
       if (cleanupTimeoutRef.current) {
@@ -72,7 +76,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
         });
       }
     };
-  }, [currentBookingId]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchUserProfile = async () => {
     if (!user) {
@@ -277,7 +281,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
       setLoading(false);
       setLoadingMessage('');
       showDialog({
-        title: 'Booking Confirmed! 🎉',
+        title: 'Booking Confirmed',
         message: `Your payment of ₹${finalPrice} was successful. Your booking for ${farmhouseDetails?.name || farmhouseName} is confirmed.`,
         type: 'success',
         buttons: [{
@@ -340,122 +344,37 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
         setCurrentBookingId(null);
       }
 
-      // Parse error message from various formats
-      let errorMessage = 'Failed to create booking';
-      let isCancellation = false;
-      let isPaymentError = false;
-
-      // Handle Razorpay payment errors (comes as JSON string)
-      if (error?.description) {
-        try {
-          const parsedError = typeof error.description === 'string'
-            ? JSON.parse(error.description)
-            : error.description;
-
-          if (parsedError?.error) {
-            const razorpayError = parsedError.error;
-            isPaymentError = true;
-
-            // Map Razorpay error codes to user-friendly messages
-            switch (razorpayError.code) {
-              case 'BAD_REQUEST_ERROR':
-                if (razorpayError.reason === 'payment_error' || razorpayError.step === 'payment_authentication') {
-                  isCancellation = true;
-                  errorMessage = 'Payment was cancelled or failed during authentication.';
-                } else if (razorpayError.description && razorpayError.description !== 'undefined') {
-                  errorMessage = razorpayError.description;
-                } else {
-                  errorMessage = 'Payment could not be processed. Please try again.';
-                }
-                break;
-              case 'GATEWAY_ERROR':
-                errorMessage = 'Payment gateway error. Please try again in a few moments.';
-                break;
-              case 'SERVER_ERROR':
-                errorMessage = 'Payment server error. Please try again later.';
-                break;
-              default:
-                if (razorpayError.description && razorpayError.description !== 'undefined') {
-                  errorMessage = razorpayError.description;
-                } else {
-                  errorMessage = 'Payment failed. Please try again.';
-                }
-            }
-          }
-        } catch (parseErr) {
-          // If parsing fails, treat as payment error
-          errorMessage = 'Payment could not be completed. Please try again.';
-          isPaymentError = true;
-        }
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-        if (errorMessage.includes('cancelled') || errorMessage.includes('canceled')) {
-          isCancellation = true;
-        }
-      } else if (typeof error === 'string') {
-        errorMessage = error;
-      }
-
       console.error('❌ Booking/Payment error:', error);
 
-      // Handle different error scenarios
-      if (isCancellation || errorMessage.toLowerCase().includes('cancel')) {
-        // Payment cancelled by user
+      const { title: errTitle, message: errMessage, isCancellation } = parseError(error);
+
+      if (isCancellation || errMessage.toLowerCase().includes('cancel')) {
         showDialog({
           title: 'Payment Cancelled',
           message: 'Your payment was cancelled. The dates have been unblocked and you can try booking again.',
           type: 'warning',
-          buttons: [{
-            text: 'OK',
-            style: 'default',
-            onPress: () => {}
-          }]
+          buttons: [{ text: 'OK', style: 'default', onPress: () => {} }]
         });
-      } else if (errorMessage.includes('Payment verification failed')) {
-        // Payment might have succeeded but verification failed
+      } else if (errMessage.includes('verification failed') || errMessage.includes('Verification Failed')) {
         showDialog({
           title: 'Payment Verification Issue',
           message: 'Your payment may have been processed, but we need to verify it. Please check your bookings or contact support.',
           type: 'warning',
-          buttons: [{
-            text: 'Check Bookings',
-            style: 'default',
-            onPress: () => navigation.navigate('Bookings')
-          }]
+          buttons: [{ text: 'Check Bookings', style: 'default', onPress: () => navigation.navigate('Bookings') }]
         });
-      } else if (errorMessage.includes('Validation failed')) {
-        showDialog({
-          title: 'Booking Error',
-          message: errorMessage.replace('Validation failed: ', ''),
-          type: 'error'
-        });
-      } else if (errorMessage.includes('not available')) {
+      } else if (errMessage.includes('not available')) {
         showDialog({
           title: 'Dates Unavailable',
           message: 'The selected dates are no longer available. Please choose different dates.',
           type: 'error',
-          buttons: [{
-            text: 'Choose New Dates',
-            style: 'default',
-            onPress: () => navigation.goBack()
-          }]
-        });
-      } else if (isPaymentError) {
-        showDialog({
-          title: 'Payment Failed',
-          message: errorMessage,
-          type: 'error',
-          buttons: [{
-            text: 'Try Again',
-            style: 'default',
-            onPress: () => {}
-          }]
+          buttons: [{ text: 'Choose New Dates', style: 'default', onPress: () => navigation.goBack() }]
         });
       } else {
         showDialog({
-          title: 'Booking Failed',
-          message: errorMessage,
-          type: 'error'
+          title: errTitle,
+          message: errMessage,
+          type: 'error',
+          buttons: [{ text: 'OK', style: 'default', onPress: () => {} }]
         });
       }
     }

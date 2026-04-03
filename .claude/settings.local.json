@@ -33,7 +33,12 @@
       "Bash(sed -i \"s/edges={\\\\[''top'', ''left'', ''right''\\\\]}/edges={[''left'', ''right'', ''bottom'']}/g\" D:/reroute/screens/FarmRegistration/RegistrationFeeScreen.tsx)",
       "Bash(npm run:*)",
       "Bash(firebase functions:log --only createOrder)",
-      "Bash(firebase:*)"
+      "Bash(firebase:*)",
+      "Bash(ls D:\\\\reroute/*.json)",
+      "Bash(ls D:\\\\reroute/functions/*.json)",
+      "Bash(ls D:\\\\reroute/secrets*)",
+      "Bash(ls D:\\\\reroute/*.json D:\\\\reroute/functions/src/*.json)",
+      "Bash(grep -E \"^dotenv$|^razorpay$\")"
     ],
     "deny": [],
     "ask": []

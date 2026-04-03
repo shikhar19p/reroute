@@ -217,7 +217,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               style={styles.uploadButton}
               onPress={() => pickDocument(['kyc', 'person1', 'idProofFront'])}
             >
-              <Text style={styles.uploadIcon}>⬆️</Text>
+              <Text style={styles.uploadIcon}>Upload</Text>
               <Text style={styles.uploadText}>
                 {farm.kyc.person1.idProofFront ? 'ID Proof Front ✓' : 'Upload ID Proof Front*'}
               </Text>
@@ -228,7 +228,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               style={styles.uploadButton}
               onPress={() => pickDocument(['kyc', 'person1', 'idProofBack'])}
             >
-              <Text style={styles.uploadIcon}>⬆️</Text>
+              <Text style={styles.uploadIcon}>Upload</Text>
               <Text style={styles.uploadText}>
                 {farm.kyc.person1.idProofBack ? 'ID Proof Back ✓' : 'Upload ID Proof Back*'}
               </Text>
@@ -346,7 +346,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               style={styles.uploadButton}
               onPress={() => pickDocument(['kyc', 'person2', 'idProofFront'])}
             >
-              <Text style={styles.uploadIcon}>⬆️</Text>
+              <Text style={styles.uploadIcon}>Upload</Text>
               <Text style={styles.uploadText}>
                 {farm.kyc.person2.idProofFront ? 'ID Proof Front ✓' : 'Upload ID Proof Front*'}
               </Text>
@@ -357,7 +357,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               style={styles.uploadButton}
               onPress={() => pickDocument(['kyc', 'person2', 'idProofBack'])}
             >
-              <Text style={styles.uploadIcon}>⬆️</Text>
+              <Text style={styles.uploadIcon}>Upload</Text>
               <Text style={styles.uploadText}>
                 {farm.kyc.person2.idProofBack ? 'ID Proof Back ✓' : 'Upload ID Proof Back*'}
               </Text>
@@ -387,7 +387,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               style={styles.uploadButton}
               onPress={() => pickDocument(['kyc', 'companyPAN'])}
             >
-              <Text style={styles.uploadIcon}>⬆️</Text>
+              <Text style={styles.uploadIcon}>Upload</Text>
               <Text style={styles.uploadText}>
                 {farm.kyc.companyPAN ? 'Company PAN ✓' : 'Upload Company PAN*'}
               </Text>
@@ -398,7 +398,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               style={styles.uploadButton}
               onPress={() => pickDocument(['kyc', 'labourDoc'])}
             >
-              <Text style={styles.uploadIcon}>⬆️</Text>
+              <Text style={styles.uploadIcon}>Upload</Text>
               <Text style={styles.uploadText}>
                 {farm.kyc.labourDoc ? 'Labour License ✓' : 'Upload Labour License*'}
               </Text>
@@ -475,7 +475,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
           {/* Terms */}
           <TouchableOpacity style={styles.termsRow} onPress={toggleTerms} activeOpacity={0.7}>
             <Text style={styles.checkboxIcon}>
-              {farm.kyc.agreedToTerms ? '✅' : '⬜'}
+              {farm.kyc.agreedToTerms ? '✓' : '○'}
             </Text>
             <Text style={styles.termsText}>I agree to terms and conditions*</Text>
           </TouchableOpacity>

@@ -87,64 +87,27 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   useEffect(() => {
-    if (bookingParam) {
-      setBooking(bookingParam);
-      if (bookingParam.farmhouseId) {
-        fetchFarmhouseOnly(bookingParam.farmhouseId, bookingParam.farmhouseName);
-      } else {
-        setLoading(false);
-      }
-    } else if (bookingId) {
+    // Always fetch fresh from Firestore if we have any ID
+    const id = bookingId || bookingParam?.id;
+    if (id) {
       fetchBookingDetails();
     } else {
-      // No booking data provided - navigation error
       setLoading(false);
     }
-  }, [bookingId, bookingParam]);
-
-  const fetchFarmhouseOnly = async (farmhouseId: string, farmhouseName: string) => {
-    try {
-      setLoading(true);
-      const farmhouseRef = doc(db, 'farmhouses', farmhouseId);
-      const farmhouseSnap = await getDoc(farmhouseRef);
-      
-      if (farmhouseSnap.exists()) {
-        const farmhouseData = farmhouseSnap.data();
-        const basicDetails = farmhouseData?.basicDetails || {};
-        
-        setFarmhouse({
-          name: basicDetails.name || farmhouseData?.name || farmhouseName || 'Unknown Property',
-          area: basicDetails.area || farmhouseData?.area || '',
-          city: basicDetails.city || farmhouseData?.city || '',
-          contactPhone1: basicDetails.contactPhone1 || farmhouseData?.contactPhone1 || '',
-          contactPhone2: basicDetails.contactPhone2 || farmhouseData?.contactPhone2 || '',
-          description: basicDetails.description || farmhouseData?.description || '',
-          mapLink: basicDetails.mapLink || farmhouseData?.mapLink || '',
-          capacity: String(basicDetails.capacity || farmhouseData?.capacity || '0'),
-          bedrooms: String(basicDetails.bedrooms || farmhouseData?.bedrooms || '0'),
-          photoUrls: Array.isArray(farmhouseData?.photoUrls) ? farmhouseData.photoUrls : [],
-          amenities: farmhouseData?.amenities || {},
-          rules: farmhouseData?.rules || {},
-        } as Farmhouse);
-      }
-    } catch (error) {
-      console.error('Error fetching farmhouse:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [bookingId]);
 
   const fetchBookingDetails = async () => {
     try {
       setLoading(true);
-      
-      if (!bookingId) {
+
+      const id = bookingId || bookingParam?.id;
+      if (!id) {
         console.error('No booking ID provided');
         setLoading(false);
         return;
       }
 
-      const bookingRef = doc(db, 'bookings', bookingId);
+      const bookingRef = doc(db, 'bookings', id);
       const bookingSnap = await getDoc(bookingRef);
       
       if (!bookingSnap.exists()) {
@@ -233,7 +196,11 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchBookingDetails();
+    // fetchBookingDetails uses bookingId from route.params or falls back to bookingParam.id
+    const id = bookingId || bookingParam?.id;
+    if (id) {
+      await fetchBookingDetails();
+    }
     setRefreshing(false);
   };
 
@@ -344,10 +311,15 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
           />
         }
       >
-        <View style={[styles.statusBanner, { 
-          backgroundColor: booking.status === 'confirmed' ? '#10B981' : '#F59E0B' 
+        <View style={[styles.statusBanner, {
+          backgroundColor: booking.status === 'confirmed' ? '#10B981' :
+                           booking.status === 'cancelled' ? '#EF4444' :
+                           booking.status === 'completed' ? '#3B82F6' : '#F59E0B'
         }]}>
-          <CheckCircle size={20} color="white" />
+          {booking.status === 'cancelled'
+            ? <AlertCircle size={20} color="white" />
+            : <CheckCircle size={20} color="white" />
+          }
           <Text style={styles.statusText}>
             Booking {(booking.status || 'pending').toUpperCase()}
           </Text>
@@ -799,7 +771,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
 
                 {booking.refundNote && (
                   <Text style={[styles.supportText, { color: '#F59E0B', marginBottom: 4 }]}>
-                    ⚠️ {booking.refundNote}
+                    Note: {booking.refundNote}
                   </Text>
                 )}
 
@@ -811,7 +783,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
               <View style={[styles.infoBox, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEE2E2', borderColor: '#EF4444' }]}>
                 <AlertCircle size={16} color="#EF4444" />
                 <Text style={[styles.infoBoxText, { color: colors.text }]}>
-                  No refund applicable as per cancellation policy (cancelled within 24 hours of check-in)
+                  No refund applicable as per cancellation policy (cancelled within 48 hours of check-in)
                 </Text>
               </View>
             )}

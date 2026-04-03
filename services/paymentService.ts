@@ -65,9 +65,8 @@ export async function createOrder(
   try {
     console.log('📝 Creating Razorpay order:', { amount, currency, bookingId, userId });
 
-    // Optimized: Reduced timeout for faster feedback
     const createOrderFn = httpsCallable(functions, 'createOrder', {
-      timeout: 15000, // 15 second timeout (reduced from 30)
+      timeout: 30000, // 30 seconds — accounts for cold starts + Razorpay API latency
     });
 
     const result = await createOrderFn({
@@ -98,8 +97,15 @@ export async function createOrder(
   } catch (error: any) {
     const duration = Date.now() - startTime;
     console.error(`❌ Error creating order after ${duration}ms:`, error);
+    console.error('❌ Function error details:', error?.details, '| code:', error?.code);
 
-    if (error.code === 'deadline-exceeded' || error.message?.includes('timeout')) {
+    // Firebase callable timeout: code is 'functions/deadline-exceeded', message is 'deadline-exceeded'
+    if (
+      error.code === 'deadline-exceeded' ||
+      error.code === 'functions/deadline-exceeded' ||
+      error.message?.includes('deadline') ||
+      error.message?.includes('timeout')
+    ) {
       throw new Error('Payment gateway is taking too long to respond. Please check your internet connection and try again.');
     }
 
@@ -168,9 +174,11 @@ export async function initiatePayment(paymentDetails: PaymentDetails): Promise<P
       throw new Error('Payment was cancelled by user');
     }
 
-    // Parse error to avoid showing raw error objects
-    const errorMsg = error?.description || error?.message || 'Payment failed. Please try again.';
-    throw new Error(errorMsg);
+    // Preserve .description so BookingConfirmationScreen can parse Razorpay JSON errors
+    const richErr: any = new Error(error?.description || error?.message || 'Payment failed. Please try again.');
+    if (error?.description) richErr.description = error.description;
+    if (error?.code !== undefined) richErr.code = error.code;
+    throw richErr;
   }
 }
 
@@ -294,7 +302,7 @@ export async function verifyPaymentSignature(
     }
 
     const verifyPaymentFn = httpsCallable(functions, 'verifyPayment', {
-      timeout: 10000, // 10 second timeout
+      timeout: 20000, // 20 second timeout
     });
 
     const result = await verifyPaymentFn({

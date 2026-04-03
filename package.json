@@ -12,6 +12,8 @@
     "build:prod": "eas build --profile production --platform android",
     "submit:prod": "eas submit --profile production --platform android",
     "add-dummy-data": "npx tsx scripts/addDummyData.ts",
+    "clear-collections": "npx tsx scripts/clearCollections.ts",
+    "test-refund": "npx tsx scripts/testRefund.ts",
     "ensure-firebase": "node scripts/ensure-google-services.js"
   },
   "dependencies": {
@@ -57,6 +59,7 @@
     "@react-native/metro-config": "latest",
     "@types/crypto-js": "^4.2.2",
     "@types/react": "~19.1.0",
+    "firebase-admin": "^13.7.0",
     "typescript": "~5.9.2"
   },
   "private": true

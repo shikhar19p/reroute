@@ -8,7 +8,8 @@ import { useToast } from '../../../components/Toast';
 import { useDialog } from '../../../components/CustomDialog';
 import { useScrollHandler } from '../../../context/TabBarVisibilityContext';
 import { Booking } from '../../../services/bookingService';
-import { cancelBookingWithRefund, previewRefund } from '../../../services/cancellationService';
+import { cancelBookingWithRefund, calculateRefundAmount } from '../../../services/cancellationService';
+import { parseError } from '../../../utils/errorHandler';
 import { REFUND_POLICY } from '../../../config/refundPolicy';
 import { useFocusEffect } from '@react-navigation/native';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
@@ -58,7 +59,7 @@ const BookingCard = React.memo(({
         </View>
         <View style={[styles.paymentBadge, { backgroundColor: item.paymentStatus === 'paid' ? '#E8F5E9' : '#FFF3E0' }]}>
           <Text style={[styles.paymentText, { color: item.paymentStatus === 'paid' ? '#4CAF50' : '#FF9800' }]}>
-            {item.paymentStatus === 'paid' ? '✓ Paid' : 'Pending'}
+            {item.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
           </Text>
         </View>
       </View>
@@ -66,7 +67,7 @@ const BookingCard = React.memo(({
       <View style={styles.actionRow}>
         <TouchableOpacity
           style={[styles.viewButton, { backgroundColor: colors.buttonBackground }]}
-          onPress={() => navigation.navigate('BookingDetails', { booking: item })}
+          onPress={() => navigation.navigate('BookingDetails', { booking: item, bookingId: item.id })}
         >
           <Text style={[styles.buttonText, { color: colors.buttonText }]}>View Details</Text>
         </TouchableOpacity>
@@ -158,10 +159,10 @@ export default function BookingsScreen({ navigation }: any) {
   const handleCancelBooking = async (booking: Booking) => {
     if (!user) return;
 
-    const preview = previewRefund(booking.totalPrice, booking.checkInDate);
+    const preview = calculateRefundAmount(booking.totalPrice, booking.checkInDate);
     const refundLine = preview.refundPercentage > 0
-      ? `\n\n💰 Refund: ₹${preview.refundAmount.toLocaleString('en-IN')} (${preview.refundPercentage}%)\nEstimated 5–7 business days.`
-      : '\n\n⚠️ No refund — Cancelled within 24 hours of check-in.';
+      ? `\n\nRefund: Rs.${preview.refundAmount.toLocaleString('en-IN')} (${preview.refundPercentage}%) — processed within 5–7 business days.`
+      : '\n\nNo refund applicable — cancellation is within 48 hours of check-in.';
 
     showDialog({
       title: 'Cancel Booking',
@@ -185,7 +186,7 @@ export default function BookingsScreen({ navigation }: any) {
               showToast(msg, result.refundAmount > 0 ? 'success' : 'info');
             } catch (error: any) {
               console.error('Error cancelling booking:', error);
-              showToast(error.message || 'Failed to cancel booking.', 'error');
+              showToast(parseError(error).message, 'error');
             }
           }
         }
