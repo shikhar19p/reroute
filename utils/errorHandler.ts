@@ -18,12 +18,13 @@ export function parseError(error: any): ParsedError {
   let message = 'Something went wrong. Please try again.';
   let isCancellation = false;
 
-  // Handle Razorpay payment errors (comes as JSON string)
-  if (error?.description) {
+  // Handle Razorpay payment errors (comes as JSON string in .description or .message)
+  const jsonCandidate = error?.description || (rawError.trimStart().startsWith('{') ? rawError : null);
+  if (jsonCandidate) {
     try {
-      const parsedError = typeof error.description === 'string'
-        ? JSON.parse(error.description)
-        : error.description;
+      const parsedError = typeof jsonCandidate === 'string'
+        ? JSON.parse(jsonCandidate)
+        : jsonCandidate;
 
       if (parsedError?.error) {
         const razorpayError = parsedError.error;

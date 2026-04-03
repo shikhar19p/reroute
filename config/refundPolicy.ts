@@ -21,7 +21,7 @@ export const REFUND_POLICY = {
   // If the user cancels MORE than this many hours before check-in,
   // they get PARTIAL_REFUND_PERCENTAGE back.
   // If they cancel WITHIN this window, they get NO_REFUND_PERCENTAGE.
-  PARTIAL_REFUND_THRESHOLD_HOURS: 24,   // ← change this to adjust the cutoff
+  PARTIAL_REFUND_THRESHOLD_HOURS: 48,   // ← change this to adjust the cutoff
 
   // ── Refund percentages ────────────────────────────────────
   OWNER_CANCELLATION_PERCENTAGE: 100,   // Owner cancels → full refund

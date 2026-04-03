@@ -6,6 +6,7 @@ import { processRefund } from './paymentService';
 import { sendCancellationNotification } from './notificationService';
 import { logAuditEvent } from './auditService';
 import { removeBookedDatesFromFarmhouse } from './availabilityService';
+import { REFUND_POLICY } from '../config/refundPolicy';
 
 const functions = getFunctions();
 
@@ -59,6 +60,7 @@ export function calculateRefundAmount(
   const now = new Date();
   const checkIn = new Date(checkInDate);
   const hoursUntilCheckIn = (checkIn.getTime() - now.getTime()) / (1000 * 60 * 60);
+  const threshold = REFUND_POLICY.PARTIAL_REFUND_THRESHOLD_HOURS;
 
   // Cancellation after check-in date - no refund
   if (hoursUntilCheckIn < 0) {
@@ -70,23 +72,23 @@ export function calculateRefundAmount(
     };
   }
 
-  // Within 24 hours of check-in - no refund
-  if (hoursUntilCheckIn < 24) {
+  // Within 48 hours of check-in - no refund
+  if (hoursUntilCheckIn < threshold) {
     return {
       refundAmount: 0,
       refundPercentage: 0,
       processingFee: 0,
-      reason: `No refund - Cancellation within 24 hours of check-in (${Math.floor(hoursUntilCheckIn)} hours remaining)`,
+      reason: `No refund - Cancellation within ${threshold} hours of check-in (${Math.floor(hoursUntilCheckIn)} hours remaining)`,
     };
   }
 
-  // More than 24 hours before check-in - 50% refund
-  const refundAmount = (totalAmount * 50) / 100;
+  // More than 48 hours before check-in - 50% refund
+  const refundAmount = (totalAmount * REFUND_POLICY.PARTIAL_REFUND_PERCENTAGE) / 100;
   return {
     refundAmount: refundAmount,
-    refundPercentage: 50,
-    processingFee: 0,
-    reason: `50% refund - Cancelled ${Math.floor(hoursUntilCheckIn)} hours before check-in`,
+    refundPercentage: REFUND_POLICY.PARTIAL_REFUND_PERCENTAGE,
+    processingFee: REFUND_POLICY.PROCESSING_FEE_RUPEES,
+    reason: `${REFUND_POLICY.PARTIAL_REFUND_PERCENTAGE}% refund - Cancelled ${Math.floor(hoursUntilCheckIn)} hours before check-in`,
   };
 }
 
@@ -110,8 +112,8 @@ export async function cancelBookingWithRefund(
 
     const booking = { id: bookingSnap.id, ...bookingSnap.data() } as Booking;
 
-    // Verify user owns this booking
-    if (booking.userId !== userId) {
+    // Verify user owns this booking (skip check for owner cancellations)
+    if (!isOwnerCancellation && booking.userId !== userId) {
       throw new Error('Unauthorized: You can only cancel your own bookings');
     }
 
@@ -169,9 +171,15 @@ export async function cancelBookingWithRefund(
           console.log('✅ Refund processed successfully:', refundResult.refundId);
 
           // Update booking with refund details
+          const refundStatus =
+            refundResult.status === 'not_applicable' ? 'not_applicable' :
+            refundResult.status === 'processed' ? 'completed' : 'processing';
           await updateDoc(bookingRef, {
-            refundStatus: refundResult.status === 'processed' ? 'completed' : 'processing',
+            refundStatus,
             refundDate: serverTimestamp(),
+            ...(refundResult.status === 'not_applicable' && {
+              refundNote: 'Payment authorization expired — no charge was made to your account',
+            }),
           });
         } else {
           console.warn('⚠️ No transaction ID found for booking, skipping refund processing');
@@ -251,9 +259,9 @@ export function getCancellationPolicyDescription(
   return `
 Cancellation Policy:
 
-• Cancel more than 24 hours before check-in: 50% refund
+• Cancel more than 48 hours before check-in: 50% refund
 
-• Cancel within 24 hours of check-in: No refund
+• Cancel within 48 hours of check-in: No refund
 
 • Owner cancellation: 100% refund (full amount returned)
 

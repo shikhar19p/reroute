@@ -23,11 +23,21 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 admin.initializeApp();
 const db = admin.firestore();
 
-// ─── Razorpay ────────────────────────────────────────────────────────────────
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || functions.config().razorpay?.key_id,
-  key_secret: process.env.RAZORPAY_KEY_SECRET || functions.config().razorpay?.key_secret,
-});
+// ─── Razorpay (lazy) ─────────────────────────────────────────────────────────
+// Initialized on first use so module-level errors don't crash unrelated functions
+// (e.g. notifyBookingCancellation doesn't use Razorpay at all).
+let _razorpay: Razorpay | null = null;
+function getRazorpay(): Razorpay {
+  if (!_razorpay) {
+    const key_id = process.env.RAZORPAY_KEY_ID || functions.config().razorpay?.key_id;
+    const key_secret = process.env.RAZORPAY_KEY_SECRET || functions.config().razorpay?.key_secret;
+    if (!key_id) {
+      throw new functions.https.HttpsError('internal', 'Payment gateway not configured — set RAZORPAY_KEY_ID');
+    }
+    _razorpay = new Razorpay({ key_id, key_secret });
+  }
+  return _razorpay;
+}
 
 // ─── Nodemailer transporter ───────────────────────────────────────────────────
 // Set these in Firebase Functions config or .env:
@@ -48,6 +58,11 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL || functions.config().smtp?.admin_em
 // ─── Email helper ─────────────────────────────────────────────────────────────
 async function sendEmail(to: string | string[], subject: string, html: string): Promise<void> {
   if (!to || (Array.isArray(to) && to.length === 0)) return;
+  const smtpUser = process.env.SMTP_USER || functions.config().smtp?.user;
+  if (!smtpUser) {
+    functions.logger.warn('Email skipped — SMTP_USER not configured. Run: firebase functions:config:set smtp.user="..." smtp.pass="..."', { subject });
+    return;
+  }
   try {
     await smtpTransporter.sendMail({
       from: `"Reroute" <${FROM_EMAIL}>`,
@@ -55,10 +70,10 @@ async function sendEmail(to: string | string[], subject: string, html: string): 
       subject,
       html,
     });
-    functions.logger.info('📧 Email sent:', { to, subject });
+    functions.logger.info('Email sent:', { to, subject });
   } catch (err) {
     // Never let email failure crash payment/booking flows
-    functions.logger.error('📧 Email send failed (non-fatal):', { to, subject, err });
+    functions.logger.error('Email send failed (non-fatal):', { to, subject, err });
   }
 }
 
@@ -102,7 +117,7 @@ function baseLayout(content: string): string {
 
 function bookingConfirmationUserEmail(b: any): string {
   return baseLayout(`
-    <h2 style="color:#4CAF50;margin-top:0;">Booking Confirmed! 🎉</h2>
+    <h2 style="color:#4CAF50;margin-top:0;">Booking Confirmed</h2>
     <p>Hi <strong>${b.userName}</strong>,</p>
     <p>Your booking has been confirmed and payment received. Here are your booking details:</p>
 
@@ -122,13 +137,13 @@ function bookingConfirmationUserEmail(b: any): string {
     </div>
 
     <p style="color:#555;">For any queries, contact the property owner or reach out to us at <a href="mailto:support@reroute.app" style="color:#4CAF50;">support@reroute.app</a>.</p>
-    <p style="margin-bottom:0;">Happy staying! 🏡</p>
+    <p style="margin-bottom:0;">We hope you enjoy your stay.</p>
   `);
 }
 
 function bookingConfirmationOwnerEmail(b: any): string {
   return baseLayout(`
-    <h2 style="color:#4CAF50;margin-top:0;">New Booking Received! 💼</h2>
+    <h2 style="color:#4CAF50;margin-top:0;">New Booking Received</h2>
     <p>A new booking has been confirmed for <strong>${b.farmhouseName}</strong>.</p>
 
     <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;margin:20px 0;">
@@ -148,7 +163,7 @@ function bookingConfirmationOwnerEmail(b: any): string {
 
 function bookingConfirmationAdminEmail(b: any): string {
   return baseLayout(`
-    <h2 style="color:#1565C0;margin-top:0;">📋 New Booking — Admin Notice</h2>
+    <h2 style="color:#1565C0;margin-top:0;">New Booking — Admin Notice</h2>
     <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;margin:20px 0;">
       <tr style="background:#f9f9f9;"><td style="padding:12px 16px;font-weight:bold;width:45%;color:#555;">Booking ID</td><td style="padding:12px 16px;font-family:monospace;">${b.bookingId}</td></tr>
       <tr><td style="padding:12px 16px;font-weight:bold;color:#555;">Property</td><td style="padding:12px 16px;">${b.farmhouseName}</td></tr>
@@ -177,7 +192,9 @@ function cancellationUserEmail(b: any, refundAmount: number, refundPercentage: n
       <tr><td style="padding:12px 16px;font-weight:bold;color:#555;">Check-out</td><td style="padding:12px 16px;">${b.checkOutDate}</td></tr>
       <tr style="background:#f9f9f9;"><td style="padding:12px 16px;font-weight:bold;color:#555;">Cancellation Reason</td><td style="padding:12px 16px;">${reason}</td></tr>
       <tr><td style="padding:12px 16px;font-weight:bold;color:#555;">Amount Paid</td><td style="padding:12px 16px;">₹${b.totalPrice}</td></tr>
+      ${b.transactionId ? `<tr style="background:#f9f9f9;"><td style="padding:12px 16px;font-weight:bold;color:#555;">Payment ID</td><td style="padding:12px 16px;font-family:monospace;font-size:13px;">${b.transactionId}</td></tr>` : ''}
       <tr style="background:${hasRefund ? '#E8F5E9' : '#FFF3E0'};"><td style="padding:12px 16px;font-weight:bold;color:#555;">Refund Amount</td><td style="padding:12px 16px;font-weight:bold;color:${hasRefund ? '#2E7D32' : '#E65100'};">${hasRefund ? `₹${refundAmount} (${refundPercentage}%)` : 'No refund applicable'}</td></tr>
+      ${b.razorpayRefundId ? `<tr><td style="padding:12px 16px;font-weight:bold;color:#555;">Refund ID</td><td style="padding:12px 16px;font-family:monospace;font-size:13px;">${b.razorpayRefundId}</td></tr>` : ''}
     </table>
 
     ${hasRefund ? `
@@ -192,10 +209,10 @@ function cancellationUserEmail(b: any, refundAmount: number, refundPercentage: n
   `);
 }
 
-function cancellationOwnerEmail(b: any, reason: string, isOwnerCancellation: boolean): string {
+function cancellationOwnerEmail(b: any, reason: string, isOwnerCancellation: boolean, refundAmount: number, refundPercentage: number): string {
   return baseLayout(`
     <h2 style="color:#F44336;margin-top:0;">Booking Cancellation Notice</h2>
-    <p>${isOwnerCancellation ? 'You cancelled the following booking:' : 'A guest has cancelled their booking at your property.'}</p>
+    <p>${isOwnerCancellation ? 'You cancelled the following booking.' : 'A guest has cancelled their booking at your property.'}</p>
 
     <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;margin:20px 0;">
       <tr style="background:#f9f9f9;"><td style="padding:12px 16px;font-weight:bold;width:45%;color:#555;">Booking ID</td><td style="padding:12px 16px;font-family:monospace;">${b.id || b.bookingId}</td></tr>
@@ -204,15 +221,17 @@ function cancellationOwnerEmail(b: any, reason: string, isOwnerCancellation: boo
       <tr><td style="padding:12px 16px;font-weight:bold;color:#555;">Check-in</td><td style="padding:12px 16px;">${b.checkInDate}</td></tr>
       <tr style="background:#f9f9f9;"><td style="padding:12px 16px;font-weight:bold;color:#555;">Check-out</td><td style="padding:12px 16px;">${b.checkOutDate}</td></tr>
       <tr><td style="padding:12px 16px;font-weight:bold;color:#555;">Reason</td><td style="padding:12px 16px;">${reason}</td></tr>
+      <tr style="background:#f9f9f9;"><td style="padding:12px 16px;font-weight:bold;color:#555;">Amount Paid</td><td style="padding:12px 16px;">₹${b.totalPrice}</td></tr>
+      <tr><td style="padding:12px 16px;font-weight:bold;color:#555;">Refund to Guest</td><td style="padding:12px 16px;font-weight:bold;color:#2E7D32;">${refundAmount > 0 ? `₹${refundAmount} (${refundPercentage}%)` : 'No refund'}</td></tr>
     </table>
 
-    <p style="color:#555;">The dates have been unblocked and are available for new bookings.</p>
+    <p style="color:#555;">The cancelled dates have been unblocked and are now available for new bookings.</p>
   `);
 }
 
-function cancellationAdminEmail(b: any, refundAmount: number, reason: string, isOwnerCancellation: boolean): string {
+function cancellationAdminEmail(b: any, refundAmount: number, refundPercentage: number, reason: string, isOwnerCancellation: boolean): string {
   return baseLayout(`
-    <h2 style="color:#F44336;margin-top:0;">📋 Booking Cancelled — Admin Notice</h2>
+    <h2 style="color:#F44336;margin-top:0;">Booking Cancelled — Admin Notice</h2>
     <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;margin:20px 0;">
       <tr style="background:#f9f9f9;"><td style="padding:12px 16px;font-weight:bold;width:45%;color:#555;">Booking ID</td><td style="padding:12px 16px;font-family:monospace;">${b.id || b.bookingId}</td></tr>
       <tr><td style="padding:12px 16px;font-weight:bold;color:#555;">Property</td><td style="padding:12px 16px;">${b.farmhouseName}</td></tr>
@@ -220,7 +239,9 @@ function cancellationAdminEmail(b: any, refundAmount: number, reason: string, is
       <tr><td style="padding:12px 16px;font-weight:bold;color:#555;">Cancelled By</td><td style="padding:12px 16px;">${isOwnerCancellation ? 'Property Owner' : 'Customer'}</td></tr>
       <tr style="background:#f9f9f9;"><td style="padding:12px 16px;font-weight:bold;color:#555;">Reason</td><td style="padding:12px 16px;">${reason}</td></tr>
       <tr><td style="padding:12px 16px;font-weight:bold;color:#555;">Amount Paid</td><td style="padding:12px 16px;">₹${b.totalPrice}</td></tr>
-      <tr style="background:#f9f9f9;"><td style="padding:12px 16px;font-weight:bold;color:#555;">Refund Amount</td><td style="padding:12px 16px;font-weight:bold;">₹${refundAmount}</td></tr>
+      ${b.transactionId ? `<tr style="background:#f9f9f9;"><td style="padding:12px 16px;font-weight:bold;color:#555;">Payment ID</td><td style="padding:12px 16px;font-family:monospace;font-size:13px;">${b.transactionId}</td></tr>` : ''}
+      <tr><td style="padding:12px 16px;font-weight:bold;color:#555;">Refund Amount</td><td style="padding:12px 16px;font-weight:bold;color:${refundAmount > 0 ? '#2E7D32' : '#888'};">${refundAmount > 0 ? `₹${refundAmount} (${refundPercentage}%)` : 'No refund'}</td></tr>
+      ${b.razorpayRefundId ? `<tr style="background:#f9f9f9;"><td style="padding:12px 16px;font-weight:bold;color:#555;">Refund ID</td><td style="padding:12px 16px;font-family:monospace;font-size:13px;">${b.razorpayRefundId}</td></tr>` : ''}
     </table>
   `);
 }
@@ -229,7 +250,7 @@ function refundStatusEmail(b: any, refundAmount: number, refundId: string | null
   const isSuccess = status === 'processed';
   return baseLayout(`
     <h2 style="color:${isSuccess ? '#4CAF50' : '#F44336'};margin-top:0;">
-      ${isSuccess ? '✅ Refund Processed' : '❌ Refund Failed'}
+      ${isSuccess ? 'Refund Processed' : 'Refund Failed'}
     </h2>
     <p>Hi <strong>${b.userName}</strong>,</p>
 
@@ -274,6 +295,25 @@ async function sendBookingConfirmationEmails(bookingId: string, transactionId: s
     const b: any = { bookingId, ...bookingDoc.data() };
 
     const ownerEmail = await getOwnerEmail(b.farmhouseId);
+
+    // Firestore notification for owner (in-app)
+    if (b.farmhouseId) {
+      const farmhouseDoc = await db.collection('farmhouses').doc(b.farmhouseId).get();
+      const ownerId = farmhouseDoc.data()?.ownerId;
+      if (ownerId) {
+        await db.collection('notifications').add({
+          userId: ownerId,
+          type: 'new_booking',
+          title: 'New Booking Received',
+          message: `${b.userName || 'A guest'} booked ${b.farmhouseName} from ${b.checkInDate} to ${b.checkOutDate}`,
+          bookingId,
+          farmhouseId: b.farmhouseId,
+          read: false,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+    }
+
     const recipients: string[] = [];
     if (ownerEmail) recipients.push(ownerEmail);
     if (ADMIN_EMAIL) recipients.push(ADMIN_EMAIL);
@@ -330,12 +370,15 @@ export const createOrder = functions.https.onCall(async (data, context) => {
 
     const amountInPaise = Math.round(amount * 100);
 
-    const order = await razorpay.orders.create({
+    const rzp = getRazorpay();
+    const orderOptions: Parameters<typeof rzp.orders.create>[0] = {
       amount: amountInPaise,
       currency,
+      payment_capture: true, // Auto-capture on checkout — required for refunds to work
       receipt: `booking_${bookingId}`,
       notes: { bookingId, userId },
-    });
+    };
+    const order = await rzp.orders.create(orderOptions);
 
     functions.logger.info('Razorpay order created:', { orderId: order.id, bookingId, amount: amountInPaise });
 
@@ -357,9 +400,10 @@ export const createOrder = functions.https.onCall(async (data, context) => {
       keyId: process.env.RAZORPAY_KEY_ID || functions.config().razorpay?.key_id,
     };
   } catch (error: any) {
-    functions.logger.error('Error creating Razorpay order:', error);
+    const rzpDetail = error?.error?.description || error?.error?.code || error?.message || JSON.stringify(error);
+    functions.logger.error('Error creating Razorpay order:', { rzpDetail, error });
     if (error instanceof functions.https.HttpsError) throw error;
-    throw new functions.https.HttpsError('internal', 'Failed to create payment order', error.message);
+    throw new functions.https.HttpsError('internal', 'Failed to create payment order', rzpDetail);
   }
 });
 
@@ -387,6 +431,22 @@ export const verifyPayment = functions.https.onCall(async (data, context) => {
     functions.logger.info('Payment verification:', { orderId: razorpay_order_id, paymentId: razorpay_payment_id, verified: isValid });
 
     if (isValid) {
+      // Ensure the payment is captured in Razorpay so refunds work later.
+      // Payments from orders without payment_capture:1 land in 'authorized' state.
+      try {
+        const rzpPayment = await getRazorpay().payments.fetch(razorpay_payment_id);
+        if (rzpPayment.status === 'authorized') {
+          await getRazorpay().payments.capture(razorpay_payment_id, rzpPayment.amount, rzpPayment.currency);
+          functions.logger.info('Payment captured:', { paymentId: razorpay_payment_id });
+        }
+      } catch (captureErr: any) {
+        // Non-fatal: log and continue — payment may already be captured
+        functions.logger.warn('Payment capture step failed (may already be captured):', {
+          paymentId: razorpay_payment_id,
+          error: captureErr?.message,
+        });
+      }
+
       await db.collection('payment_orders').doc(razorpay_order_id).update({
         paymentId: razorpay_payment_id,
         signature: razorpay_signature,
@@ -457,27 +517,66 @@ export const processRefund = functions.https.onCall(async (data, context) => {
 
     functions.logger.info('Processing refund:', { paymentId, bookingId, amountInPaise, reason });
 
+    // Verify payment status before attempting refund
+    let payment: any;
+    try {
+      payment = await getRazorpay().payments.fetch(paymentId);
+    } catch (fetchErr: any) {
+      functions.logger.error('Could not fetch payment details:', { fetchErr, paymentId });
+      throw new functions.https.HttpsError('not-found', `Payment not found: ${paymentId}`);
+    }
+
+    functions.logger.info('Payment status before refund:', { status: payment.status, paymentId });
+
+    // If payment is only authorized (not captured), capture it first
+    if (payment.status === 'authorized') {
+      try {
+        await getRazorpay().payments.capture(paymentId, payment.amount, payment.currency);
+        functions.logger.info('Payment captured before refund:', { paymentId });
+        // Re-fetch to confirm captured status
+        payment = await getRazorpay().payments.fetch(paymentId);
+      } catch (captureErr: any) {
+        // Authorization expired — no money was ever collected, so no refund is needed
+        functions.logger.info('Payment authorization expired — no charge was made, skipping refund:', { paymentId, bookingId });
+        await db.collection('bookings').doc(bookingId).update({
+          refundStatus: 'not_applicable',
+          refundNote: 'Payment authorization expired — no charge was made to your account',
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        return { success: true, refundId: null, status: 'not_applicable', amount: 0 };
+      }
+    }
+
+    if (payment.status === 'failed') {
+      throw new functions.https.HttpsError('failed-precondition', 'Cannot refund a failed payment');
+    }
+
     let refund: any;
     try {
-      refund = await razorpay.payments.refund(paymentId, {
+      refund = await getRazorpay().payments.refund(paymentId, {
         amount: amountInPaise,
         notes: { bookingId, reason },
       });
     } catch (razorpayErr: any) {
-      // Log the actual Razorpay error details for debugging
+      // Extract the most useful message from the Razorpay SDK error structure
+      const rzpMsg =
+        razorpayErr?.error?.description ||
+        razorpayErr?.error?.code ||
+        (() => {
+          try { return JSON.parse(razorpayErr?.message || '{}')?.error?.description; } catch { return null; }
+        })() ||
+        razorpayErr?.message ||
+        'Refund request rejected by payment gateway';
+
       functions.logger.error('Razorpay refund API error:', {
-        error: razorpayErr?.error || razorpayErr,
-        message: razorpayErr?.message,
-        description: razorpayErr?.error?.description,
-        code: razorpayErr?.statusCode,
+        description: rzpMsg,
+        statusCode: razorpayErr?.statusCode,
+        errorCode: razorpayErr?.error?.code,
+        reason: razorpayErr?.error?.reason,
         paymentId,
         bookingId,
       });
-      throw new functions.https.HttpsError(
-        'internal',
-        razorpayErr?.error?.description || razorpayErr?.message || 'Failed to process refund',
-        razorpayErr?.message
-      );
+      throw new functions.https.HttpsError('internal', rzpMsg);
     }
 
     functions.logger.info('Refund processed:', { refundId: refund.id, paymentId, bookingId, amount: amountInPaise });
@@ -581,7 +680,7 @@ export const notifyBookingCancellation = functions.https.onCall(async (data, con
       await sendEmail(
         ownerEmail,
         `Booking Cancellation — ${b.farmhouseName} | Reroute`,
-        cancellationOwnerEmail(b, reason, isOwnerCancellation)
+        cancellationOwnerEmail(b, reason, isOwnerCancellation, refundAmount, refundPercentage)
       );
     }
 
@@ -589,7 +688,7 @@ export const notifyBookingCancellation = functions.https.onCall(async (data, con
       await sendEmail(
         ADMIN_EMAIL,
         `[Admin] Booking Cancelled — ${b.farmhouseName}`,
-        cancellationAdminEmail(b, refundAmount, reason, isOwnerCancellation)
+        cancellationAdminEmail(b, refundAmount, refundPercentage, reason, isOwnerCancellation)
       );
     }
 

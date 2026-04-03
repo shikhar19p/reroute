@@ -200,7 +200,7 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
             <View key={key}>
               {(index === 0 || priceFields[index - 1].section !== section) && (
                 <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionIcon}>💰</Text>
+                  <Text style={styles.sectionIcon}>Rs.</Text>
                   <Text style={styles.sectionTitle}>{section}</Text>
                 </View>
               )}

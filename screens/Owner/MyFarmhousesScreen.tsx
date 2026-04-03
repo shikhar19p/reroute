@@ -134,7 +134,7 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
-      <Text style={styles.emptyIcon}>🏡</Text>
+      <Text style={styles.emptyIcon}>—</Text>
       <Text style={[styles.emptyTitle, { color: colors.text }]}>No Farmhouses Yet</Text>
       <Text style={[styles.emptyText, { color: colors.placeholder }]}>
         Start by adding your first farmhouse property
@@ -225,7 +225,7 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
           }}
         >
           <View style={styles.draftContent}>
-            <Text style={styles.draftIcon}>📝</Text>
+            <Text style={styles.draftIcon}>Draft</Text>
             <View style={styles.draftTextContainer}>
               <Text style={[styles.draftTitle, { color: isDark ? '#93C5FD' : '#1E40AF' }]}>
                 Continue Registration

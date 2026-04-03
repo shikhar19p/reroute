@@ -58,7 +58,7 @@ export default function AmenitiesGamesScreen({ navigation }: AmenitiesGamesScree
           showsVerticalScrollIndicator={false}
         >
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🏠 Amenities & Games</Text>
+          <Text style={styles.sectionTitle}>Amenities & Games</Text>
 
           {amenitiesList.map((item) => (
             <View key={item.key} style={styles.amenityRow}>
@@ -78,7 +78,7 @@ export default function AmenitiesGamesScreen({ navigation }: AmenitiesGamesScree
                     style={styles.counterButton}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.chevronDown}>⬇️</Text>
+                    <Text style={styles.chevronDown}>−</Text>
                   </TouchableOpacity>
 
                   <Text style={styles.counterValue}>
@@ -90,7 +90,7 @@ export default function AmenitiesGamesScreen({ navigation }: AmenitiesGamesScree
                     style={[styles.counterButton, styles.counterButtonActive]}
                     activeOpacity={0.7}
                   >
-                    <Text style={styles.chevronUp}>⬆️</Text>
+                    <Text style={styles.chevronUp}>+</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -113,7 +113,7 @@ export default function AmenitiesGamesScreen({ navigation }: AmenitiesGamesScree
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📋 Rules & Restrictions</Text>
+          <Text style={styles.sectionTitle}>Rules & Restrictions</Text>
 
           <View style={styles.ruleRow}>
             <Text style={styles.ruleLabel}>Unmarried couples not allowed</Text>

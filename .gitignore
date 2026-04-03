@@ -39,6 +39,7 @@ yarn-error.*
 firebaseConfig-prod.ts
 *.firebase.json
 service-account-*.json
+serviceAccountKey.json
 google-play-key.json
 
 # Keep google-services.json in root (it's needed for builds)
