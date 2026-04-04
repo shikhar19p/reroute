@@ -1,14 +1,31 @@
-import { useState, useEffect } from 'react';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { useState } from 'react';
+import Constants from 'expo-constants';
 import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebaseConfig';
+
+// Safely import GoogleSignin — not available in Expo Go
+let GoogleSignin: any = null;
+try {
+  GoogleSignin = require('@react-native-google-signin/google-signin').GoogleSignin;
+  const webClientId =
+    Constants.expoConfig?.extra?.googleWebClientId ||
+    '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com';
+  GoogleSignin.configure({ webClientId });
+} catch (e) {
+  console.warn('⚠️ RNGoogleSignin native module not available (Expo Go). Use a dev build.');
+}
 
 export function useGoogleAuth() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const signIn = async (role: 'customer' | 'owner') => {
+    if (!GoogleSignin) {
+      setError('Google Sign-In is not available in Expo Go. Please use the ReRoute Aventures app.');
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);

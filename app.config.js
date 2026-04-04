@@ -23,16 +23,16 @@ export default {
     },
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.reroute.app"
+      bundleIdentifier: "com.rerouteaventures.app"
     },
     android: {
-      package: "com.reroute.app",
+      package: "com.rerouteaventures.app",
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#F9F8EF"
       },
       edgeToEdgeEnabled: true,
-      googleServicesFile: "./google-services.json"
+      googleServicesFile: "./android/app/google-services.json"
     },
     web: {
       favicon: "./assets/favicon.png",
