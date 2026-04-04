@@ -89,32 +89,70 @@ Edit `.env` with your credentials:
 
 ## 🚀 Running the App
 
-### Development
+### Option A — Expo Go (quick preview, no native modules)
 ```bash
-# Start Expo dev server
-npm start
+npx expo start --android   # opens in Expo Go on Android emulator
+npx expo start --ios       # opens in Expo Go on iOS simulator
+```
+> ⚠️ Google Sign-In and Razorpay payments will NOT work in Expo Go.
+> You'll see a friendly message instead of a crash. Use Option B for full functionality.
 
-# Run on iOS simulator
-npm run ios
+---
 
-# Run on Android emulator
-npm run android
+### Option B — Development Build (full native modules, recommended)
 
-# Run on web
-npm run web
+This is a proper native build that includes Google Sign-In, Razorpay, and all other native modules.
+
+**Step 1 — Install EAS CLI (one time)**
+```bash
+npm install -g eas-cli
+eas login   # login with your Expo account: shikahr_19
 ```
 
-### Production Builds
+**Step 2 — Build the dev APK in the cloud**
+```bash
+eas build --platform android --profile development
+```
+> Free tier takes ~15–30 min. Paid tier is instant.
+> Track progress at: https://expo.dev/accounts/shikahr_19/projects/reroute
+
+**Step 3 — Install the APK on your emulator**
+```bash
+# Download the APK from the build page, then:
+adb install path/to/downloaded-app.apk
+```
+Or open the build URL on your emulator browser and tap Install.
+
+**Step 4 — Start Metro pointing to the dev client**
+```bash
+npx expo start --dev-client
+```
+The "ReRoute (Dev)" app on your emulator will connect to Metro with all native modules working.
+
+---
+
+### EAS Build Profiles
+
+| Profile | Command | Output | Purpose |
+|---------|---------|--------|---------|
+| `development` | `eas build --profile development` | APK | Dev with hot reload + native modules |
+| `preview` | `eas build --profile preview` | APK | Internal testing |
+| `production` | `eas build --profile production` | AAB | Google Play submission |
 
 ```bash
-# Development build
-npm run build:dev
+# Development build (with dev client)
+eas build --platform android --profile development
 
-# Preview build (internal testing)
-npm run build:preview
+# Preview build (internal testing APK)
+eas build --platform android --profile preview
 
-# Production build
-npm run build:prod
+# Production build (AAB for Play Store)
+eas build --platform android --profile production
+```
+
+### Web
+```bash
+npx expo start --web
 ```
 
 ## 📱 App Store Deployment
