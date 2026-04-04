@@ -32,7 +32,7 @@ export default {
         backgroundColor: "#F9F8EF"
       },
       edgeToEdgeEnabled: true,
-      googleServicesFile: "./android/app/google-services.json"
+      googleServicesFile: "./google-services.json"
     },
     web: {
       favicon: "./assets/favicon.png",
@@ -68,7 +68,7 @@ export default {
       encryptionSecret: process.env.ENCRYPTION_SECRET,
       environment: process.env.ENVIRONMENT || 'development',
       eas: {
-        projectId: "b4fd15d4-8419-4cd7-b47a-ba697e65979e"
+        projectId: process.env.EAS_PROJECT_ID || "82fbdf1f-a0cf-4fb4-8016-d8f2f65d9e99"
       }
     }
   }
