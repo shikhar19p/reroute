@@ -4,16 +4,24 @@ import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from './firebaseConfig';
 
-// Safely import GoogleSignin — not available in Expo Go
+// Detect if running inside Expo Go — Google Sign-In won't work there
+// because Expo Go uses package 'host.exp.exponent', not our app's package name
+const isExpoGo = Constants.appOwnership === 'expo';
+
+// Safely import and configure GoogleSignin only in native builds
 let GoogleSignin: any = null;
-try {
-  GoogleSignin = require('@react-native-google-signin/google-signin').GoogleSignin;
-  const webClientId =
-    Constants.expoConfig?.extra?.googleWebClientId ||
-    '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com';
-  GoogleSignin.configure({ webClientId });
-} catch (e) {
-  console.warn('⚠️ RNGoogleSignin native module not available (Expo Go). Use a dev build.');
+if (!isExpoGo) {
+  try {
+    GoogleSignin = require('@react-native-google-signin/google-signin').GoogleSignin;
+    const webClientId =
+      Constants.expoConfig?.extra?.googleWebClientId ||
+      '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com';
+    GoogleSignin.configure({ webClientId });
+  } catch (e) {
+    console.warn('⚠️ RNGoogleSignin native module not available. Use a dev build.');
+  }
+} else {
+  console.warn('⚠️ Running in Expo Go — Google Sign-In disabled. Install the dev APK for full functionality.');
 }
 
 export function useGoogleAuth() {
