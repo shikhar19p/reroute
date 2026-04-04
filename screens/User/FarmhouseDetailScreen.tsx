@@ -838,6 +838,10 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.reviewsListContainer}
+                maxToRenderPerBatch={5}
+                windowSize={3}
+                removeClippedSubviews={true}
+                initialNumToRender={3}
               />
             )}
           </View>

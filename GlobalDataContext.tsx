@@ -571,43 +571,36 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
 
   const refreshMyBookings = useCallback(async () => {
     setState(prev => ({ ...prev, myBookingsRefreshing: true }));
-    await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshTriggers(prev => ({ ...prev, myBookings: prev.myBookings + 1 }));
   }, []);
 
   const refreshAvailableFarmhouses = useCallback(async () => {
     setState(prev => ({ ...prev, availableFarmhousesRefreshing: true }));
-    await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshTriggers(prev => ({ ...prev, availableFarmhouses: prev.availableFarmhouses + 1 }));
   }, []);
 
   const refreshMyFarmhouses = useCallback(async () => {
     setState(prev => ({ ...prev, myFarmhousesRefreshing: true }));
-    await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshTriggers(prev => ({ ...prev, myFarmhouses: prev.myFarmhouses + 1 }));
   }, []);
 
   const refreshAllBookings = useCallback(async () => {
     setState(prev => ({ ...prev, allBookingsRefreshing: true }));
-    await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshTriggers(prev => ({ ...prev, allBookings: prev.allBookings + 1 }));
   }, []);
 
   const refreshReviews = useCallback(async (farmhouseId?: string) => {
     setState(prev => ({ ...prev, reviewsRefreshing: true }));
-    await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshTriggers(prev => ({ ...prev, reviews: prev.reviews + 1 }));
   }, []);
 
   const refreshCoupons = useCallback(async () => {
     setState(prev => ({ ...prev, couponsRefreshing: true }));
-    await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshTriggers(prev => ({ ...prev, coupons: prev.coupons + 1 }));
   }, []);
 
   const refreshWishlist = useCallback(async () => {
     setState(prev => ({ ...prev, wishlistRefreshing: true }));
-    await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshTriggers(prev => ({ ...prev, wishlist: prev.wishlist + 1 }));
   }, []);
 

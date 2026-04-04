@@ -213,6 +213,87 @@ reroute/
 - `npm run build:prod` - Production build
 - `npm test` - Run tests
 
+## ⚡ Quick Start for New Developers
+
+```bash
+# 1. Clone and install
+git clone <repository-url>
+cd reroute
+npm install
+
+# 2. Set up environment
+cp .env.example .env   # fill in your Firebase + Razorpay keys
+
+# 3. Start on Android emulator
+npx expo start --android
+
+# 4. Start on iOS simulator (Mac only)
+npx expo start --ios
+```
+
+---
+
+## 📦 Package Name & google-services.json
+
+- **Android package name**: `com.rerouteaventures.app`
+- The `android/` folder is **gitignored** (Expo auto-generates it on each prebuild)
+- `google-services.json` must be placed at: `android/app/google-services.json`
+- It is force-tracked in git via `git add -f` — do NOT remove it from the commit
+- Download the latest version from: Firebase Console → Project Settings → Your Apps → Android → Download google-services.json
+
+---
+
+## 🔑 Environment Variables (.env template)
+
+```env
+FIREBASE_API_KEY=your_api_key
+FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+FIREBASE_PROJECT_ID=your_project_id
+FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
+FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+FIREBASE_APP_ID=1:xxx:android:xxx
+GOOGLE_WEB_CLIENT_ID=xxx.apps.googleusercontent.com
+RAZORPAY_KEY_ID=rzp_live_xxx
+RAZORPAY_KEY_SECRET=your_secret
+RAZORPAY_WEBHOOK_SECRET=your_webhook_secret
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your@email.com
+SMTP_PASS=your_app_password
+SMTP_FROM=noreply@reroute.app
+ADMIN_EMAIL=admin@reroute.app
+EAS_PROJECT_ID=your_eas_project_id
+ENCRYPTION_SECRET=your_32_char_secret
+ENVIRONMENT=development
+```
+
+---
+
+## 💳 Payment Flow
+
+```
+User taps "Confirm Booking"
+        ↓
+Booking created  →  status: pending / paymentStatus: pending
+        ↓
+Razorpay order created (15s timeout)
+        ↓
+User completes Razorpay checkout  ← 10-minute window
+        ↓
+Payment verified server-side (10s timeout)
+        ↓
+├── Success  →  status: confirmed / paymentStatus: paid  →  Email sent
+├── Parsing error  →  booking kept pending  →  "Check status" warning shown
+└── Cancel/Fail  →  booking cleaned up  →  Dates unblocked
+
+Background cleanup: every 5 min, auto-cancels bookings pending > 30 min
+```
+
+**Pending payment banner**: If a payment is interrupted, a yellow banner appears
+on the Bookings tab showing the remaining time (up to 10 minutes). Tap it to view booking details.
+
+---
+
 ## 🐛 Troubleshooting
 
 ### Common Issues
@@ -227,9 +308,35 @@ npx expo start --clear
 cd ios && pod install && cd ..
 ```
 
-**Android build fails**
-- Ensure `google-services.json` is in project root
-- Check Android SDK is properly installed
+**Android build fails — `Unable to establish loopback connection` (Windows)**
+
+This is a known Windows + Gradle + JDK 17/21 bug with WEPoll/Unix Domain Sockets.
+
+Fix — add to `android/gradle.properties`:
+```properties
+org.gradle.daemon=false
+```
+
+Then run:
+```bash
+cd android
+./gradlew --stop
+./gradlew app:assembleDebug --no-daemon
+```
+
+If still failing, nuke Gradle cache:
+```bash
+rm -rf ~/.gradle/daemon
+rm -rf ~/.gradle/caches
+```
+
+**RNGoogleSignin not found error**
+
+This means you're running in Expo Go. Google Sign-In requires a **native build**:
+```bash
+npx expo run:android
+```
+Expo Go does not support custom native modules.
 
 **Firebase connection issues**
 - Verify `.env` file has correct credentials
@@ -270,6 +377,6 @@ For support, email support@reroute.app or create an issue in the repository.
 
 ---
 
-**Version**: 1.0.0  
-**Last Updated**: 2024  
+**Version**: 1.0.0
+**Last Updated**: April 2026
 **Status**: Production Ready ✅

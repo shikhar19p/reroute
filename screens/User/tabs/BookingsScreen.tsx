@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, RefreshControl } from 'react-native';
+import { FlatList, ScrollView, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, RefreshControl, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Calendar, MapPin, Users, CreditCard } from 'lucide-react-native';
 import { useTheme } from '../../../context/ThemeContext';
@@ -207,6 +207,16 @@ export default function BookingsScreen({ navigation }: any) {
     return 'upcoming';
   };
 
+  // Detect pending payments within the 10-minute window
+  const pendingPayments = useMemo(() => {
+    const TEN_MINUTES = 10 * 60 * 1000;
+    return bookings.filter(b =>
+      b.status === 'pending' &&
+      b.paymentStatus === 'pending' &&
+      Date.now() - new Date(b.createdAt).getTime() < TEN_MINUTES
+    );
+  }, [bookings]);
+
   // Memoize filtered bookings to prevent unnecessary recalculations
   const filteredBookings = useMemo(() => {
     let filtered: Booking[] = [];
@@ -286,6 +296,29 @@ export default function BookingsScreen({ navigation }: any) {
           </View>
         </ScrollView>
       </View>
+
+      {pendingPayments.length > 0 && pendingPayments.map((pending) => {
+        const createdAt = new Date(pending.createdAt).getTime();
+        const expiresAt = createdAt + 10 * 60 * 1000;
+        const minsLeft = Math.max(0, Math.ceil((expiresAt - Date.now()) / 60000));
+        return (
+          <TouchableOpacity
+            key={pending.id}
+            style={styles.pendingBanner}
+            onPress={() => navigation.navigate('BookingDetails', { booking: pending })}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.pendingBannerIcon}>⏳</Text>
+            <View style={styles.pendingBannerText}>
+              <Text style={styles.pendingBannerTitle}>Payment Pending — {pending.farmhouseName}</Text>
+              <Text style={styles.pendingBannerSub}>
+                Expires in {minsLeft} min{minsLeft !== 1 ? 's' : ''} · Tap to view details
+              </Text>
+            </View>
+            <Text style={styles.pendingBannerChevron}>›</Text>
+          </TouchableOpacity>
+        );
+      })}
 
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -367,4 +400,10 @@ const styles = StyleSheet.create({
   browseButtonText: { fontSize: 14, fontWeight: '600' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
   loadingText: { marginTop: 12, fontSize: 16 },
+  pendingBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF8E1', borderLeftWidth: 4, borderLeftColor: '#FFA000', marginHorizontal: 16, marginBottom: 10, borderRadius: 10, padding: 12, gap: 10 },
+  pendingBannerIcon: { fontSize: 22 },
+  pendingBannerText: { flex: 1 },
+  pendingBannerTitle: { fontSize: 14, fontWeight: '700', color: '#5D4037' },
+  pendingBannerSub: { fontSize: 12, color: '#795548', marginTop: 2 },
+  pendingBannerChevron: { fontSize: 22, color: '#FFA000', fontWeight: 'bold' },
 });

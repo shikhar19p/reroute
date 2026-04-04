@@ -313,7 +313,7 @@ export async function updateRefundStatus(
  */
 export async function cleanupAbandonedBookings(
   userId: string,
-  maxAgeMinutes: number = 2
+  maxAgeMinutes: number = 10
 ): Promise<number> {
   try {
     if (!userId) {

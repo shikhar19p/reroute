@@ -220,13 +220,13 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
       setCurrentBookingId(bookingId);
       currentBookingIdRef.current = bookingId;
 
-      // Set up automatic cleanup after 2 minutes
+      // Set up automatic cleanup after 10 minutes
       cleanupTimeoutRef.current = setTimeout(() => {
-        console.log('⏰ 2 minutes elapsed, cleaning up pending booking...');
+        console.log('⏰ 10 minutes elapsed, cleaning up pending booking...');
         cleanupPendingBooking(bookingId).catch(error => {
           console.error('Failed to auto-cleanup:', error);
         });
-      }, 2 * 60 * 1000); // 2 minutes
+      }, 10 * 60 * 1000); // 10 minutes
 
       // Step 2: Process payment via Razorpay
       setLoadingMessage('Preparing payment...');

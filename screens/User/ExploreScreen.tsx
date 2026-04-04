@@ -115,33 +115,30 @@ export default function ExploreScreen({ navigation }: any) {
   });
   const [farmhouseRatings, setFarmhouseRatings] = useState<Record<string, number>>({});
 
-  // Fetch average ratings for all farmhouses
+  // Fetch average ratings for all farmhouses in parallel (Promise.all)
   useEffect(() => {
     const fetchRatings = async () => {
-      const ratingsMap: Record<string, number> = {};
-      
-      for (const farmhouse of farmhouses) {
-        try {
-          const reviewsRef = collection(db, 'farmhouses', farmhouse.id, 'reviews');
-          const reviewsSnapshot = await getDocs(reviewsRef);
-          
-          if (!reviewsSnapshot.empty) {
-            let totalRating = 0;
-            reviewsSnapshot.forEach(doc => {
-              const review = doc.data();
-              totalRating += review.rating || 0;
-            });
-            ratingsMap[farmhouse.id] = totalRating / reviewsSnapshot.size;
+      const results = await Promise.all(
+        farmhouses.map(async (farmhouse) => {
+          try {
+            const reviewsRef = collection(db, 'farmhouses', farmhouse.id, 'reviews');
+            const reviewsSnapshot = await getDocs(reviewsRef);
+            if (!reviewsSnapshot.empty) {
+              let totalRating = 0;
+              reviewsSnapshot.forEach(doc => {
+                totalRating += (doc.data().rating || 0);
+              });
+              return [farmhouse.id, totalRating / reviewsSnapshot.size] as [string, number];
+            }
+          } catch (error: any) {
+            if (!error?.message?.includes('Missing or insufficient permissions')) {
+              console.error(`Error fetching ratings for ${farmhouse.id}:`, error);
+            }
           }
-        } catch (error: any) {
-          // Silently handle permission errors - app continues to function without ratings
-          if (!error?.message?.includes('Missing or insufficient permissions')) {
-            console.error(`Error fetching ratings for ${farmhouse.id}:`, error);
-          }
-        }
-      }
-      
-      setFarmhouseRatings(ratingsMap);
+          return [farmhouse.id, 0] as [string, number];
+        })
+      );
+      setFarmhouseRatings(Object.fromEntries(results));
     };
 
     if (farmhouses.length > 0) {
