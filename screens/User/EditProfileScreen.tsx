@@ -129,7 +129,7 @@ export default function EditProfileScreen({ route, navigation }: Props) {
             {/* Name */}
             <View style={styles.inputContainer}>
               <Text style={[styles.inputLabel, { color: colors.text }]}>Full Name</Text>
-              <View style={[styles.inputWrapper, { backgroundColor: colors.background, borderColor: errors.name ? '#EF4444' : colors.border }]}>
+              <View style={[styles.inputWrapper, { backgroundColor: colors.background, borderColor: errors.name ? colors.error : colors.border }]}>
                 <User size={20} color={colors.placeholder} />
                 <TextInput
                   style={[styles.input, { color: colors.text }]}
@@ -160,7 +160,7 @@ export default function EditProfileScreen({ route, navigation }: Props) {
             {/* Phone */}
             <View style={styles.inputContainer}>
               <Text style={[styles.inputLabel, { color: colors.text }]}>Phone</Text>
-              <View style={[styles.inputWrapper, { backgroundColor: colors.background, borderColor: errors.phone ? '#EF4444' : colors.border }]}>
+              <View style={[styles.inputWrapper, { backgroundColor: colors.background, borderColor: errors.phone ? colors.error : colors.border }]}>
                 <Phone size={20} color={colors.placeholder} />
                 <Text style={[styles.prefix, { color: colors.text }]}>+91</Text>
                 <TextInput
@@ -184,7 +184,7 @@ export default function EditProfileScreen({ route, navigation }: Props) {
             {/* Age */}
             <View style={styles.inputContainer}>
               <Text style={[styles.inputLabel, { color: colors.text }]}>Age (Optional)</Text>
-              <View style={[styles.inputWrapper, { backgroundColor: colors.background, borderColor: errors.age ? '#EF4444' : colors.border }]}>
+              <View style={[styles.inputWrapper, { backgroundColor: colors.background, borderColor: errors.age ? colors.error : colors.border }]}>
                 <Calendar size={20} color={colors.placeholder} />
                 <TextInput
                   style={[styles.input, { color: colors.text }]}
@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
   prefix: { fontSize: 15, fontWeight: '600', marginLeft: 10 },
   input: { flex: 1, fontSize: 15, marginLeft: 10 },
   helperText: { fontSize: 12, marginTop: 4, fontStyle: 'italic' },
-  errorText: { color: '#EF4444', fontSize: 12, marginTop: 4 },
+  errorText: { color: '#DC2626', fontSize: 12, marginTop: 4 },
   genderContainer: { flexDirection: 'row', gap: 10 },
   genderButton: { flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
   genderText: { fontSize: 14, fontWeight: '500' },

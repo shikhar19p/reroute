@@ -13,12 +13,17 @@ import {
 } from '@expo-google-fonts/inter';
 import * as Font from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import Constants from 'expo-constants';
 
-// Configure Google Sign-In once at app startup
-GoogleSignin.configure({
-  webClientId: '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com',
-});
+// Configure Google Sign-In only in real builds — the native module isn't
+// available in Expo Go, so importing it there would crash immediately.
+const isExpoGo = Constants.executionEnvironment === 'storeClient';
+if (!isExpoGo) {
+  const { GoogleSignin } = require('@react-native-google-signin/google-signin');
+  GoogleSignin.configure({
+    webClientId: '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com',
+  });
+}
 
 // Prevent native splash from auto-hiding
 SplashScreen.preventAutoHideAsync().catch(() => {

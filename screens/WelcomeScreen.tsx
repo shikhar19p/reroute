@@ -9,6 +9,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { ChevronRight } from 'lucide-react-native';
 
 const { width, height } = Dimensions.get('window');
 
@@ -47,7 +48,7 @@ export default function WelcomeScreen({ navigation }: any) {
                 activeOpacity={0.9}
               >
                 <Text style={styles.exploreButtonText}>Explore Unique Stays</Text>
-                <Text style={styles.arrow}>›</Text>
+                <ChevronRight size={20} color="#FFF" />
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -162,11 +163,7 @@ const styles = StyleSheet.create({
     marginRight: 6,
     letterSpacing: 0.5,
   },
-  arrow: {
-    color: '#FFF',
-    fontSize: 24,
-    fontWeight: '300',
-  },
+
   signInText: {
     //fontFamily: 'Seasons-Light',
     fontSize: 13,

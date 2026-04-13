@@ -323,13 +323,6 @@ export async function verifyPaymentSignature(
   } catch (error: any) {
     console.error('❌ Error verifying payment:', error);
 
-    // If verification function is not available, log warning but don't fail
-    // (Payment was already successful in Razorpay)
-    if (error.code === 'not-found' || error.code === 'unavailable') {
-      console.warn('⚠️ Verification function unavailable, payment accepted (already confirmed by Razorpay)');
-      return true;
-    }
-
     throw new Error('Payment verification failed. Please contact support with your transaction ID.');
   }
 }

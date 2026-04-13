@@ -143,7 +143,7 @@ export default function PhotosScreen({ navigation }: PhotosScreenProps) {
   const handleRemovePhoto = (index: number) => {
     showDialog({
       title: 'Remove Photo',
-      message: 'Are you sure you want to remove this photo?',
+      message: 'This photo will be removed.',
       type: 'confirm',
       buttons: [
         { text: 'Cancel', style: 'cancel' },

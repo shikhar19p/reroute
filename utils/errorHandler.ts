@@ -95,8 +95,16 @@ export function parseError(error: any): ParsedError {
   } else if (lowerError.includes('verification')) {
     title = 'Verification Failed';
     message = 'Payment verification failed. Please contact support with your transaction ID.';
-  } else if (rawError.length > 0 && !rawError.includes('[') && !rawError.includes('{') && !rawError.includes('Error:')) {
-    // Use the error message if it's clean (not a JSON/object string)
+  } else if (
+    rawError.length > 0 &&
+    rawError.length < 120 &&
+    !rawError.includes('[') &&
+    !rawError.includes('{') &&
+    !rawError.includes('Error:') &&
+    !rawError.includes('at ') &&
+    !/\b(stack|trace|undefined|null|firebase|firestore|razorpay|http|https|com\.)\b/i.test(rawError)
+  ) {
+    // Only surface clean, short, user-facing messages
     title = 'Error';
     message = rawError;
   }

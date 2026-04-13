@@ -302,7 +302,7 @@ const styles = StyleSheet.create({
   averageRating: { fontSize: 48, fontWeight: 'bold', marginBottom: 8 },
   starsContainer: { flexDirection: 'row', gap: 4, marginVertical: 8 },
   reviewCount: { fontSize: 14, marginTop: 8 },
-  content: { padding: 20 },
+  content: { padding: 20, paddingBottom: 100 },
   emptyContainer: { paddingVertical: 40, alignItems: 'center' },
   emptyText: { fontSize: 16, textAlign: 'center' },
   reviewCard: { padding: 16, borderRadius: 12, marginBottom: 16, borderWidth: 1 },

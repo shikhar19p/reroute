@@ -4,7 +4,7 @@ import {
   Modal, TextInput, FlatList, Share, ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Heart, Search, SlidersHorizontal, ArrowUpDown, Bell, Share2 } from 'lucide-react-native';
+import { Heart, Search, SlidersHorizontal, ArrowUpDown, Bell, Share2, Star } from 'lucide-react-native';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
@@ -59,8 +59,8 @@ const FarmhouseCard = React.memo(({
         >
           <Heart
             size={18}
-            color={isInWishlist ? "#EF4444" : "#666"}
-            fill={isInWishlist ? "#EF4444" : "transparent"}
+            color={isInWishlist ? colors.favorite : colors.placeholder}
+            fill={isInWishlist ? colors.favorite : "transparent"}
           />
         </TouchableOpacity>
       </View>
@@ -72,7 +72,7 @@ const FarmhouseCard = React.memo(({
           {item.name}
         </Text>
         <View style={styles.ratingContainer}>
-          <Text style={styles.star}>★</Text>
+          <Star size={14} color={colors.rating} fill={colors.rating} />
           <Text style={[styles.rating, { color: colors.text }]}>
             {farmhouseRating ? farmhouseRating.toFixed(1) : 'New'}
           </Text>
@@ -499,7 +499,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0, // Prevent shrinking
   },
-  listContent: { paddingHorizontal: 16, paddingBottom: 20 },
+  listContent: { paddingHorizontal: 16, paddingBottom: 100 },
   propertyCard: { borderRadius: 16, overflow: 'hidden', marginBottom: 24, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   imageContainer: { position: 'relative' },
   propertyImage: { width: '100%', aspectRatio: 16 / 10 },
@@ -509,7 +509,7 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
   propertyTitle: { flex: 1, fontSize: 16, fontWeight: '600', marginRight: 8 },
   ratingContainer: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  star: { color: '#FCD34D', fontSize: 14 },
+  star: { color: '#FCD34D', fontSize: 14 }, // unused - kept for style reference
   rating: { fontSize: 14, fontWeight: '500' },
   distance: { fontSize: 14, marginBottom: 8 },
   priceCapacityRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },

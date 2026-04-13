@@ -166,8 +166,8 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
   const handleConfirmBooking = async () => {
     if (!user || !userProfile) {
       showDialog({
-        title: 'Error',
-        message: 'Please login to continue',
+        title: 'Sign in required',
+        message: 'Sign in to continue with your booking.',
         type: 'error'
       });
       return;
@@ -175,8 +175,8 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
 
     if (!userProfile.phone || userProfile.phone === 'Not provided') {
       showDialog({
-        title: 'Phone Number Required',
-        message: 'Please add a phone number to your profile before booking.',
+        title: 'Phone number missing',
+        message: 'Add a phone number in your profile to continue.',
         type: 'warning'
       });
       return;
@@ -185,8 +185,8 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
     // Validate price is greater than 0
     if (finalPrice <= 0) {
       showDialog({
-        title: 'Invalid Price',
-        message: 'Booking amount must be greater than ₹0. Please check the pricing details.',
+        title: 'Invalid amount',
+        message: 'Booking amount must be greater than ₹0.',
         type: 'error'
       });
       return;
@@ -281,8 +281,8 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
       setLoading(false);
       setLoadingMessage('');
       showDialog({
-        title: 'Booking Confirmed',
-        message: `Your payment of ₹${finalPrice} was successful. Your booking for ${farmhouseDetails?.name || farmhouseName} is confirmed.`,
+        title: 'Booking confirmed',
+        message: `₹${finalPrice} paid. You're all set for ${farmhouseDetails?.name || farmhouseName}.`,
         type: 'success',
         buttons: [{
           text: 'View Details',
@@ -320,8 +320,8 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
         setCurrentBookingId(null);
         cleanupDoneRef.current = true;
         showDialog({
-          title: 'Payment Status Unclear',
-          message: `Your payment may have been processed but we couldn't confirm it. Please check your bookings in a few minutes. If charged, your booking will appear there. Reference: ${bookingId || ''}`,
+          title: 'Payment status unclear',
+          message: `We couldn't confirm your payment. Check your bookings in a few minutes.${bookingId ? ` Ref: ${bookingId.slice(-8)}` : ''}`,
           type: 'warning',
           buttons: [{ text: 'Check Bookings', style: 'default', onPress: () => navigation.navigate('Bookings') }],
         });
@@ -350,22 +350,22 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
 
       if (isCancellation || errMessage.toLowerCase().includes('cancel')) {
         showDialog({
-          title: 'Payment Cancelled',
-          message: 'Your payment was cancelled. The dates have been unblocked and you can try booking again.',
+          title: 'Payment cancelled',
+          message: 'You can try booking again.',
           type: 'warning',
           buttons: [{ text: 'OK', style: 'default', onPress: () => {} }]
         });
       } else if (errMessage.includes('verification failed') || errMessage.includes('Verification Failed')) {
         showDialog({
-          title: 'Payment Verification Issue',
-          message: 'Your payment may have been processed, but we need to verify it. Please check your bookings or contact support.',
+          title: 'Verification pending',
+          message: 'Payment received but not verified. Check your bookings or contact support.',
           type: 'warning',
           buttons: [{ text: 'Check Bookings', style: 'default', onPress: () => navigation.navigate('Bookings') }]
         });
       } else if (errMessage.includes('not available')) {
         showDialog({
-          title: 'Dates Unavailable',
-          message: 'The selected dates are no longer available. Please choose different dates.',
+          title: 'Dates unavailable',
+          message: 'These dates are no longer available.',
           type: 'error',
           buttons: [{ text: 'Choose New Dates', style: 'default', onPress: () => navigation.goBack() }]
         });

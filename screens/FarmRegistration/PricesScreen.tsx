@@ -12,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Plus, Calendar } from 'lucide-react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { pricesSchema } from '../../utils/validation';
 import { useFarmRegistration } from '../../context/FarmRegistrationContext';
@@ -221,7 +222,7 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
           ))}
 
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionIcon}>➕</Text>
+            <Plus size={16} color="#6B7280" />
             <Text style={styles.sectionTitle}>Custom Pricing (Optional)</Text>
           </View>
           <Text style={styles.helperText}>Add special pricing for holidays or special events</Text>
@@ -237,7 +238,7 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
                   <Text style={item.name ? styles.datePickerText : styles.datePickerPlaceholder}>
                     {item.name || 'Tap to select date'}
                   </Text>
-                  <Text style={styles.calendarIcon}>📅</Text>
+                  <Calendar size={16} color="#9CA3AF" />
                 </TouchableOpacity>
                 <TextInput
                   value={item.price}

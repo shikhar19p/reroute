@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as DocumentPicker from 'expo-document-picker';
+import { Upload, CheckSquare, Square } from 'lucide-react-native';
 import { kycSchema } from '../../utils/validation';
 import { useFarmRegistration } from '../../context/FarmRegistrationContext';
 import { useDialog } from '../../components/CustomDialog';
@@ -109,7 +110,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
 
           {/* Person 1 Contact */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>👤 Contact Person 1</Text>
+            <Text style={styles.sectionTitle}>Contact Person 1</Text>
 
             <View style={styles.field}>
               <Text style={styles.label}>Name*</Text>
@@ -217,9 +218,9 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               style={styles.uploadButton}
               onPress={() => pickDocument(['kyc', 'person1', 'idProofFront'])}
             >
-              <Text style={styles.uploadIcon}>Upload</Text>
+              <Upload size={20} color="#D4AF37" />
               <Text style={styles.uploadText}>
-                {farm.kyc.person1.idProofFront ? 'ID Proof Front ✓' : 'Upload ID Proof Front*'}
+                {farm.kyc.person1.idProofFront ? 'ID Proof Front — uploaded' : 'Upload ID Proof Front*'}
               </Text>
             </TouchableOpacity>
             {errors['person1.idProofFront'] && <Text style={styles.error}>{errors['person1.idProofFront']}</Text>}
@@ -228,9 +229,9 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               style={styles.uploadButton}
               onPress={() => pickDocument(['kyc', 'person1', 'idProofBack'])}
             >
-              <Text style={styles.uploadIcon}>Upload</Text>
+              <Upload size={20} color="#D4AF37" />
               <Text style={styles.uploadText}>
-                {farm.kyc.person1.idProofBack ? 'ID Proof Back ✓' : 'Upload ID Proof Back*'}
+                {farm.kyc.person1.idProofBack ? 'ID Proof Back — uploaded' : 'Upload ID Proof Back*'}
               </Text>
             </TouchableOpacity>
             {errors['person1.idProofBack'] && <Text style={styles.error}>{errors['person1.idProofBack']}</Text>}
@@ -238,7 +239,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
 
           {/* Person 2 Contact */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>👤 Contact Person 2</Text>
+            <Text style={styles.sectionTitle}>Contact Person 2</Text>
 
             <View style={styles.field}>
               <Text style={styles.label}>Name*</Text>
@@ -346,9 +347,9 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               style={styles.uploadButton}
               onPress={() => pickDocument(['kyc', 'person2', 'idProofFront'])}
             >
-              <Text style={styles.uploadIcon}>Upload</Text>
+              <Upload size={20} color="#D4AF37" />
               <Text style={styles.uploadText}>
-                {farm.kyc.person2.idProofFront ? 'ID Proof Front ✓' : 'Upload ID Proof Front*'}
+                {farm.kyc.person2.idProofFront ? 'ID Proof Front — uploaded' : 'Upload ID Proof Front*'}
               </Text>
             </TouchableOpacity>
             {errors['person2.idProofFront'] && <Text style={styles.error}>{errors['person2.idProofFront']}</Text>}
@@ -357,9 +358,9 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               style={styles.uploadButton}
               onPress={() => pickDocument(['kyc', 'person2', 'idProofBack'])}
             >
-              <Text style={styles.uploadIcon}>Upload</Text>
+              <Upload size={20} color="#D4AF37" />
               <Text style={styles.uploadText}>
-                {farm.kyc.person2.idProofBack ? 'ID Proof Back ✓' : 'Upload ID Proof Back*'}
+                {farm.kyc.person2.idProofBack ? 'ID Proof Back — uploaded' : 'Upload ID Proof Back*'}
               </Text>
             </TouchableOpacity>
             {errors['person2.idProofBack'] && <Text style={styles.error}>{errors['person2.idProofBack']}</Text>}
@@ -367,7 +368,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
 
           {/* Company Details */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🏢 Company Details</Text>
+            <Text style={styles.sectionTitle}>Company Details</Text>
 
             <View style={styles.field}>
               <Text style={styles.label}>PAN Number*</Text>
@@ -387,9 +388,9 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               style={styles.uploadButton}
               onPress={() => pickDocument(['kyc', 'companyPAN'])}
             >
-              <Text style={styles.uploadIcon}>Upload</Text>
+              <Upload size={20} color="#D4AF37" />
               <Text style={styles.uploadText}>
-                {farm.kyc.companyPAN ? 'Company PAN ✓' : 'Upload Company PAN*'}
+                {farm.kyc.companyPAN ? 'Company PAN — uploaded' : 'Upload Company PAN*'}
               </Text>
             </TouchableOpacity>
             {errors.companyPAN && <Text style={styles.error}>{errors.companyPAN}</Text>}
@@ -398,9 +399,9 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               style={styles.uploadButton}
               onPress={() => pickDocument(['kyc', 'labourDoc'])}
             >
-              <Text style={styles.uploadIcon}>Upload</Text>
+              <Upload size={20} color="#D4AF37" />
               <Text style={styles.uploadText}>
-                {farm.kyc.labourDoc ? 'Labour License ✓' : 'Upload Labour License*'}
+                {farm.kyc.labourDoc ? 'Labour License — uploaded' : 'Upload Labour License*'}
               </Text>
             </TouchableOpacity>
             {errors.labourDoc && <Text style={styles.error}>{errors.labourDoc}</Text>}
@@ -408,7 +409,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
 
           {/* Bank Details */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🏦 Bank Details</Text>
+            <Text style={styles.sectionTitle}>Bank Details</Text>
 
             <View style={styles.field}>
               <Text style={styles.label}>Account Holder Name*</Text>
@@ -474,9 +475,10 @@ export default function KycScreen({ navigation }: KycScreenProps) {
 
           {/* Terms */}
           <TouchableOpacity style={styles.termsRow} onPress={toggleTerms} activeOpacity={0.7}>
-            <Text style={styles.checkboxIcon}>
-              {farm.kyc.agreedToTerms ? '✓' : '○'}
-            </Text>
+            {farm.kyc.agreedToTerms
+              ? <CheckSquare size={22} color="#D4AF37" />
+              : <Square size={22} color="#9CA3AF" />
+            }
             <Text style={styles.termsText}>I agree to terms and conditions*</Text>
           </TouchableOpacity>
           {errors.agreedToTerms && <Text style={styles.error}>{errors.agreedToTerms}</Text>}
@@ -603,9 +605,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     marginBottom: 12,
   },
-  uploadIcon: {
-    fontSize: 20,
-  },
+
   uploadText: {
     fontSize: 16,
     fontWeight: '600',
@@ -617,9 +617,7 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 8,
   },
-  checkboxIcon: {
-    fontSize: 24,
-  },
+
   termsText: {
     fontSize: 16,
     color: '#374151',

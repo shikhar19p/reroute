@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LogOut, Home, PlusCircle, Images, CalendarCheck, Banknote, ShieldCheck } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -25,7 +25,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'OwnerHome'>;
 
 export default function OwnerHomeScreen({ navigation }: Props) {
   const { user, logout } = useAuth();
-  const { colors, typography, isDark } = useTheme();
+  const { colors, isDark } = useTheme();
 
   const handleAddFarmhouse = () => {
     navigation.navigate('FarmBasicDetails' as never);
@@ -42,15 +42,15 @@ export default function OwnerHomeScreen({ navigation }: Props) {
       {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={[styles.greeting, { color: colors.text, fontFamily: typography.fontFamily.semiBold }]}>
+          <Text style={[styles.greeting, { color: colors.text }]}>
             Welcome, {user?.displayName?.split(' ')[0] || 'Owner'}!
           </Text>
-          <Text style={[styles.subGreeting, { color: colors.placeholder, fontFamily: typography.fontFamily.regular }]}>
+          <Text style={[styles.subGreeting, { color: colors.placeholder }]}>
             Start building your farmhouse business
           </Text>
         </View>
         <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <MaterialCommunityIcons name="logout" size={24} color={colors.placeholder} />
+          <LogOut size={24} color={colors.placeholder} />
         </TouchableOpacity>
       </View>
 
@@ -64,12 +64,12 @@ export default function OwnerHomeScreen({ navigation }: Props) {
             style={styles.heroGradient}
           >
             <View style={styles.heroIconContainer}>
-              <MaterialCommunityIcons name="home-heart" size={80} color="white" />
+              <Home size={80} color="white" />
             </View>
-            <Text style={[styles.heroTitle, { fontFamily: typography.fontFamily.bold }]}>
+            <Text style={styles.heroTitle}>
               List Your First Farmhouse
             </Text>
-            <Text style={[styles.heroSubtitle, { fontFamily: typography.fontFamily.regular }]}>
+            <Text style={styles.heroSubtitle}>
               Share your beautiful property with travelers and start earning today
             </Text>
 
@@ -79,8 +79,8 @@ export default function OwnerHomeScreen({ navigation }: Props) {
               onPress={handleAddFarmhouse}
               activeOpacity={0.9}
             >
-              <MaterialCommunityIcons name="plus-circle" size={28} color={colors.primary} />
-              <Text style={[styles.addButtonText, { fontFamily: typography.fontFamily.semiBold }]}>
+              <PlusCircle size={28} color={colors.primary} />
+              <Text style={styles.addButtonText}>
                 Add Your Farmhouse
               </Text>
             </TouchableOpacity>
@@ -89,34 +89,34 @@ export default function OwnerHomeScreen({ navigation }: Props) {
 
         {/* Features Section */}
         <View style={styles.featuresSection}>
-          <Text style={[styles.sectionTitle, { color: colors.text, fontFamily: typography.fontFamily.semiBold }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
             What You Can Do
           </Text>
 
           <View style={styles.featuresList}>
             <View style={[styles.featureCard, { backgroundColor: colors.cardBackground }]}>
               <View style={[styles.featureIcon, { backgroundColor: `${colors.primary}20` }]}>
-                <MaterialCommunityIcons name="image-multiple" size={28} color={colors.primary} />
+                <Images size={28} color={colors.primary} />
               </View>
               <View style={styles.featureContent}>
-                <Text style={[styles.featureTitle, { color: colors.text, fontFamily: typography.fontFamily.semiBold }]}>
+                <Text style={[styles.featureTitle, { color: colors.text }]}>
                   Showcase Your Property
                 </Text>
-                <Text style={[styles.featureDescription, { color: colors.placeholder, fontFamily: typography.fontFamily.regular }]}>
+                <Text style={[styles.featureDescription, { color: colors.placeholder }]}>
                   Upload beautiful photos and detailed descriptions
                 </Text>
               </View>
             </View>
 
             <View style={[styles.featureCard, { backgroundColor: colors.cardBackground }]}>
-              <View style={[styles.featureIcon, { backgroundColor: `${colors.secondary}20` }]}>
-                <MaterialCommunityIcons name="calendar-check" size={28} color={colors.secondary} />
+              <View style={[styles.featureIcon, { backgroundColor: `${colors.primary}20` }]}>
+                <CalendarCheck size={28} color={colors.primary} />
               </View>
               <View style={styles.featureContent}>
-                <Text style={[styles.featureTitle, { color: colors.text, fontFamily: typography.fontFamily.semiBold }]}>
+                <Text style={[styles.featureTitle, { color: colors.text }]}>
                   Manage Bookings
                 </Text>
-                <Text style={[styles.featureDescription, { color: colors.placeholder, fontFamily: typography.fontFamily.regular }]}>
+                <Text style={[styles.featureDescription, { color: colors.placeholder }]}>
                   Track reservations and availability in real-time
                 </Text>
               </View>
@@ -124,27 +124,27 @@ export default function OwnerHomeScreen({ navigation }: Props) {
 
             <View style={[styles.featureCard, { backgroundColor: colors.cardBackground }]}>
               <View style={[styles.featureIcon, { backgroundColor: `${colors.primary}20` }]}>
-                <MaterialCommunityIcons name="cash-multiple" size={28} color={colors.primary} />
+                <Banknote size={28} color={colors.primary} />
               </View>
               <View style={styles.featureContent}>
-                <Text style={[styles.featureTitle, { color: colors.text, fontFamily: typography.fontFamily.semiBold }]}>
+                <Text style={[styles.featureTitle, { color: colors.text }]}>
                   Flexible Pricing
                 </Text>
-                <Text style={[styles.featureDescription, { color: colors.placeholder, fontFamily: typography.fontFamily.regular }]}>
+                <Text style={[styles.featureDescription, { color: colors.placeholder }]}>
                   Set different rates for weekdays, weekends, and special occasions
                 </Text>
               </View>
             </View>
 
             <View style={[styles.featureCard, { backgroundColor: colors.cardBackground }]}>
-              <View style={[styles.featureIcon, { backgroundColor: `${colors.secondary}20` }]}>
-                <MaterialCommunityIcons name="shield-check" size={28} color={colors.secondary} />
+              <View style={[styles.featureIcon, { backgroundColor: `${colors.primary}20` }]}>
+                <ShieldCheck size={28} color={colors.primary} />
               </View>
               <View style={styles.featureContent}>
-                <Text style={[styles.featureTitle, { color: colors.text, fontFamily: typography.fontFamily.semiBold }]}>
+                <Text style={[styles.featureTitle, { color: colors.text }]}>
                   Secure Platform
                 </Text>
-                <Text style={[styles.featureDescription, { color: colors.placeholder, fontFamily: typography.fontFamily.regular }]}>
+                <Text style={[styles.featureDescription, { color: colors.placeholder }]}>
                   Your information and earnings are protected with bank-level security
                 </Text>
               </View>
@@ -154,7 +154,7 @@ export default function OwnerHomeScreen({ navigation }: Props) {
 
         {/* CTA Section */}
         <View style={styles.ctaSection}>
-          <Text style={[styles.ctaText, { color: colors.placeholder, fontFamily: typography.fontFamily.regular }]}>
+          <Text style={[styles.ctaText, { color: colors.placeholder }]}>
             Ready to get started? Add your farmhouse now and join our community of hosts!
           </Text>
           <TouchableOpacity
@@ -162,7 +162,7 @@ export default function OwnerHomeScreen({ navigation }: Props) {
             onPress={handleAddFarmhouse}
             activeOpacity={0.8}
           >
-            <Text style={[styles.secondaryButtonText, { fontFamily: typography.fontFamily.semiBold }]}>
+            <Text style={styles.secondaryButtonText}>
               Get Started
             </Text>
           </TouchableOpacity>

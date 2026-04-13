@@ -128,8 +128,8 @@ export default function BookingsScreen({ navigation }: any) {
       (error) => {
         console.error('Error loading bookings:', error);
         showDialog({
-          title: 'Error',
-          message: 'Failed to load bookings. Please try again.',
+          title: 'Couldn\'t load bookings',
+          message: 'Pull down to retry.',
           type: 'error'
         });
         setLoading(false);
@@ -161,8 +161,8 @@ export default function BookingsScreen({ navigation }: any) {
 
     const preview = calculateRefundAmount(booking.totalPrice, booking.checkInDate);
     const refundLine = preview.refundPercentage > 0
-      ? `\n\nRefund: Rs.${preview.refundAmount.toLocaleString('en-IN')} (${preview.refundPercentage}%) — processed within 5–7 business days.`
-      : '\n\nNo refund applicable — cancellation is within 48 hours of check-in.';
+      ? `\n\nRefund: ₹${preview.refundAmount.toLocaleString('en-IN')} (${preview.refundPercentage}%) — 5–7 business days.`
+      : '\n\nNo refund — within 48 hours of check-in.';
 
     showDialog({
       title: 'Cancel Booking',
@@ -181,8 +181,8 @@ export default function BookingsScreen({ navigation }: any) {
                 'User requested cancellation'
               );
               const msg = result.refundAmount > 0
-                ? `Booking cancelled. ₹${result.refundAmount} refund initiated — arrives in ${REFUND_POLICY.ESTIMATED_REFUND_DAYS}.`
-                : 'Booking cancelled. No refund applicable as per cancellation policy.';
+                ? `Cancelled. ₹${result.refundAmount} refund initiated.`
+                : 'Booking cancelled. No refund applicable.';
               showToast(msg, result.refundAmount > 0 ? 'success' : 'info');
             } catch (error: any) {
               console.error('Error cancelling booking:', error);
@@ -343,7 +343,7 @@ const styles = StyleSheet.create({
   tabContainer: { flexDirection: 'row', gap: 8 },
   tab: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20 },
   tabText: { fontSize: 14, fontWeight: '500' },
-  listContainer: { padding: 20, paddingTop: 0 },
+  listContainer: { padding: 20, paddingTop: 0, paddingBottom: 100 },
   bookingCard: { borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   bookingHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   farmhouseName: { fontSize: 17, fontWeight: 'bold', flex: 1, marginRight: 8 },

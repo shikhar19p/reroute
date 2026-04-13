@@ -621,7 +621,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
                 <Share2 size={22} color="#666" />
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionButton} onPress={toggleWishlist}>
-                <Heart size={22} color={isInWishlist(farmhouse.id) ? "#EF4444" : "#666"} fill={isInWishlist(farmhouse.id) ? "#EF4444" : "transparent"} />
+                <Heart size={22} color={isInWishlist(farmhouse.id) ? colors.favorite : "#666"} fill={isInWishlist(farmhouse.id) ? colors.favorite : "transparent"} />
               </TouchableOpacity>
             </View>
           </View>

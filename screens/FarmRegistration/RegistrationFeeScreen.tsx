@@ -16,6 +16,7 @@ import {
   completePaymentFlow,
 } from '../../services/paymentService';
 import { parseError } from '../../utils/errorHandler';
+import { CreditCard, Check } from 'lucide-react-native';
 
 type RegistrationFeeScreenProps = {
   navigation: NativeStackNavigationProp<any, any>;
@@ -107,7 +108,7 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
       <View style={styles.container}>
         <View style={styles.content}>
           <View style={styles.iconContainer}>
-            <Text style={styles.icon}>💳</Text>
+            <CreditCard size={36} color="#C5A565" />
           </View>
 
           <Text style={styles.title}>Registration Fee</Text>
@@ -124,19 +125,19 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
           <View style={styles.benefitsContainer}>
             <Text style={styles.benefitsTitle}>What you get:</Text>
             <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>✓</Text>
+              <Check size={14} color="#16A34A" />
               <Text style={styles.benefitText}>Premium listing on platform</Text>
             </View>
             <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>✓</Text>
+              <Check size={14} color="#16A34A" />
               <Text style={styles.benefitText}>Verified farmhouse badge</Text>
             </View>
             <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>✓</Text>
+              <Check size={14} color="#16A34A" />
               <Text style={styles.benefitText}>Access to booking management</Text>
             </View>
             <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>✓</Text>
+              <Check size={14} color="#16A34A" />
               <Text style={styles.benefitText}>24/7 customer support</Text>
             </View>
           </View>

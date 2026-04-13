@@ -8,7 +8,6 @@ interface ThemeContextType {
   colors: PremiumTheme['colors'];
   spacing: PremiumTheme['spacing'];
   borderRadius: PremiumTheme['borderRadius'];
-  shadows: PremiumTheme['shadows'];
   typography: PremiumTheme['typography'];
   isDark: boolean;
   toggleTheme: () => Promise<void>;
@@ -54,7 +53,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     colors: currentTheme.colors,
     spacing: currentTheme.spacing,
     borderRadius: currentTheme.borderRadius,
-    shadows: currentTheme.shadows,
     typography: currentTheme.typography,
     isDark,
     toggleTheme,

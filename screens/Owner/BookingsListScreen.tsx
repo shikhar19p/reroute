@@ -105,7 +105,7 @@ export default function BookingsListScreen({ route, navigation }: Props) {
 
     showDialog({
       title: 'Cancel Booking',
-      message: `Are you sure you want to cancel this booking?\n\nThe guest will receive a full refund of Rs.${booking.totalPrice} as per the owner cancellation policy.`,
+      message: `Cancel this booking? The guest will receive a full refund of ₹${booking.totalPrice}.`,
       type: 'warning',
       buttons: [
         { text: 'No, Keep Booking', style: 'cancel' },
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
   filtersRow: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, gap: 8, flexWrap: 'wrap' },
   filterChip: { borderWidth: 1, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16 },
   filterText: { fontSize: 12, fontWeight: '600' },
-  list: { padding: 12 },
+  list: { padding: 12, paddingBottom: 100 },
   card: { borderRadius: 12, padding: 12, borderWidth: 1, marginBottom: 12 },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontSize: 16, fontWeight: '700', flex: 1, marginRight: 8 },

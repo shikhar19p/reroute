@@ -38,7 +38,9 @@
       "Bash(ls D:\\\\reroute/functions/*.json)",
       "Bash(ls D:\\\\reroute/secrets*)",
       "Bash(ls D:\\\\reroute/*.json D:\\\\reroute/functions/src/*.json)",
-      "Bash(grep -E \"^dotenv$|^razorpay$\")"
+      "Bash(grep -E \"^dotenv$|^razorpay$\")",
+      "Bash(xargs grep:*)",
+      "Read(//tmp/**)"
     ],
     "deny": [],
     "ask": []
