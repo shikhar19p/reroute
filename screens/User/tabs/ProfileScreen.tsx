@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet, Switch, Text, TouchableOpacity, View, ScrollView,
-  ActivityIndicator, RefreshControl
+  ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useIsFocused } from '@react-navigation/native';
@@ -11,7 +11,7 @@ import { useAuth } from '../../../authContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { useScrollHandler } from '../../../context/TabBarVisibilityContext';
 import { useDialog } from '../../../components/CustomDialog';
-import { Calendar, MapPin, Heart, Bell, Shield, HelpCircle, LogOut as LogOutIcon } from 'lucide-react-native';
+import { Calendar, MapPin, Heart, ChevronRight, LogOut } from 'lucide-react-native';
 
 interface UserProfile {
   name: string;
@@ -47,59 +47,42 @@ export default function ProfileScreen({ navigation }: any) {
       const userDocRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userDocRef);
 
-      // Fetch booking statistics
       const bookingsRef = collection(db, 'bookings');
       const bookingsQuery = query(bookingsRef, where('userId', '==', user.uid));
       const bookingsSnapshot = await getDocs(bookingsQuery);
 
       const now = new Date();
       now.setHours(0, 0, 0, 0);
-
       let upcoming = 0, past = 0, cancelled = 0;
       bookingsSnapshot.forEach((doc) => {
         const booking = doc.data();
         const checkIn = new Date(booking.checkInDate);
         checkIn.setHours(0, 0, 0, 0);
-
-        if (booking.status === 'cancelled') {
-          cancelled++;
-        } else if (checkIn > now) {
-          upcoming++;
-        } else {
-          past++;
-        }
+        if (booking.status === 'cancelled') cancelled++;
+        else if (checkIn > now) upcoming++;
+        else past++;
       });
 
       if (userDoc.exists()) {
         const data = userDoc.data();
-        
-        // Get wishlist count from user document's wishlist array
         const wishlistCount = Array.isArray(data.wishlist) ? data.wishlist.length : 0;
-        
         let memberSince = 'Recently';
         try {
-          if (data.createdAt && typeof data.createdAt.toDate === 'function') {
+          if (data.createdAt?.toDate) {
             memberSince = new Date(data.createdAt.toDate()).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
           } else if (data.createdAt) {
             memberSince = new Date(data.createdAt).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
           }
-        } catch (error) {
-          console.log('Error parsing createdAt:', error);
-        }
+        } catch {}
 
         setProfile({
           name: data.name || user.displayName || 'No Name',
           email: user.email || 'No email',
           phone: data.phone || user.phoneNumber || 'Not Provided',
-          age: data.age,
-          address: data.address,
-          gender: data.gender,
+          age: data.age, address: data.address, gender: data.gender,
           totalBookings: bookingsSnapshot.size,
-          upcomingBookings: upcoming,
-          pastBookings: past,
-          cancelledBookings: cancelled,
-          memberSince: memberSince,
-          wishlistCount: wishlistCount,
+          upcomingBookings: upcoming, pastBookings: past, cancelledBookings: cancelled,
+          memberSince, wishlistCount,
         });
       } else {
         setProfile({
@@ -107,20 +90,12 @@ export default function ProfileScreen({ navigation }: any) {
           email: user.email || 'No email',
           phone: user.phoneNumber || 'Not Provided',
           totalBookings: bookingsSnapshot.size,
-          upcomingBookings: upcoming,
-          pastBookings: past,
-          cancelledBookings: cancelled,
-          memberSince: 'Recently',
-          wishlistCount: 0, // No wishlist if user document doesn't exist
+          upcomingBookings: upcoming, pastBookings: past, cancelledBookings: cancelled,
+          memberSince: 'Recently', wishlistCount: 0,
         });
       }
-    } catch (error) {
-      console.error("Failed to fetch user profile:", error);
-      showDialog({
-        title: "Error",
-        message: "Could not load your profile.",
-        type: "error"
-      });
+    } catch {
+      showDialog({ title: 'Error', message: 'Could not load your profile.', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -133,27 +108,31 @@ export default function ProfileScreen({ navigation }: any) {
   };
 
   useEffect(() => {
-    if (isFocused && user) {
-      fetchUserProfile();
-    }
+    if (isFocused && user) fetchUserProfile();
   }, [isFocused, user, fetchUserProfile]);
 
   const handleLogout = () => {
     showDialog({
       title: 'Logout',
-      message: 'Are you sure you want to logout?',
+      message: "You'll need to sign in again to continue.",
       type: 'warning',
       buttons: [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Logout', style: 'destructive', onPress: logout }
-      ]
+        { text: 'Logout', style: 'destructive', onPress: logout },
+      ],
     });
   };
 
-  const MenuButton = ({ title, onPress, color = colors.text }: { title: string; onPress: () => void; color?: string }) => (
-    <TouchableOpacity style={styles.menuItem} onPress={onPress}>
-      <Text style={[styles.menuText, { color }]}>{title}</Text>
-      <Text style={[styles.menuArrow, { color: colors.placeholder }]}>›</Text>
+  const MenuItem = ({
+    title, onPress, right, color,
+  }: { title: string; onPress?: () => void; right?: React.ReactNode; color?: string }) => (
+    <TouchableOpacity
+      style={[styles.menuItem, { borderBottomColor: colors.divider }]}
+      onPress={onPress}
+      activeOpacity={onPress ? 0.6 : 1}
+    >
+      <Text style={[styles.menuText, { color: color || colors.text }]}>{title}</Text>
+      {right ?? <ChevronRight size={18} color={colors.placeholder} />}
     </TouchableOpacity>
   );
 
@@ -161,15 +140,14 @@ export default function ProfileScreen({ navigation }: any) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]} edges={['top', 'left', 'right']}>
         <ActivityIndicator size="large" color={colors.buttonBackground} />
-        <Text style={{ color: colors.text, marginTop: 10 }}>Loading Profile...</Text>
       </SafeAreaView>
     );
   }
 
   if (!profile) {
-     return (
+    return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]} edges={['top', 'left', 'right']}>
-        <Text style={{ color: colors.text }}>Could not load profile. Please try again.</Text>
+        <Text style={{ color: colors.placeholder }}>Could not load profile.</Text>
       </SafeAreaView>
     );
   }
@@ -186,84 +164,70 @@ export default function ProfileScreen({ navigation }: any) {
         onScroll={scrollHandler.onScroll}
         scrollEventThrottle={scrollHandler.scrollEventThrottle}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[colors.buttonBackground]}
-            tintColor={colors.buttonBackground}
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.buttonBackground} colors={[colors.buttonBackground]} />
         }
       >
-        <View style={[styles.profileCard, { backgroundColor: colors.cardBackground }]}>
-          <View style={styles.avatarContainer}>
-            <View style={[styles.avatar, { backgroundColor: colors.buttonBackground }]}>
-              <Text style={[styles.avatarText, { color: colors.buttonText }]}>
-                {profile.name.split(' ').map(n => n[0]).join('').substring(0, 2)}
-              </Text>
-            </View>
+        {/* Avatar + info */}
+        <View style={[styles.profileCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+          <View style={[styles.avatar, { backgroundColor: colors.buttonBackground }]}>
+            <Text style={[styles.avatarText, { color: colors.buttonText }]}>
+              {profile.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+            </Text>
           </View>
-          <View style={styles.userInfo}>
-            <Text style={[styles.userName, { color: colors.text }]}>{profile.name}</Text>
-            <Text style={[styles.userEmail, { color: colors.placeholder }]}>{profile.email}</Text>
-            <Text style={[styles.userPhone, { color: colors.placeholder }]}>{profile.phone}</Text>
-            <View style={[styles.memberBadge, { backgroundColor: isDark ? 'rgba(212, 175, 55, 0.15)' : 'rgba(212, 175, 55, 0.1)' }]}>
-              <Calendar size={14} color={colors.primary} />
-              <Text style={[styles.memberText, { color: colors.primary }]}>Member since {profile.memberSince}</Text>
-            </View>
+          <Text style={[styles.userName, { color: colors.text }]}>{profile.name}</Text>
+          <Text style={[styles.userDetail, { color: colors.placeholder }]}>{profile.email}</Text>
+          <Text style={[styles.userDetail, { color: colors.placeholder }]}>{profile.phone}</Text>
+          <View style={[styles.memberBadge, { backgroundColor: colors.surfaceOverlay }]}>
+            <Calendar size={12} color={colors.primary} />
+            <Text style={[styles.memberText, { color: colors.primary }]}>Member since {profile.memberSince}</Text>
           </View>
         </View>
 
-        <View style={styles.statsContainer}>
-          <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-            <Calendar size={24} color="#10B981" />
-            <Text style={[styles.statNumber, { color: colors.text }]}>{profile.upcomingBookings}</Text>
-            <Text style={[styles.statLabel, { color: colors.placeholder }]}>Upcoming</Text>
-          </View>
-
-          <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-            <MapPin size={24} color="#3B82F6" />
-            <Text style={[styles.statNumber, { color: colors.text }]}>{profile.pastBookings}</Text>
-            <Text style={[styles.statLabel, { color: colors.placeholder }]}>Completed</Text>
-          </View>
-
-          <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-            <Heart size={24} color="#EF4444" />
-            <Text style={[styles.statNumber, { color: colors.text }]}>{profile.wishlistCount}</Text>
-            <Text style={[styles.statLabel, { color: colors.placeholder }]}>Wishlist</Text>
-          </View>
+        {/* Stats */}
+        <View style={styles.statsRow}>
+          {[
+            { icon: <Calendar size={20} color={colors.primary} />, value: profile.upcomingBookings, label: 'Upcoming' },
+            { icon: <MapPin size={20} color={colors.primary} />, value: profile.pastBookings, label: 'Completed' },
+            { icon: <Heart size={20} color={colors.primary} />, value: profile.wishlistCount, label: 'Wishlist' },
+          ].map((stat, i) => (
+            <View key={i} style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+              {stat.icon}
+              <Text style={[styles.statNumber, { color: colors.text }]}>{stat.value}</Text>
+              <Text style={[styles.statLabel, { color: colors.placeholder }]}>{stat.label}</Text>
+            </View>
+          ))}
         </View>
 
-        <View style={[styles.menuCard, { backgroundColor: colors.cardBackground }]}>
-          <View style={{ borderBottomColor: isDark ? colors.border : '#E5E7EB' }}>
-            <MenuButton title="Edit Profile" onPress={() => navigation.navigate('EditProfile', { profile })} />
-          </View>
+        {/* Menu */}
+        <View style={[styles.menuCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+          <MenuItem title="Edit Profile" onPress={() => navigation.navigate('EditProfile', { profile })} />
 
-          <View style={[styles.menuItem, { borderBottomColor: isDark ? colors.border : '#E5E7EB' }]}>
+          <View style={[styles.menuItem, { borderBottomColor: colors.divider }]}>
             <Text style={[styles.menuText, { color: colors.text }]}>Push Notifications</Text>
             <Switch
               value={notificationsEnabled}
               onValueChange={setNotificationsEnabled}
-              trackColor={{ false: isDark ? '#555' : '#D1D5DB', true: '#D4AF37' }}
+              trackColor={{ false: colors.border, true: colors.primary }}
               thumbColor="#FFFFFF"
-              ios_backgroundColor={isDark ? '#555' : '#D1D5DB'}
             />
           </View>
 
-          <View style={[styles.menuItem, { borderBottomColor: isDark ? colors.border : '#E5E7EB' }]}>
+          <View style={[styles.menuItem, { borderBottomColor: colors.divider }]}>
             <Text style={[styles.menuText, { color: colors.text }]}>Dark Mode</Text>
             <Switch
               value={isDark}
               onValueChange={toggleTheme}
-              trackColor={{ false: isDark ? '#555' : '#D1D5DB', true: '#D4AF37' }}
+              trackColor={{ false: colors.border, true: colors.primary }}
               thumbColor="#FFFFFF"
-              ios_backgroundColor={isDark ? '#555' : '#D1D5DB'}
             />
           </View>
 
-          <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={handleLogout}>
-            <Text style={[styles.menuText, { color: '#F44336' }]}>Logout</Text>
-            <Text style={[styles.menuArrow, { color: '#F44336' }]}>›</Text>
-          </TouchableOpacity>
+          <MenuItem
+            title="Logout"
+            onPress={handleLogout}
+            color={colors.error}
+            right={<LogOut size={18} color={colors.error} />}
+          />
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -273,43 +237,39 @@ export default function ProfileScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContent: { paddingBottom: 120 },
-  header: { padding: 20, paddingTop: 10 },
-  headerTitle: { fontSize: 24, fontWeight: 'bold' },
-  profileCard: { margin: 20, marginTop: 0, borderRadius: 15, padding: 20, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
-  avatarContainer: { marginBottom: 15 },
-  avatar: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontSize: 24, fontWeight: 'bold' },
-  userInfo: { alignItems: 'center' },
-  userName: { fontSize: 20, fontWeight: 'bold', marginBottom: 5 },
-  userEmail: { fontSize: 14, marginBottom: 3 },
-  userPhone: { fontSize: 14, marginBottom: 10 },
+  header: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 4 },
+  headerTitle: { fontSize: 24, fontWeight: '700' },
+  profileCard: {
+    margin: 20, marginTop: 12,
+    borderRadius: 12, borderWidth: StyleSheet.hairlineWidth,
+    padding: 20, alignItems: 'center',
+  },
+  avatar: {
+    width: 72, height: 72, borderRadius: 36,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 12,
+  },
+  avatarText: { fontSize: 22, fontWeight: '700' },
+  userName: { fontSize: 18, fontWeight: '600', marginBottom: 4 },
+  userDetail: { fontSize: 14, marginBottom: 2 },
   memberBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginTop: 12
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20, marginTop: 10,
   },
-  memberText: { fontSize: 12, fontWeight: '600' },
-  statsContainer: { flexDirection: 'row', paddingHorizontal: 20, gap: 12, marginBottom: 20 },
+  memberText: { fontSize: 12, fontWeight: '500' },
+  statsRow: { flexDirection: 'row', paddingHorizontal: 20, gap: 10, marginBottom: 12 },
   statCard: {
-    flex: 1,
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    gap: 8,
+    flex: 1, alignItems: 'center', paddingVertical: 16,
+    borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, gap: 6,
   },
-  statNumber: { fontSize: 24, fontWeight: 'bold' },
-  statLabel: { fontSize: 12, textAlign: 'center' },
-  menuCard: { margin: 20, marginTop: 0, borderRadius: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
-  menuItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16, paddingHorizontal: 20, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#E5E7EB' },
-  menuText: { fontSize: 16, fontWeight: '500' },
-  menuArrow: { fontSize: 20, fontWeight: 'bold' },
+  statNumber: { fontSize: 22, fontWeight: '700' },
+  statLabel: { fontSize: 12 },
+  menuCard: {
+    marginHorizontal: 20, marginBottom: 20,
+    borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden',
+  },
+  menuItem: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingVertical: 15, paddingHorizontal: 16, borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  menuText: { fontSize: 15, fontWeight: '500' },
 });

@@ -13,7 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
-import { LogOut } from 'lucide-react-native';
+import { LogOut, MapPin, Home, ChevronRight } from 'lucide-react-native';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
 import { getFarmhousesByOwner, Farmhouse } from '../../services/farmhouseService';
@@ -71,7 +71,7 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
   const handleLogout = () => {
     showDialog({
       title: 'Logout',
-      message: 'Are you sure you want to logout?',
+      message: "You'll need to sign in again to continue.",
       type: 'confirm',
       buttons: [
         { text: 'Cancel', style: 'cancel' },
@@ -114,9 +114,12 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
           </View>
         </View>
 
-        <Text style={[styles.farmLocation, { color: colors.placeholder }]} numberOfLines={1}>
-          📍 {item.location}
-        </Text>
+        <View style={styles.locationRow}>
+          <MapPin size={13} color={colors.placeholder} />
+          <Text style={[styles.farmLocation, { color: colors.placeholder }]} numberOfLines={1}>
+            {item.location}
+          </Text>
+        </View>
 
         <View style={styles.farmDetails}>
           <View style={styles.detailItem}>
@@ -134,7 +137,7 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
-      <Text style={styles.emptyIcon}>—</Text>
+      <Home size={52} color={colors.placeholder} style={{ marginBottom: 16 }} />
       <Text style={[styles.emptyTitle, { color: colors.text }]}>No Farmhouses Yet</Text>
       <Text style={[styles.emptyText, { color: colors.placeholder }]}>
         Start by adding your first farmhouse property
@@ -198,7 +201,7 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
       {/* Draft Resume Banner */}
       {hasDraft && (
         <TouchableOpacity
-          style={[styles.draftBanner, { backgroundColor: isDark ? '#1E3A8A' : '#DBEAFE', borderColor: '#3B82F6' }]}
+          style={[styles.draftBanner, { backgroundColor: colors.surfaceOverlay, borderColor: colors.border }]}
           onPress={async () => {
             showDialog({
               title: 'Resume Draft?',
@@ -225,17 +228,19 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
           }}
         >
           <View style={styles.draftContent}>
-            <Text style={styles.draftIcon}>Draft</Text>
+            <View style={[styles.draftIconBadge, { backgroundColor: colors.primary + '20' }]}>
+              <Text style={[styles.draftIconText, { color: colors.primary }]}>Draft</Text>
+            </View>
             <View style={styles.draftTextContainer}>
-              <Text style={[styles.draftTitle, { color: isDark ? '#93C5FD' : '#1E40AF' }]}>
+              <Text style={[styles.draftTitle, { color: colors.text }]}>
                 Continue Registration
               </Text>
-              <Text style={[styles.draftSubtitle, { color: isDark ? '#BFDBFE' : '#3B82F6' }]}>
+              <Text style={[styles.draftSubtitle, { color: colors.placeholder }]}>
                 You have an incomplete farmhouse registration
               </Text>
             </View>
           </View>
-          <Text style={[styles.draftArrow, { color: isDark ? '#93C5FD' : '#1E40AF' }]}>→</Text>
+          <ChevronRight size={18} color={colors.placeholder} />
         </TouchableOpacity>
       )}
 
@@ -333,10 +338,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
-  draftIcon: {
-    fontSize: 28,
-    marginRight: 12,
-  },
   draftTextContainer: {
     flex: 1,
   },
@@ -357,6 +358,13 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 20,
     paddingTop: 8,
+    paddingBottom: 100,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 12,
   },
   farmCard: {
     borderRadius: 12,
@@ -419,9 +427,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 40,
   },
-  emptyIcon: {
-    fontSize: 80,
-    marginBottom: 16,
+  draftIconBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  draftIconText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   emptyTitle: {
     fontSize: 24,

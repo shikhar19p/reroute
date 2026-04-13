@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Home } from 'lucide-react-native';
 
 interface PremiumLogoProps {
   size?: 'small' | 'medium' | 'large';
@@ -34,8 +34,7 @@ export default function PremiumLogo({ size = 'medium', variant = 'light' }: Prem
         end={{ x: 1, y: 1 }}
         style={[styles.logoCircle, { width: logoSize, height: logoSize, borderRadius: logoSize / 2 }]}
       >
-        <MaterialCommunityIcons
-          name="home-variant"
+        <Home
           size={iconSize}
           color={variant === 'gradient' ? '#FFFFFF' : logoColors.primary}
         />

@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
   StatusBar,
 } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { ArrowLeft, User, Compass, Home, ChevronRight } from 'lucide-react-native';
 import { useDialog } from '../components/CustomDialog';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
@@ -25,8 +25,8 @@ export default function RoleSelectionScreen({ navigation }: any) {
     if (loading || loggingOut) return;
 
     showDialog({
-      title: 'Sign Out',
-      message: 'Are you sure you want to go back? You will be signed out.',
+      title: 'Sign out',
+      message: 'Going back will sign you out.',
       type: 'warning',
       buttons: [
         {
@@ -46,8 +46,8 @@ export default function RoleSelectionScreen({ navigation }: any) {
               console.error('❌ Error signing out:', error);
               setLoggingOut(false);
               showDialog({
-                title: 'Error',
-                message: 'Failed to sign out. Please try again.',
+                title: 'Sign out failed',
+                message: 'Please try again.',
                 type: 'error'
               });
             }
@@ -62,8 +62,8 @@ export default function RoleSelectionScreen({ navigation }: any) {
 
     if (!user) {
       showDialog({
-        title: 'Error',
-        message: 'User not authenticated',
+        title: 'Not signed in',
+        message: 'Please sign in to continue.',
         type: 'error'
       });
       console.log('❌ No user found');
@@ -150,8 +150,8 @@ export default function RoleSelectionScreen({ navigation }: any) {
     } catch (error: any) {
       console.error('❌ Error setting role:', error);
       showDialog({
-        title: 'Error',
-        message: 'Failed to set role. Please try again.',
+        title: 'Couldn\'t continue',
+        message: 'Please try again.',
         type: 'error'
       });
       setLoading(false);
@@ -173,7 +173,7 @@ export default function RoleSelectionScreen({ navigation }: any) {
         {loggingOut ? (
           <ActivityIndicator color="#D4AF37" size="small" />
         ) : (
-          <MaterialCommunityIcons name="arrow-left" size={24} color="#D4AF37" />
+          <ArrowLeft size={24} color="#D4AF37" />
         )}
       </TouchableOpacity>
 
@@ -181,7 +181,7 @@ export default function RoleSelectionScreen({ navigation }: any) {
         {/* Icon with Question Mark */}
         <View style={styles.iconContainer}>
           <View style={styles.iconCircle}>
-            <MaterialCommunityIcons name="account" size={40} color="#FFF" />
+            <User size={40} color="#FFF" />
             <View style={styles.questionBadge}>
               <Text style={styles.questionMark}>?</Text>
             </View>
@@ -201,7 +201,7 @@ export default function RoleSelectionScreen({ navigation }: any) {
         >
           <View style={styles.roleCardContent}>
             <View style={styles.iconWrapper}>
-              <MaterialCommunityIcons name="compass-outline" size={32} color="#D4AF37" />
+              <Compass size={32} color="#D4AF37" />
             </View>
             <View style={styles.roleTextContainer}>
               <Text style={styles.roleTitle}>User</Text>
@@ -210,7 +210,7 @@ export default function RoleSelectionScreen({ navigation }: any) {
             {loading && selectedRole === 'customer' ? (
               <ActivityIndicator color="#D4AF37" size="small" />
             ) : (
-              <MaterialCommunityIcons name="chevron-right" size={24} color="#666" />
+              <ChevronRight size={24} color="#666" />
             )}
           </View>
         </TouchableOpacity>
@@ -224,7 +224,7 @@ export default function RoleSelectionScreen({ navigation }: any) {
         >
           <View style={styles.roleCardContent}>
             <View style={styles.iconWrapper}>
-              <MaterialCommunityIcons name="home-outline" size={32} color="#D4AF37" />
+              <Home size={32} color="#D4AF37" />
             </View>
             <View style={styles.roleTextContainer}>
               <Text style={styles.roleTitle}>Become a Host</Text>
@@ -233,7 +233,7 @@ export default function RoleSelectionScreen({ navigation }: any) {
             {loading && selectedRole === 'owner' ? (
               <ActivityIndicator color="#D4AF37" size="small" />
             ) : (
-              <MaterialCommunityIcons name="chevron-right" size={24} color="#666" />
+              <ChevronRight size={24} color="#666" />
             )}
           </View>
         </TouchableOpacity>

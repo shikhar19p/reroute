@@ -211,7 +211,7 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
   const deleteImage = async (index: number) => {
     showDialog({
       title: 'Delete Image',
-      message: 'Are you sure you want to delete this image?',
+      message: 'This image will be removed.',
       type: 'confirm',
       buttons: [
         { text: 'Cancel', style: 'cancel' },
@@ -279,8 +279,15 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
 
       const farmhouseRef = doc(db, 'farmhouses', farmhouse.id);
 
-      const encryptedAccountNumber = await encryptSensitiveData(formData.accountNumber.trim(), farmhouse.ownerId);
-      const encryptedIFSC = await encryptSensitiveData(formData.ifscCode.trim().toUpperCase(), farmhouse.ownerId);
+      const accountNumberTrimmed = formData.accountNumber.trim();
+      const ifscCodeTrimmed = formData.ifscCode.trim().toUpperCase();
+
+      const encryptedAccountNumber = accountNumberTrimmed
+        ? await encryptSensitiveData(accountNumberTrimmed, farmhouse.ownerId)
+        : (rawData.kyc?.bankDetails?.accountNumber || '');
+      const encryptedIFSC = ifscCodeTrimmed
+        ? await encryptSensitiveData(ifscCodeTrimmed, farmhouse.ownerId)
+        : (rawData.kyc?.bankDetails?.ifscCode || '');
 
       const updateData = {
         'basicDetails.name': formData.name.trim(),

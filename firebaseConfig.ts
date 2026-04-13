@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { initializeAuth, getReactNativePersistence, getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
@@ -61,8 +61,8 @@ export const auth = Platform.OS === 'web'
       ),
     });
 
-// Initialize Firestore with default cache (memory cache for React Native)
-// Note: IndexedDB persistence is not available in React Native
-export const db = getFirestore(app);
+// Firestore's default WebChannel (HTTP/2) transport is unreliable in React Native.
+// experimentalForceLongPolling switches to plain HTTP which works on all platforms.
+export const db = initializeFirestore(app, { experimentalForceLongPolling: true });
 
 export const storage = getStorage(app);

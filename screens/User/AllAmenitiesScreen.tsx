@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1 },
   backButton: { padding: 4 },
   title: { fontSize: 20, fontWeight: 'bold' },
-  content: { padding: 20 },
+  content: { padding: 20, paddingBottom: 100 },
   amenityItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 16, borderRadius: 12, marginBottom: 12, borderWidth: 1 },
   amenityText: { fontSize: 16 },
 });

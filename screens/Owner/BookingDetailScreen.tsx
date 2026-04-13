@@ -51,8 +51,8 @@ export default function OwnerBookingDetailScreen({ route, navigation }: Props) {
             navigation.goBack();
           } catch {
             showDialog({
-              title: 'Error',
-              message: 'Action failed',
+              title: 'Action failed',
+              message: 'Something went wrong. Please try again.',
               type: 'error'
             });
           }
@@ -64,16 +64,16 @@ export default function OwnerBookingDetailScreen({ route, navigation }: Props) {
   const handleOwnerCancel = async () => {
     if (!user) {
       showDialog({
-        title: 'Error',
-        message: 'You must be logged in to cancel bookings',
+        title: 'Sign in required',
+        message: 'You must be signed in to cancel bookings.',
         type: 'error'
       });
       return;
     }
 
     showDialog({
-      title: 'Cancel Booking',
-      message: `Are you sure you want to cancel this booking?\n\nThe guest will receive a full refund of Rs.${booking.totalPrice} as per the owner cancellation policy.`,
+      title: 'Cancel booking',
+      message: `Cancel this booking? The guest will receive a full refund of ₹${booking.totalPrice}.`,
       type: 'warning',
       buttons: [
         { text: 'No, Keep Booking', style: 'cancel' },
@@ -90,8 +90,8 @@ export default function OwnerBookingDetailScreen({ route, navigation }: Props) {
               );
 
               showDialog({
-                title: 'Booking Cancelled',
-                message: `Booking cancelled successfully.\n\nRefund: ₹${result.refundAmount} (${result.refundPercentage}%)\n${result.message}`,
+                title: 'Booking cancelled',
+                message: `Refund of ₹${result.refundAmount} (${result.refundPercentage}%) has been initiated.`,
                 type: 'success',
                 buttons: [{
                   text: 'OK',
@@ -291,7 +291,7 @@ export default function OwnerBookingDetailScreen({ route, navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scrollContent: { padding: 16, paddingBottom: 40, gap: 12 },
+  scrollContent: { padding: 16, paddingBottom: 100, gap: 12 },
   card: { borderRadius: 12, padding: 16, borderWidth: 1 },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   title: { fontSize: 18, fontWeight: '800', flex: 1, marginRight: 8 },

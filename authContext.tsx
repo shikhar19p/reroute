@@ -2,9 +2,11 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 let GoogleSignin: any = null;
-if (Platform.OS !== 'web') {
+const _isExpoGo = Constants.executionEnvironment === 'storeClient';
+if (Platform.OS !== 'web' && !_isExpoGo) {
   GoogleSignin = require('@react-native-google-signin/google-signin').GoogleSignin;
 }
 import { auth, db } from './firebaseConfig';

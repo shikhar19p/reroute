@@ -147,7 +147,7 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         {/* Image Gallery */}
         <View style={styles.imageSection}>
           <ScrollView
@@ -310,9 +310,10 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
                   },
                 ]}
               >
-                <Text style={[{ color: colors.text, fontSize: 16, marginBottom: 8 }]}>
-                  📍 {farmhouse.location}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <MapPin size={16} color={colors.text} />
+                  <Text style={[{ color: colors.text, fontSize: 15 }]}>{farmhouse.location}</Text>
+                </View>
                 <Text style={[{ color: colors.buttonBackground, fontSize: 14 }]}>
                   Tap to open in Google Maps
                 </Text>

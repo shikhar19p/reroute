@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFarmRegistration } from '../../context/FarmRegistrationContext';
+import { Check } from 'lucide-react-native';
 
 type RootStackParamList = {
   FarmKyc: undefined;
@@ -24,63 +25,63 @@ export default function RulesRestrictionsScreen({ navigation }: RulesRestriction
 
           {amenities.tv > 0 && (
             <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✓</Text>
+              <Check size={14} color="#16A34A" />
               <Text style={styles.itemText}>TV: {amenities.tv}</Text>
             </View>
           )}
 
           {amenities.geyser > 0 && (
             <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✓</Text>
+              <Check size={14} color="#16A34A" />
               <Text style={styles.itemText}>Geyser: {amenities.geyser}</Text>
             </View>
           )}
 
           {amenities.bonfire > 0 && (
             <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✓</Text>
+              <Check size={14} color="#16A34A" />
               <Text style={styles.itemText}>Bonfire: {amenities.bonfire}</Text>
             </View>
           )}
 
           {amenities.pool && (
             <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✓</Text>
+              <Check size={14} color="#16A34A" />
               <Text style={styles.itemText}>Swimming Pool Available</Text>
             </View>
           )}
 
           {(amenities as any).decorService && (
             <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✓</Text>
+              <Check size={14} color="#16A34A" />
               <Text style={styles.itemText}>Decor Service Available</Text>
             </View>
           )}
 
           {(amenities as any).restaurant && (
             <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✓</Text>
+              <Check size={14} color="#16A34A" />
               <Text style={styles.itemText}>Restaurant</Text>
             </View>
           )}
 
           {(amenities as any).foodPrepOnDemand && (
             <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✓</Text>
+              <Check size={14} color="#16A34A" />
               <Text style={styles.itemText}>Food Prep on Demand</Text>
             </View>
           )}
 
           {(amenities as any).djMusicSystem && (
             <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✓</Text>
+              <Check size={14} color="#16A34A" />
               <Text style={styles.itemText}>DJ / Music System</Text>
             </View>
           )}
 
           {(amenities as any).projector && (
             <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✓</Text>
+              <Check size={14} color="#16A34A" />
               <Text style={styles.itemText}>Projector</Text>
             </View>
           )}

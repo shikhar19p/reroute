@@ -396,8 +396,8 @@ export async function cleanupPendingBooking(bookingId: string): Promise<boolean>
 
     const booking = { id: bookingSnap.id, ...bookingSnap.data() } as Booking;
 
-    // Only cleanup if still pending
-    if (booking.status === 'pending' && booking.paymentStatus === 'pending') {
+    // Cleanup if pending or if webhook already marked payment failed but didn't unblock dates
+    if (booking.status === 'pending' && (booking.paymentStatus === 'pending' || booking.paymentStatus === 'failed')) {
       console.log(`🧹 Cleaning up pending booking ${bookingId}`);
 
       // Remove dates from farmhouse

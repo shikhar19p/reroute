@@ -430,46 +430,58 @@ export const verifyPayment = functions.https.onCall(async (data, context) => {
 
     functions.logger.info('Payment verification:', { orderId: razorpay_order_id, paymentId: razorpay_payment_id, verified: isValid });
 
-    if (isValid) {
-      // Ensure the payment is captured in Razorpay so refunds work later.
-      // Payments from orders without payment_capture:1 land in 'authorized' state.
-      try {
-        const rzpPayment = await getRazorpay().payments.fetch(razorpay_payment_id);
-        if (rzpPayment.status === 'authorized') {
-          await getRazorpay().payments.capture(razorpay_payment_id, rzpPayment.amount, rzpPayment.currency);
-          functions.logger.info('Payment captured:', { paymentId: razorpay_payment_id });
-        }
-      } catch (captureErr: any) {
-        // Non-fatal: log and continue — payment may already be captured
-        functions.logger.warn('Payment capture step failed (may already be captured):', {
-          paymentId: razorpay_payment_id,
-          error: captureErr?.message,
-        });
-      }
-
-      await db.collection('payment_orders').doc(razorpay_order_id).update({
-        paymentId: razorpay_payment_id,
-        signature: razorpay_signature,
-        status: 'verified',
-        verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-
-      if (bookingId) {
-        await db.collection('bookings').doc(bookingId).update({
-          paymentStatus: 'paid',
-          status: 'confirmed',
-          transactionId: razorpay_payment_id,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-
-        functions.logger.info('Booking confirmed:', { bookingId, paymentId: razorpay_payment_id });
-
-        // Send confirmation emails (non-blocking)
-        sendBookingConfirmationEmails(bookingId, razorpay_payment_id).catch(() => {});
-      }
+    if (!isValid) {
+      return { success: true, verified: false, paymentId: razorpay_payment_id };
     }
 
-    return { success: true, verified: isValid, paymentId: razorpay_payment_id };
+    // HMAC is valid — now confirm the actual payment status in Razorpay.
+    // A valid signature only proves the response came from Razorpay; it does NOT
+    // mean money was collected. The payment could be 'failed' or 'created' (e.g.
+    // UPI dismissed, bank timeout). We must reject those cases.
+    const rzpPayment = await getRazorpay().payments.fetch(razorpay_payment_id);
+    const paymentStatus = rzpPayment.status;
+    functions.logger.info('Razorpay payment status:', { paymentId: razorpay_payment_id, status: paymentStatus });
+
+    if (paymentStatus === 'failed') {
+      throw new functions.https.HttpsError('failed-precondition', 'Payment was not successful — transaction declined or cancelled');
+    }
+
+    if (paymentStatus === 'authorized') {
+      // Capture the authorized payment (order was created with payment_capture:true
+      // but some payment methods land in authorized first)
+      await getRazorpay().payments.capture(razorpay_payment_id, rzpPayment.amount, rzpPayment.currency);
+      functions.logger.info('Payment captured:', { paymentId: razorpay_payment_id });
+    } else if (paymentStatus !== 'captured') {
+      // 'created', 'refunded', or any other unexpected state
+      throw new functions.https.HttpsError(
+        'failed-precondition',
+        `Payment is in an unexpected state: ${paymentStatus}. Cannot confirm booking.`
+      );
+    }
+
+    // Payment is captured — safe to confirm the booking.
+    await db.collection('payment_orders').doc(razorpay_order_id).update({
+      paymentId: razorpay_payment_id,
+      signature: razorpay_signature,
+      status: 'verified',
+      verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    if (bookingId) {
+      await db.collection('bookings').doc(bookingId).update({
+        paymentStatus: 'paid',
+        status: 'confirmed',
+        transactionId: razorpay_payment_id,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      functions.logger.info('Booking confirmed:', { bookingId, paymentId: razorpay_payment_id });
+
+      // Send confirmation emails (non-blocking)
+      sendBookingConfirmationEmails(bookingId, razorpay_payment_id).catch(() => {});
+    }
+
+    return { success: true, verified: true, paymentId: razorpay_payment_id };
   } catch (error: any) {
     functions.logger.error('Error verifying payment:', error);
     if (error instanceof functions.https.HttpsError) throw error;
@@ -746,9 +758,13 @@ export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
     functions.logger.info('Razorpay webhook:', { event });
 
     switch (event) {
-      case 'payment.authorized':
       case 'payment.captured':
         await handlePaymentSuccess(payload.payment.entity);
+        break;
+      case 'payment.authorized':
+        // Do not confirm booking on authorized — wait for captured (actual debit).
+        // With auto-capture (payment_capture:true), captured fires immediately after.
+        functions.logger.info('payment.authorized received — waiting for payment.captured to confirm booking');
         break;
       case 'payment.failed':
         await handlePaymentFailure(payload.payment.entity);
@@ -773,6 +789,15 @@ export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
 async function handlePaymentSuccess(payment: any) {
   const orderId = payment.order_id;
   const paymentId = payment.id;
+
+  // Only confirm when money is actually captured — never on authorized alone
+  if (payment.status !== 'captured') {
+    functions.logger.warn('handlePaymentSuccess called with non-captured payment, skipping booking confirmation', {
+      paymentId,
+      status: payment.status,
+    });
+    return;
+  }
 
   await db.collection('payment_orders').doc(orderId).update({
     paymentId,
@@ -810,11 +835,39 @@ async function handlePaymentFailure(payment: any) {
   const bookingId = orderDoc.data()?.bookingId;
 
   if (bookingId) {
+    const bookingSnap = await db.collection('bookings').doc(bookingId).get();
+    const booking = bookingSnap.data();
+
     await db.collection('bookings').doc(bookingId).update({
       paymentStatus: 'failed',
-      status: 'pending',
+      status: 'cancelled',
+      cancellationReason: 'Payment failed',
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+
+    // Unblock dates on the farmhouse so they can be booked by others
+    if (booking?.farmhouseId && booking?.checkInDate && booking?.checkOutDate) {
+      try {
+        const farmhouseRef = db.collection('farmhouses').doc(booking.farmhouseId);
+        const farmhouseSnap = await farmhouseRef.get();
+        const bookedDates: string[] = farmhouseSnap.data()?.bookedDates || [];
+
+        const start = new Date(booking.checkInDate);
+        const end = new Date(booking.checkOutDate);
+        const datesToRemove = new Set<string>();
+        for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          datesToRemove.add(d.toISOString().split('T')[0]);
+        }
+
+        await farmhouseRef.update({
+          bookedDates: bookedDates.filter((d: string) => !datesToRemove.has(d)),
+        });
+        functions.logger.info('Dates unblocked after payment failure:', { bookingId, farmhouseId: booking.farmhouseId });
+      } catch (dateErr: any) {
+        functions.logger.error('Failed to unblock dates after payment failure:', { bookingId, error: dateErr?.message });
+      }
+    }
+
     functions.logger.info('Payment failed via webhook:', { bookingId, error: payment.error_description });
   }
 }
