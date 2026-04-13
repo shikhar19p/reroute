@@ -57,8 +57,8 @@ function buildMapHtml(lat: number, lng: number, isDark: boolean): string {
 
   var pin = L.divIcon({
     className:'',
-    html:'<div style="width:28px;height:28px;background:#C5A565;border:3px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 10px rgba(0,0,0,0.5);"></div>',
-    iconSize:[28,28],iconAnchor:[14,28]
+    html:'<div style="width:14px;height:14px;background:#C5A565;border:2px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 6px rgba(0,0,0,0.45);"></div>',
+    iconSize:[14,14],iconAnchor:[7,14]
   });
   L.marker([${lat},${lng}],{icon:pin}).addTo(map);
 </script>
