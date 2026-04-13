@@ -32,7 +32,7 @@ export default function WelcomeScreen({ navigation }: any) {
           {/* Top Section - 60% */}
           <View style={styles.topSection}>
             <View style={styles.headerContainer}>
-              <Text style={styles.welcomeText}>WELCOME TO REROUTE</Text>
+              <Text style={styles.welcomeText}>REROUTE ADVENTURES</Text>
               <Text style={styles.premierText}>PREMIER ESCAPES</Text>
             </View>
           </View>

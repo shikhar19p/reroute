@@ -2,9 +2,9 @@ const IS_PROD = process.env.ENVIRONMENT === 'production';
 const IS_PREVIEW = process.env.ENVIRONMENT === 'preview';
 
 const getAppName = () => {
-  if (IS_PROD) return 'ReRoute';
-  if (IS_PREVIEW) return 'ReRoute (Preview)';
-  return 'ReRoute (Dev)';
+  if (IS_PROD) return 'ReRoute Adventures';
+  if (IS_PREVIEW) return 'ReRoute Adventures (Preview)';
+  return 'ReRoute Adventures (Dev)';
 };
 
 export default {
@@ -23,10 +23,10 @@ export default {
     },
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.reroute.app"
+      bundleIdentifier: "com.rerouteaventures.app"
     },
     android: {
-      package: "com.reroute.app",
+      package: "com.rerouteaventures.app",
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#F9F8EF"
@@ -37,7 +37,7 @@ export default {
     web: {
       favicon: "./assets/favicon.png",
       bundler: "metro",
-      name: "ReRoute",
+      name: "ReRoute Adventures",
       shortName: "ReRoute",
     },
     plugins: [

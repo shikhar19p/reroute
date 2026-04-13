@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator } from 'react-native';
+import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Heart, MapPin, Users, Star } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -17,6 +17,7 @@ export default function WishlistScreen({ navigation }: any) {
   const { showDialog } = useDialog();
   const [wishlistFarmhouses, setWishlistFarmhouses] = useState<Farmhouse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const loadWishlistFarmhouses = useCallback(async () => {
     setLoading(true);
@@ -34,6 +35,12 @@ export default function WishlistScreen({ navigation }: any) {
   }, [wishlist, showDialog]);
 
   useFocusEffect(useCallback(() => { loadWishlistFarmhouses(); }, [loadWishlistFarmhouses]));
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadWishlistFarmhouses();
+    setRefreshing(false);
+  }, [loadWishlistFarmhouses]);
 
   const renderItem = ({ item }: { item: Farmhouse }) => (
     <TouchableOpacity
@@ -102,6 +109,14 @@ export default function WishlistScreen({ navigation }: any) {
           showsVerticalScrollIndicator={false}
           onScroll={scrollHandler.onScroll}
           scrollEventThrottle={scrollHandler.scrollEventThrottle}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.buttonBackground]}
+              tintColor={colors.buttonBackground}
+            />
+          }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Heart size={52} color={colors.placeholder} />

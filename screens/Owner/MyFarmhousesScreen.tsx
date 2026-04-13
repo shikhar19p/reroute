@@ -8,6 +8,7 @@ import {
   StatusBar,
   Image,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -37,6 +38,7 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
   const { hasDraft, loadDraft, clearDraft } = useFarmRegistration();
   const [farmhouses, setFarmhouses] = useState<Farmhouse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadFarmhouses();
@@ -65,7 +67,13 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
       });
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadFarmhouses();
   };
 
   const handleLogout = () => {
@@ -115,7 +123,7 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
         </View>
 
         <View style={styles.locationRow}>
-          <MapPin size={13} color={colors.placeholder} />
+          <MapPin size={12} color={colors.placeholder} />
           <Text style={[styles.farmLocation, { color: colors.placeholder }]} numberOfLines={1}>
             {item.location}
           </Text>
@@ -253,6 +261,14 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.buttonBackground]}
+              tintColor={colors.buttonBackground}
+            />
+          }
         />
       )}
     </SafeAreaView>
@@ -365,6 +381,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     marginBottom: 12,
+    flexShrink: 1,
   },
   farmCard: {
     borderRadius: 12,
@@ -403,8 +420,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   farmLocation: {
-    fontSize: 14,
-    marginBottom: 12,
+    fontSize: 13,
+    flex: 1,
   },
   farmDetails: {
     flexDirection: 'row',

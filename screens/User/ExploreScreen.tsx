@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, StatusBar,
-  Modal, TextInput, FlatList, Share, ActivityIndicator
+  Modal, TextInput, FlatList, Share, ActivityIndicator, RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Heart, Search, SlidersHorizontal, ArrowUpDown, Bell, Share2, Star } from 'lucide-react-native';
+import { Heart, Search, SlidersHorizontal, ArrowUpDown, Bell, Share2, Star, MapPin } from 'lucide-react-native';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
@@ -78,9 +78,12 @@ const FarmhouseCard = React.memo(({
           </Text>
         </View>
       </View>
-      <Text style={[styles.distance, { color: colors.placeholder }]} numberOfLines={1}>
-        {item.location}
-      </Text>
+      <View style={styles.locationChip}>
+        <MapPin size={11} color={colors.placeholder} />
+        <Text style={[styles.locationText, { color: colors.placeholder }]} numberOfLines={1}>
+          {item.location}
+        </Text>
+      </View>
       <View style={styles.priceCapacityRow}>
         <Text style={[styles.price, { color: colors.buttonBackground }]}>
           ₹{item.weekendNight}/night
@@ -101,7 +104,7 @@ export default function ExploreScreen({ navigation }: any) {
   const { showDialog } = useDialog();
 
   // Use the GlobalDataContext hook instead of local state
-  const { data: farmhouses, loading, error } = useAvailableFarmhouses();
+  const { data: farmhouses, loading, error, refreshing, refresh } = useAvailableFarmhouses();
 
   const [searchText, setSearchText] = useState('');
   const [sortBy, setSortBy] = useState('name');
@@ -167,7 +170,7 @@ export default function ExploreScreen({ navigation }: any) {
         `⭐ Rating: ${ratingText}${actualRating ? '/5' : ''}\n` +
         `👥 Capacity: Up to ${farmhouse.capacity} guests\n\n` +
         `💰 Starting from ₹${farmhouse.weeklyNight}/night\n\n` +
-        `📱 Book now on ReRoute App!\n` +
+        `📱 Book now on ReRoute Adventures!\n` +
         `Download: https://play.google.com/store/apps/details?id=com.reroute.app`;
 
       await Share.share({
@@ -323,6 +326,14 @@ export default function ExploreScreen({ navigation }: any) {
           removeClippedSubviews={true}
           updateCellsBatchingPeriod={50}
           initialNumToRender={5}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={refresh}
+              colors={[colors.buttonBackground]}
+              tintColor={colors.buttonBackground}
+            />
+          }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={[styles.emptyText, { color: colors.placeholder }]}>
@@ -511,7 +522,8 @@ const styles = StyleSheet.create({
   ratingContainer: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   star: { color: '#FCD34D', fontSize: 14 }, // unused - kept for style reference
   rating: { fontSize: 14, fontWeight: '500' },
-  distance: { fontSize: 14, marginBottom: 8 },
+  locationChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginBottom: 10 },
+  locationText: { fontSize: 12, flex: 1 },
   priceCapacityRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   price: { fontSize: 16, fontWeight: '600' },
   capacity: { fontSize: 14 },

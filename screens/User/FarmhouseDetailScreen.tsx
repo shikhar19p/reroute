@@ -3,6 +3,7 @@ import {
   View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
   Dimensions, Linking, Share, TextInput, FlatList, RefreshControl
 } from 'react-native';
+import LocationMapView from '../../components/LocationMapView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Heart, MapPin, Users, Home, Star, Clock, Share2 } from 'lucide-react-native';
 import { Calendar, DateData } from 'react-native-calendars';
@@ -312,12 +313,12 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
         `💰 Pricing:\n` +
         `   Weekday: ₹${farmhouse.weeklyNight}/night\n` +
         `   Weekend: ₹${farmhouse.weekendNight}/night\n\n` +
-        `📱 Book now on ReRoute App!\n` +
-        `Download: https://play.google.com/store/apps/details?id=com.reroute.app`;
+        `📱 Book now on ReRoute Adventures!\n` +
+        `Download: https://play.google.com/store/apps/details?id=com.rerouteaventures.app`;
 
       await Share.share({
         message: shareMessage,
-        title: `${farmhouse.name} - ReRoute`,
+        title: `${farmhouse.name} - ReRoute Adventures`,
       });
     } catch (error) {
       showDialog({
@@ -655,14 +656,6 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
               <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Rooms</Text>
               <Text style={[styles.infoValue, { color: colors.text }]}>{rooms}</Text>
             </View>
-            <TouchableOpacity
-              style={[styles.infoCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
-              onPress={openGoogleMaps}
-              activeOpacity={0.7}
-            >
-              <MapPin size={20} color={colors.buttonBackground} />
-              <Text style={[styles.infoValue, { color: colors.text }]}>Location</Text>
-            </TouchableOpacity>
           </View>
           
           <View style={[styles.timingCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
@@ -705,6 +698,15 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
                 </View>
               ))}
             </View>
+          </View>
+
+          {/* Where you'll be */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Where you'll be</Text>
+            <LocationMapView
+              location={[farmhouse.area, farmhouse.city].filter(Boolean).join(', ') || farmhouse.location}
+              mapLink={farmhouse.mapLink}
+            />
           </View>
 
           <View style={[styles.pricingCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
@@ -945,4 +947,5 @@ const styles = StyleSheet.create({
   priceQualifier: { fontSize: 14, fontWeight: 'normal' },
   bookButton: { paddingHorizontal: 32, paddingVertical: 14, borderRadius: 10 },
   bookButtonText: { fontSize: 16, fontWeight: '600' },
+
 });

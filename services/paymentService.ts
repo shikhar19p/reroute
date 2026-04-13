@@ -128,7 +128,7 @@ export async function initiatePayment(paymentDetails: PaymentDetails): Promise<P
       currency: paymentDetails.currency,
       key: RAZORPAY_KEY_ID,
       amount: paymentDetails.amount,
-      name: 'Reroute',
+      name: 'ReRoute Adventures',
       order_id: paymentDetails.orderId,
       prefill: {
         email: paymentDetails.customerEmail,
@@ -136,7 +136,7 @@ export async function initiatePayment(paymentDetails: PaymentDetails): Promise<P
         name: paymentDetails.customerName,
       },
       theme: {
-        color: '#4CAF50', // Your app's primary color
+        color: '#C5A565',
       },
     };
 
