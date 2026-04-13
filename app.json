@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "ReRoute",
+    "name": "ReRoute Adventures",
     "slug": "reroute",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -14,10 +14,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.reroute.app"
+      "bundleIdentifier": "com.rerouteaventures.app"
     },
     "android": {
-      "package": "com.reroute.app",
+      "package": "com.rerouteaventures.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#F9F8EF"

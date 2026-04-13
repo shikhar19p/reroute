@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Dimensions,
   Linking,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -36,6 +37,7 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
   const { showDialog } = useDialog();
   const [farmhouse, setFarmhouse] = useState<Farmhouse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   useEffect(() => {
@@ -73,7 +75,13 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
       navigation.goBack();
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadFarmhouse();
   };
 
   const amenitiesList = useMemo(() => {
@@ -147,7 +155,19 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-      <ScrollView style={styles.scrollView} contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={{ paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.buttonBackground]}
+            tintColor={colors.buttonBackground}
+          />
+        }
+      >
         {/* Image Gallery */}
         <View style={styles.imageSection}>
           <ScrollView

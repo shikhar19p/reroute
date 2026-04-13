@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
   Image, ActivityIndicator, Linking, Dimensions, RefreshControl
 } from 'react-native';
+import LocationMapView from '../../components/LocationMapView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
   ArrowLeft, Calendar, MapPin, Phone, Clock, AlertCircle, 
@@ -366,11 +367,11 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
           <Text style={[styles.farmhouseName, { color: colors.text }]}>
             {farmhouse?.name || booking.farmhouseName || 'Unknown Property'}
           </Text>
-          {farmhouse && (farmhouse.area || farmhouse.city) && (
-            <View style={styles.locationRow}>
-              <MapPin size={16} color={colors.placeholder} />
-              <Text style={[styles.locationText, { color: colors.placeholder }]}>
-                {`${farmhouse.area || ''}${farmhouse.city ? (farmhouse.area ? `, ${farmhouse.city}` : farmhouse.city) : ''}`}
+          {farmhouse && (farmhouse.area || farmhouse.city || farmhouse.mapLink) && (
+            <View style={[styles.locationRow, { gap: 4 }]}>
+              <MapPin size={13} color={colors.placeholder} />
+              <Text style={[styles.locationText, { color: colors.placeholder }]} numberOfLines={1}>
+                {[farmhouse.area, farmhouse.city].filter(Boolean).join(', ') || farmhouse.mapLink}
               </Text>
             </View>
           )}
@@ -481,15 +482,16 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
               <Text style={[styles.statLabel, { color: colors.placeholder }]}>Bedrooms</Text>
             </View>
 
-            {farmhouse.mapLink && (
-              <TouchableOpacity
-                style={[styles.statBox, { backgroundColor: colors.background }]}
-                onPress={openMap}
-              >
-                <MapPin size={24} color={colors.buttonBackground} />
-                <Text style={[styles.statLink, { color: colors.buttonBackground }]}>View Map</Text>
-              </TouchableOpacity>
-            )}
+          </View>
+
+          {/* Where you'll be */}
+          <View style={[styles.locationSection, { borderTopColor: colors.border }]}>
+            <Text style={[styles.subsectionTitle, { color: colors.text }]}>Where you'll be</Text>
+            <LocationMapView
+              location={[farmhouse.area, farmhouse.city].filter(Boolean).join(', ') || 'Location'}
+              mapLink={farmhouse.mapLink}
+              height={170}
+            />
           </View>
 
           {farmhouse.amenities && Object.keys(farmhouse.amenities).length > 0 && (
@@ -857,8 +859,8 @@ const styles = StyleSheet.create({
     borderWidth: 1 
   },
   farmhouseName: { fontSize: 24, fontWeight: 'bold', marginBottom: 8 },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
-  locationText: { fontSize: 14 },
+  locationRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  locationText: { fontSize: 13, flex: 1 },
   description: { fontSize: 15, lineHeight: 22 },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
@@ -967,4 +969,6 @@ const styles = StyleSheet.create({
     marginTop: 12
   },
   paidText: { color: 'white', fontSize: 14, fontWeight: '700' },
+
+  locationSection: { marginTop: 20, paddingTop: 20, borderTopWidth: StyleSheet.hairlineWidth },
 });

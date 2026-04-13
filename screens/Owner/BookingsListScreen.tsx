@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Linking, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTheme } from '../../context/ThemeContext';
@@ -25,6 +25,7 @@ export default function BookingsListScreen({ route, navigation }: Props) {
   const { user } = useAuth();
   const { showDialog } = useDialog();
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [filter, setFilter] = useState<'all' | Booking['status']>('all');
 
@@ -60,7 +61,13 @@ export default function BookingsListScreen({ route, navigation }: Props) {
       });
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadBookings();
   };
 
   const filtered = useMemo(() => {
@@ -223,6 +230,14 @@ export default function BookingsListScreen({ route, navigation }: Props) {
           keyExtractor={(item) => item.id}
           renderItem={renderBooking}
           contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.buttonBackground]}
+              tintColor={colors.buttonBackground}
+            />
+          }
         />
       )}
     </SafeAreaView>
