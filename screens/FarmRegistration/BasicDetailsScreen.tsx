@@ -24,7 +24,7 @@ type BasicDetailsScreenProps = {
 };
 
 const fieldConfigs = [
-  { key: 'name', label: 'Farmhouse Name*', placeholder: 'Enter farmhouse name', keyboardType: 'default' as const },
+  { key: 'name', label: 'Property Name*', placeholder: 'Enter property name', keyboardType: 'default' as const },
   { key: 'contactPhone1', label: 'Primary Phone*', placeholder: '10-digit phone number', keyboardType: 'phone-pad' as const },
   { key: 'contactPhone2', label: 'Alternate Phone', placeholder: '10-digit phone number', keyboardType: 'phone-pad' as const },
   { key: 'city', label: 'City*', placeholder: 'Enter city', keyboardType: 'default' as const },
@@ -136,6 +136,34 @@ export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenPro
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+          {/* Property Type Selector */}
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Property Type*</Text>
+            <View style={styles.typeRow}>
+              <TouchableOpacity
+                style={[styles.typeOption, farm.propertyType === 'farmhouse' && styles.typeOptionSelected]}
+                onPress={() => setField('propertyType', 'farmhouse')}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.typeOptionText, farm.propertyType === 'farmhouse' && styles.typeOptionTextSelected]}>
+                  Farmhouse
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.typeOption, farm.propertyType === 'resort' && styles.typeOptionSelected]}
+                onPress={() => setField('propertyType', 'resort')}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.typeOptionText, farm.propertyType === 'resort' && styles.typeOptionTextSelected]}>
+                  Resort
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.typeNote}>
+              Registration fee: {farm.propertyType === 'resort' ? '₹5,000' : '₹2,000'} (one-time)
+            </Text>
+          </View>
+
           {fieldConfigs.map(({ key, label, placeholder, keyboardType }) => (
             <View key={key} style={styles.fieldContainer}>
               <Text style={styles.label}>{label}</Text>
@@ -248,5 +276,35 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 17,
     fontWeight: '600',
+  },
+  typeRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  typeOption: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+  },
+  typeOptionSelected: {
+    borderColor: '#4CAF50',
+    backgroundColor: '#F0FDF4',
+  },
+  typeOptionText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  typeOptionTextSelected: {
+    color: '#4CAF50',
+  },
+  typeNote: {
+    marginTop: 8,
+    fontSize: 13,
+    color: '#6B7280',
   },
 });

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
-  Image, ActivityIndicator, TextInput, RefreshControl, Dimensions
+  Image, ActivityIndicator, TextInput, RefreshControl, Dimensions, Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, User, Phone, Mail, Tag, X, CheckCircle } from 'lucide-react-native';
+import { ArrowLeft, User, Phone, Mail, Tag, X, CheckCircle, Square } from 'lucide-react-native';
 import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { useTheme } from '../../context/ThemeContext';
@@ -45,6 +45,8 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
 
   const [farmhouseDetails, setFarmhouseDetails] = useState<any>(null);
   const [currentBookingId, setCurrentBookingId] = useState<string | null>(null);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   // Ref mirrors state so the unmount cleanup always has the latest bookingId
   // (state closures can be stale at unmount time, refs are always current)
   const currentBookingIdRef = React.useRef<string | null>(null);
@@ -521,6 +523,84 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
           )}
         </View>
 
+        {/* Terms & Conditions */}
+        <View style={[styles.termsCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+          <TouchableOpacity style={styles.termsRow} onPress={() => setAgreedToTerms(!agreedToTerms)} activeOpacity={0.7}>
+            {agreedToTerms
+              ? <CheckCircle size={22} color={colors.buttonBackground} />
+              : <Square size={22} color="#9CA3AF" />
+            }
+            <Text style={[styles.termsText, { color: colors.text }]}>I agree to the </Text>
+            <TouchableOpacity onPress={() => setShowTermsModal(true)}>
+              <Text style={[styles.termsLink, { color: colors.buttonBackground }]}>Terms & Conditions</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </View>
+
+        {/* User T&C Modal */}
+        <Modal visible={showTermsModal} animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalCard, { backgroundColor: colors.cardBackground }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Terms & Conditions</Text>
+              <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator>
+                <Text style={[styles.modalSubtitle, { color: colors.text }]}>For Guests / Customers</Text>
+                <Text style={[styles.modalBody, { color: colors.text }]}>{`1. Eligibility
+   • Users must be 18 years or older to make a booking.
+   • Valid government ID proof is mandatory at check-in.
+
+2. Booking & Payments
+   • All bookings must be made through the Reroute platform only.
+   • Booking is confirmed only after successful payment.
+   • Prices may vary based on availability, demand, and dates.
+
+3. Cancellation & Refund Policy
+   • Cancel more than 24 hours before check-in: 100% refund.
+   • Cancel within 24 hours of check-in: 50% refund.
+   • No refund for no-shows or cancellations after check-in time.
+
+4. Check-in & Check-out
+   • Users must strictly follow the check-in and check-out timings.
+   • Early check-in or late check-out is subject to availability and may incur extra charges.
+
+5. Code of Conduct
+   • Strictly no illegal activities, drugs, or prohibited substances.
+   • Users must adhere to local noise regulations and property rules.
+   • Guests must respect the property and surroundings.
+
+6. Damages & Responsibility
+   • Any damage caused to the property will be fully charged to the user.
+   • Reroute does not take any responsibility for damages, losses, or issues during the stay.
+
+7. Safety & Risk
+   • All amenities (pool, bonfire, etc.) are used at the user's own risk.
+   • Reroute is not liable for any injuries, accidents, or mishaps.
+
+GENERAL TERMS
+
+1. No Mediation Policy
+   • Reroute acts only as a platform connecting users and farmhouse owners.
+   • Reroute will NOT act as a mediator in any disputes.
+
+2. No Liability
+   • Reroute shall not be held responsible for property damages, personal injuries, theft, loss, accidents, or disputes.
+
+3. Account Suspension
+   • Reroute reserves the right to suspend or terminate accounts for violation of terms.
+
+4. Modification of Terms
+   • Terms may be updated anytime. Continued usage implies acceptance.`}</Text>
+              </ScrollView>
+              <TouchableOpacity
+                style={[styles.modalClose, { backgroundColor: colors.buttonBackground }]}
+                onPress={() => { setShowTermsModal(false); setAgreedToTerms(true); }}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.modalCloseText}>I Accept & Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
         <View style={{ height: 100 }} />
       </ScrollView>
 
@@ -533,9 +613,15 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
         </View>
         <TouchableOpacity
           style={[styles.proceedButton, {
-            backgroundColor: (loading || profileLoading) ? colors.border : colors.buttonBackground
+            backgroundColor: (loading || profileLoading || !agreedToTerms) ? colors.border : colors.buttonBackground
           }]}
-          onPress={handleConfirmBooking}
+          onPress={() => {
+            if (!agreedToTerms) {
+              setShowTermsModal(true);
+              return;
+            }
+            handleConfirmBooking();
+          }}
           disabled={loading || profileLoading}
         >
           {loading ? (
@@ -594,4 +680,16 @@ const styles = StyleSheet.create({
   bottomOriginalPrice: { fontSize: 14, textDecorationLine: 'line-through', marginTop: 2 },
   proceedButton: { paddingHorizontal: 32, paddingVertical: 14, borderRadius: 8 },
   proceedButtonText: { fontSize: 16, fontWeight: '600' },
+  termsCard: { padding: 16, borderRadius: 12, borderWidth: 1, marginBottom: 16 },
+  termsRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 },
+  termsText: { fontSize: 14 },
+  termsLink: { fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalCard: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, maxHeight: '88%' },
+  modalTitle: { fontSize: 20, fontWeight: '700', marginBottom: 4, textAlign: 'center' },
+  modalSubtitle: { fontSize: 14, fontWeight: '600', marginBottom: 12, color: '#6B7280' },
+  modalScroll: { maxHeight: 440, marginBottom: 16 },
+  modalBody: { fontSize: 13, lineHeight: 20 },
+  modalClose: { borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  modalCloseText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
 });

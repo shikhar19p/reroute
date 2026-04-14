@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -22,11 +23,66 @@ type KycScreenProps = {
   navigation: NativeStackNavigationProp<any, any>;
 };
 
+const OWNER_TERMS = `FOR FARMHOUSE OWNERS (HOSTS)
+
+1. Listing Accuracy
+   • Owners must provide true and accurate details of the property.
+   • Misleading information may lead to removal from the platform.
+
+2. Pricing & Availability
+   • Owners are responsible for updating pricing and availability regularly.
+   • Confirmed bookings must not be altered or canceled unfairly.
+
+3. Booking Commitment
+   • All confirmed bookings must be honored.
+   • Repeated cancellations may result in suspension from the platform.
+
+4. Property Standards
+   • Property must be clean, safe, and ready for guests.
+   • Promised amenities must be provided.
+
+5. Guest Handling
+   • Owners can deny entry if:
+     – Guest exceeds allowed capacity
+     – Rules are violated
+   • ID verification at check-in is mandatory.
+
+6. Damages
+   • Owners can claim damages directly from users with valid proof.
+   • Reroute will not be responsible for recovering damages.
+
+7. Payments & Commission
+   • Reroute will charge a commission per booking.
+   • Payouts will be processed after successful completion of stay as per payout cycle.
+
+GENERAL TERMS
+
+1. No Mediation Policy
+   • Reroute acts only as a platform connecting users and farmhouse owners.
+   • Reroute will NOT act as a mediator in any disputes between users and owners.
+
+2. No Liability
+   • Reroute shall not be held responsible for:
+     – Property damages
+     – Personal injuries
+     – Theft, loss, or accidents
+     – Any disputes between users and owners
+
+3. User & Owner Responsibility
+   • All responsibilities during the stay lie solely between the user and the owner.
+
+4. Account Suspension
+   • Reroute reserves the right to suspend or terminate accounts for violation of terms.
+
+5. Modification of Terms
+   • Terms may be updated anytime. Continued usage implies acceptance.`;
+
 export default function KycScreen({ navigation }: KycScreenProps) {
   const { farm, setField } = useFarmRegistration();
   const { showDialog } = useDialog();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   const updateField = useCallback(
     (path: string[], value: any) => {
@@ -473,15 +529,39 @@ export default function KycScreen({ navigation }: KycScreenProps) {
             </View>
           </View>
 
-          {/* Terms */}
-          <TouchableOpacity style={styles.termsRow} onPress={toggleTerms} activeOpacity={0.7}>
-            {farm.kyc.agreedToTerms
-              ? <CheckSquare size={22} color="#D4AF37" />
-              : <Square size={22} color="#9CA3AF" />
-            }
-            <Text style={styles.termsText}>I agree to terms and conditions*</Text>
-          </TouchableOpacity>
-          {errors.agreedToTerms && <Text style={styles.error}>{errors.agreedToTerms}</Text>}
+          {/* Terms & Conditions */}
+          <View style={styles.termsContainer}>
+            <TouchableOpacity style={styles.termsRow} onPress={toggleTerms} activeOpacity={0.7}>
+              {farm.kyc.agreedToTerms
+                ? <CheckSquare size={22} color="#4CAF50" />
+                : <Square size={22} color="#9CA3AF" />
+              }
+              <Text style={styles.termsText}>I agree to the </Text>
+              <TouchableOpacity onPress={() => setShowTermsModal(true)}>
+                <Text style={styles.termsLink}>Terms & Conditions</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+            {errors.agreedToTerms && <Text style={styles.error}>{errors.agreedToTerms}</Text>}
+          </View>
+
+          {/* Terms Modal */}
+          <Modal visible={showTermsModal} animationType="slide" transparent>
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalCard}>
+                <Text style={styles.modalTitle}>Terms & Conditions</Text>
+                <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator>
+                  <Text style={styles.modalBody}>{OWNER_TERMS}</Text>
+                </ScrollView>
+                <TouchableOpacity
+                  style={styles.modalClose}
+                  onPress={() => { setShowTermsModal(false); setField(['kyc', 'agreedToTerms'], true); }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.modalCloseText}>I Accept & Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
         </ScrollView>
 
         <View style={styles.footer}>
@@ -611,16 +691,64 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1F2937',
   },
+  termsContainer: {
+    marginTop: 8,
+  },
   termsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginTop: 8,
+    flexWrap: 'wrap',
+    gap: 4,
+    marginBottom: 4,
   },
-
   termsText: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#374151',
+  },
+  termsLink: {
+    fontSize: 15,
+    color: '#4CAF50',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    maxHeight: '85%',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  modalScroll: {
+    maxHeight: 420,
+    marginBottom: 16,
+  },
+  modalBody: {
+    fontSize: 13,
+    color: '#374151',
+    lineHeight: 20,
+  },
+  modalClose: {
+    backgroundColor: '#4CAF50',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  modalCloseText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   footer: {
     flexDirection: 'row',

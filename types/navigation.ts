@@ -5,6 +5,7 @@ import { CompositeScreenProps } from '@react-navigation/native';
 // This Farmhouse interface now matches the one in your service file.
 export interface Farmhouse {
   id: string;
+  propertyType?: 'farmhouse' | 'resort';
   name: string;
   location: string;
   city: string;

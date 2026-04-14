@@ -78,6 +78,11 @@ const FarmhouseCard = React.memo(({
           </Text>
         </View>
       </View>
+      <View style={[styles.propertyTypeBadge, { backgroundColor: item.propertyType === 'resort' ? '#7C3AED22' : '#16A34A22' }]}>
+        <Text style={[styles.propertyTypeBadgeText, { color: item.propertyType === 'resort' ? '#7C3AED' : '#16A34A' }]}>
+          {item.propertyType === 'resort' ? 'Resort' : 'Farmhouse'}
+        </Text>
+      </View>
       <View style={styles.locationChip}>
         <MapPin size={11} color={colors.placeholder} />
         <Text style={[styles.locationText, { color: colors.placeholder }]} numberOfLines={1}>
@@ -115,6 +120,7 @@ export default function ExploreScreen({ navigation }: any) {
     minPrice: '',
     maxPrice: '',
     minCapacity: '',
+    propertyType: '' as '' | 'farmhouse' | 'resort',
   });
   const [farmhouseRatings, setFarmhouseRatings] = useState<Record<string, number>>({});
 
@@ -217,6 +223,10 @@ export default function ExploreScreen({ navigation }: any) {
 
     if (filters.minCapacity) {
       result = result.filter(f => f.capacity >= parseInt(filters.minCapacity));
+    }
+
+    if (filters.propertyType) {
+      result = result.filter(f => (f.propertyType || 'farmhouse') === filters.propertyType);
     }
 
     switch (sortBy) {
@@ -442,13 +452,36 @@ export default function ExploreScreen({ navigation }: any) {
                   value={filters.minCapacity}
                   onChangeText={(text) => setFilters({...filters, minCapacity: text.replace(/[^0-9]/g, '')})}
                 />
+
+                <Text style={[styles.filterLabel, { color: colors.text }]}>Property Type</Text>
+                <View style={styles.typeFilterRow}>
+                  {(['', 'farmhouse', 'resort'] as const).map((type) => (
+                    <TouchableOpacity
+                      key={type}
+                      style={[
+                        styles.typeFilterChip,
+                        { borderColor: colors.border, backgroundColor: colors.background },
+                        filters.propertyType === type && { borderColor: colors.buttonBackground, backgroundColor: colors.buttonBackground + '22' }
+                      ]}
+                      onPress={() => setFilters({...filters, propertyType: type})}
+                    >
+                      <Text style={[
+                        styles.typeFilterText,
+                        { color: colors.placeholder },
+                        filters.propertyType === type && { color: colors.buttonBackground, fontWeight: '700' }
+                      ]}>
+                        {type === '' ? 'All' : type.charAt(0).toUpperCase() + type.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </ScrollView>
 
               <View style={styles.filterButtons}>
                 <TouchableOpacity
                   style={[styles.clearButton, { backgroundColor: colors.border }]}
                   onPress={() => {
-                    setFilters({ location: '', minPrice: '', maxPrice: '', minCapacity: '' });
+                    setFilters({ location: '', minPrice: '', maxPrice: '', minCapacity: '', propertyType: '' });
                     setShowFilterModal(false);
                   }}
                 >
@@ -551,4 +584,9 @@ const styles = StyleSheet.create({
   clearButton: { flex: 1, padding: 15, borderRadius: 8, alignItems: 'center' },
   applyButton: { flex: 1, padding: 15, borderRadius: 8, alignItems: 'center' },
   filterButtonText: { fontSize: 16, fontWeight: '600' },
+  typeFilterRow: { flexDirection: 'row', gap: 10 },
+  typeFilterChip: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, alignItems: 'center' },
+  typeFilterText: { fontSize: 14 },
+  propertyTypeBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginBottom: 6 },
+  propertyTypeBadgeText: { fontSize: 11, fontWeight: '700' },
 });

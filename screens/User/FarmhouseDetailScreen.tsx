@@ -59,6 +59,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
           // Transform the data to match Farmhouse type
           const updatedFarmhouse: Farmhouse = {
             ...farmhouse,
+            propertyType: data.propertyType || farmhouse.propertyType || 'farmhouse',
             bookedDates: data.bookedDates || [],
             blockedDates: data.blockedDates || [],
             customPricing: data.pricing?.customPricing || data.customPricing || [],
@@ -630,7 +631,25 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
         <View style={styles.content}>
           <View style={styles.header}>
-            <Text style={[styles.title, { color: colors.text }]}>{farmhouse.name}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <Text style={[styles.title, { color: colors.text }]}>{farmhouse.name}</Text>
+            </View>
+            <View style={[{
+              alignSelf: 'flex-start',
+              paddingHorizontal: 10,
+              paddingVertical: 4,
+              borderRadius: 6,
+              marginBottom: 8,
+              backgroundColor: farmhouse.propertyType === 'resort' ? '#F3E8FF' : '#ECFDF5',
+            }]}>
+              <Text style={{
+                fontSize: 12,
+                fontWeight: '700',
+                color: farmhouse.propertyType === 'resort' ? '#7C3AED' : '#16A34A',
+              }}>
+                {farmhouse.propertyType === 'resort' ? 'Resort' : 'Farmhouse'}
+              </Text>
+            </View>
             <View style={styles.ratingRow}>
               <Star size={16} color="#FCD34D" fill="#FCD34D" />
               <Text style={[styles.rating, { color: colors.text }]}>

@@ -5,8 +5,8 @@ import {
 } from 'react-native';
 import LocationMapView from '../../components/LocationMapView';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { 
-  ArrowLeft, Calendar, MapPin, Phone, Clock, AlertCircle, 
+import {
+  ArrowLeft, Calendar, MapPin, Phone, Mail, Clock, AlertCircle,
   CheckCircle, ChevronLeft, ChevronRight, Home, Users,
   Droplet, Flame, Tv, Shield
 } from 'lucide-react-native';
@@ -549,39 +549,27 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
         </View>
         )}
 
-        {/* Only show owner contact if payment is completed */}
-        {booking.paymentStatus === 'paid' && farmhouse && (farmhouse.contactPhone1 || farmhouse.contactPhone2) && (
-          <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Owner Contact</Text>
-            <Text style={[styles.contactNote, { color: colors.placeholder }]}>
-              Contact owner for any further assistance regarding your stay 
-            </Text>
-
-            {farmhouse.contactPhone1 && (
-              <TouchableOpacity
-                style={[styles.contactButton, { backgroundColor: colors.background }]}
-                onPress={() => callOwner(farmhouse.contactPhone1)}
-              >
-                <Phone size={20} color={colors.buttonBackground} />
-                <Text style={[styles.contactText, { color: colors.text }]}>
-                  {farmhouse.contactPhone1}
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            {farmhouse.contactPhone2 && farmhouse.contactPhone2.trim() !== '' && (
-              <TouchableOpacity
-                style={[styles.contactButton, { backgroundColor: colors.background }]}
-                onPress={() => callOwner(farmhouse.contactPhone2)}
-              >
-                <Phone size={20} color={colors.buttonBackground} />
-                <Text style={[styles.contactText, { color: colors.text }]}>
-                  {farmhouse.contactPhone2}
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        )}
+        {/* Support Contact */}
+        <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Need Help?</Text>
+          <Text style={[styles.contactNote, { color: colors.placeholder }]}>
+            For any queries related to your booking, reach out to us:
+          </Text>
+          <TouchableOpacity
+            style={[styles.contactButton, { backgroundColor: colors.background }]}
+            onPress={() => Linking.openURL('tel:+918280353535')}
+          >
+            <Phone size={20} color={colors.buttonBackground} />
+            <Text style={[styles.contactText, { color: colors.text }]}>+91 82803 53535</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.contactButton, { backgroundColor: colors.background }]}
+            onPress={() => Linking.openURL('mailto:rustiquebyranareddy@gmail.com')}
+          >
+            <Mail size={20} color={colors.buttonBackground} />
+            <Text style={[styles.contactText, { color: colors.text }]}>rustiquebyranareddy@gmail.com</Text>
+          </TouchableOpacity>
+        </View>
 
         {farmhouse?.rules && Object.values(farmhouse.rules).some(v => v) && (
           <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
@@ -785,7 +773,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
               <View style={[styles.infoBox, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEE2E2', borderColor: '#EF4444' }]}>
                 <AlertCircle size={16} color="#EF4444" />
                 <Text style={[styles.infoBoxText, { color: colors.text }]}>
-                  No refund applicable as per cancellation policy (cancelled within 48 hours of check-in)
+                  No refund applicable as per cancellation policy (cancelled after check-in time)
                 </Text>
               </View>
             )}

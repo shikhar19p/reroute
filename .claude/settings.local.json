@@ -40,7 +40,11 @@
       "Bash(ls D:\\\\reroute/*.json D:\\\\reroute/functions/src/*.json)",
       "Bash(grep -E \"^dotenv$|^razorpay$\")",
       "Bash(xargs grep:*)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Read(//c/Users/91IN/Saved Games/new-repo/reroute-admin/src/**)",
+      "Read(//c/Users/91IN/Saved Games/new-repo/reroute-admin/**)",
+      "Bash(grep -l \"firebase-admin\\\\|Admin\\\\|admin\" /d/reroute/scripts/*.ts)",
+      "Bash(ls /d/reroute/*.json)"
     ],
     "deny": [],
     "ask": []
