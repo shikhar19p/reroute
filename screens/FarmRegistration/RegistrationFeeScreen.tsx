@@ -28,7 +28,7 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
   const { user } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const REGISTRATION_FEE = 5000; // ₹5000 registration fee
+  const REGISTRATION_FEE = farm.propertyType === 'resort' ? 5000 : 2000;
 
   const handlePayment = async () => {
     if (!user) {
@@ -113,7 +113,7 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
 
           <Text style={styles.title}>Registration Fee</Text>
           <Text style={styles.subtitle}>
-            One-time registration fee to list your farmhouse on our platform
+            One-time registration fee to list your {farm.propertyType === 'resort' ? 'resort' : 'farmhouse'} on our platform
           </Text>
 
           <View style={styles.feeCard}>

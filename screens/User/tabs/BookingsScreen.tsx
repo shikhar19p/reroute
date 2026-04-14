@@ -162,7 +162,7 @@ export default function BookingsScreen({ navigation }: any) {
     const preview = calculateRefundAmount(booking.totalPrice, booking.checkInDate);
     const refundLine = preview.refundPercentage > 0
       ? `\n\nRefund: ₹${preview.refundAmount.toLocaleString('en-IN')} (${preview.refundPercentage}%) — 5–7 business days.`
-      : '\n\nNo refund — within 48 hours of check-in.';
+      : '\n\nNo refund — cancellation after check-in time.';
 
     showDialog({
       title: 'Cancel Booking',

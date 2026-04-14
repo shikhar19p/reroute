@@ -60,7 +60,7 @@ export function calculateRefundAmount(
   const now = new Date();
   const checkIn = new Date(checkInDate);
   const hoursUntilCheckIn = (checkIn.getTime() - now.getTime()) / (1000 * 60 * 60);
-  const threshold = REFUND_POLICY.PARTIAL_REFUND_THRESHOLD_HOURS;
+  const threshold = REFUND_POLICY.FULL_REFUND_THRESHOLD_HOURS;
 
   // Cancellation after check-in date - no refund
   if (hoursUntilCheckIn < 0) {
@@ -72,23 +72,23 @@ export function calculateRefundAmount(
     };
   }
 
-  // Within 48 hours of check-in - no refund
+  // Within 24 hours of check-in - 50% refund
   if (hoursUntilCheckIn < threshold) {
+    const refundAmount = (totalAmount * REFUND_POLICY.PARTIAL_REFUND_PERCENTAGE) / 100;
     return {
-      refundAmount: 0,
-      refundPercentage: 0,
-      processingFee: 0,
-      reason: `No refund - Cancellation within ${threshold} hours of check-in (${Math.floor(hoursUntilCheckIn)} hours remaining)`,
+      refundAmount,
+      refundPercentage: REFUND_POLICY.PARTIAL_REFUND_PERCENTAGE,
+      processingFee: REFUND_POLICY.PROCESSING_FEE_RUPEES,
+      reason: `50% refund - Cancellation within 24 hours of check-in (${Math.floor(hoursUntilCheckIn)} hours remaining)`,
     };
   }
 
-  // More than 48 hours before check-in - 50% refund
-  const refundAmount = (totalAmount * REFUND_POLICY.PARTIAL_REFUND_PERCENTAGE) / 100;
+  // More than 24 hours before check-in - 100% refund
   return {
-    refundAmount: refundAmount,
-    refundPercentage: REFUND_POLICY.PARTIAL_REFUND_PERCENTAGE,
-    processingFee: REFUND_POLICY.PROCESSING_FEE_RUPEES,
-    reason: `${REFUND_POLICY.PARTIAL_REFUND_PERCENTAGE}% refund - Cancelled ${Math.floor(hoursUntilCheckIn)} hours before check-in`,
+    refundAmount: totalAmount,
+    refundPercentage: REFUND_POLICY.FULL_REFUND_PERCENTAGE,
+    processingFee: 0,
+    reason: `100% refund - Cancelled ${Math.floor(hoursUntilCheckIn)} hours before check-in`,
   };
 }
 
@@ -259,11 +259,13 @@ export function getCancellationPolicyDescription(
   return `
 Cancellation Policy:
 
-• Cancel more than 48 hours before check-in: 50% refund
+• Cancel more than 24 hours before check-in: 100% refund
 
-• Cancel within 48 hours of check-in: No refund
+• Cancel within 24 hours of check-in: 50% refund
 
 • Owner cancellation: 100% refund (full amount returned)
+
+• No refund for cancellations after check-in time
 
 • Refunds are processed within 5-7 business days to your original payment method
   `.trim();

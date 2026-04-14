@@ -77,6 +77,7 @@ interface Pricing {
 }
 
 interface Farm {
+  propertyType: 'farmhouse' | 'resort';
   name: string;
   contactPhone1: string;
   contactPhone2: string;
@@ -110,6 +111,7 @@ interface FarmRegistrationContextType {
 }
 
 const createInitialFarm = (): Farm => ({
+  propertyType: 'farmhouse',
   name: '',
   contactPhone1: '',
   contactPhone2: '',

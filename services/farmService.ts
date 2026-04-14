@@ -139,6 +139,7 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
     userId
   );
   const farmDoc = {
+    propertyType: farmData.propertyType || 'farmhouse',
     basicDetails: {
       name: farmData.name,
       contactPhone1: farmData.contactPhone1,

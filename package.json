@@ -12,6 +12,7 @@
     "build:prod": "eas build --profile production --platform android",
     "submit:prod": "eas submit --profile production --platform android",
     "add-dummy-data": "npx tsx scripts/addDummyData.ts",
+    "update-property-types": "npx tsx scripts/updatePropertyTypes.ts",
     "clear-collections": "npx tsx scripts/clearCollections.ts",
     "test-refund": "npx tsx scripts/testRefund.ts",
     "ensure-firebase": "node scripts/ensure-google-services.js"

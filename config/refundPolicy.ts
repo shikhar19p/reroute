@@ -5,11 +5,10 @@
  * ============================================================
  *
  * Rules (applied in order):
- *  1. Owner cancels              → always OWNER_REFUND_PERCENTAGE (100%)
- *  2. User cancels, hours-until-checkin > PARTIAL_REFUND_THRESHOLD_HOURS
- *                                → PARTIAL_REFUND_PERCENTAGE (50%)
- *  3. User cancels, hours-until-checkin <= PARTIAL_REFUND_THRESHOLD_HOURS
- *                                → NO_REFUND_PERCENTAGE (0%)
+ *  1. Owner cancels                                  → 100% refund
+ *  2. User cancels > 24 hours before check-in        → 100% refund
+ *  3. User cancels within 24 hours of check-in       → 50% refund
+ *  4. User cancels after check-in                    → No refund
  *
  * All percentages are integers (0–100).
  * ESTIMATED_REFUND_DAYS is shown to users as a display string only.
@@ -18,19 +17,21 @@
 
 export const REFUND_POLICY = {
   // ── User cancellation thresholds ──────────────────────────
-  // If the user cancels MORE than this many hours before check-in,
-  // they get PARTIAL_REFUND_PERCENTAGE back.
-  // If they cancel WITHIN this window, they get NO_REFUND_PERCENTAGE.
-  PARTIAL_REFUND_THRESHOLD_HOURS: 48,   // ← change this to adjust the cutoff
+  // Cancel MORE than this many hours before check-in → FULL_REFUND_PERCENTAGE
+  // Cancel WITHIN this window (but before check-in)  → PARTIAL_REFUND_PERCENTAGE
+  // Cancel after check-in                            → NO_REFUND_PERCENTAGE
+  FULL_REFUND_THRESHOLD_HOURS: 24,
+
+  // kept for backward compatibility
+  PARTIAL_REFUND_THRESHOLD_HOURS: 24,
 
   // ── Refund percentages ────────────────────────────────────
   OWNER_CANCELLATION_PERCENTAGE: 100,   // Owner cancels → full refund
-  PARTIAL_REFUND_PERCENTAGE: 50,        // User cancels early → 50% back
-  NO_REFUND_PERCENTAGE: 0,              // User cancels too late → nothing
+  FULL_REFUND_PERCENTAGE: 100,          // User cancels >24h before → 100% back
+  PARTIAL_REFUND_PERCENTAGE: 50,        // User cancels <24h before → 50% back
+  NO_REFUND_PERCENTAGE: 0,              // User cancels after check-in → nothing
 
   // ── Processing fee ────────────────────────────────────────
-  // Flat fee deducted from the refund amount (in rupees, not percentage).
-  // Set to 0 for no fee.
   PROCESSING_FEE_RUPEES: 0,
 
   // ── Display strings (shown to users) ─────────────────────
@@ -39,11 +40,9 @@ export const REFUND_POLICY = {
 
 /** Human-readable policy summary shown in the app. */
 export function getRefundPolicyText(): string {
-  const { PARTIAL_REFUND_THRESHOLD_HOURS, PARTIAL_REFUND_PERCENTAGE } = REFUND_POLICY;
   return (
-    `• Cancel more than ${PARTIAL_REFUND_THRESHOLD_HOURS} hours before check-in: ` +
-    `${PARTIAL_REFUND_PERCENTAGE}% refund\n` +
-    `• Cancel within ${PARTIAL_REFUND_THRESHOLD_HOURS} hours of check-in: No refund\n` +
+    `• Cancel more than 24 hours before check-in: 100% refund\n` +
+    `• Cancel within 24 hours of check-in: 50% refund\n` +
     `• Owner cancels: 100% refund\n` +
     `• Refunds processed in ${REFUND_POLICY.ESTIMATED_REFUND_DAYS}`
   );
