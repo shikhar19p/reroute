@@ -17,8 +17,11 @@ import * as nodemailer from 'nodemailer';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
-// Load from single root .env (two levels up from functions/src/)
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// Load env: prefer functions/.env (deployed with functions), fall back to root .env for local dev
+const functionsEnvPath = path.resolve(__dirname, '../.env');
+const rootEnvPath = path.resolve(__dirname, '../../.env');
+dotenv.config({ path: functionsEnvPath });
+dotenv.config({ path: rootEnvPath }); // no-op if already set by the above
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -370,6 +373,25 @@ export const createOrder = functions.https.onCall(async (data, context) => {
       throw new functions.https.HttpsError('permission-denied', 'User can only create orders for their own bookings');
     }
 
+    // For real bookings (not registration fees), validate the amount server-side
+    // against what is stored in Firestore to prevent price manipulation.
+    const isRegistrationFee = typeof bookingId === 'string' && bookingId.startsWith('registration-');
+    if (!isRegistrationFee) {
+      const bookingDoc = await db.collection('bookings').doc(bookingId).get();
+      if (!bookingDoc.exists) {
+        throw new functions.https.HttpsError('not-found', 'Booking not found');
+      }
+      const bookingData = bookingDoc.data()!;
+      if (bookingData.userId !== context.auth.uid && bookingData.user_id !== context.auth.uid) {
+        throw new functions.https.HttpsError('permission-denied', 'Booking does not belong to this user');
+      }
+      const expectedAmount = bookingData.totalPrice ?? bookingData.total_amount;
+      if (typeof expectedAmount === 'number' && Math.abs(expectedAmount - amount) > 1) {
+        functions.logger.error('Amount mismatch in createOrder', { provided: amount, expected: expectedAmount, bookingId });
+        throw new functions.https.HttpsError('invalid-argument', 'Payment amount does not match booking total');
+      }
+    }
+
     const amountInPaise = Math.round(amount * 100);
 
     const rzp = getRazorpay();
@@ -475,7 +497,16 @@ export const verifyPayment = functions.https.onCall(async (data, context) => {
       verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
 
-    if (bookingId) {
+    if (bookingId && !bookingId.startsWith('registration-')) {
+      const bookingDoc = await db.collection('bookings').doc(bookingId).get();
+      if (!bookingDoc.exists) {
+        throw new functions.https.HttpsError('not-found', 'Booking not found');
+      }
+      const bookingData = bookingDoc.data()!;
+      if (bookingData.userId !== context.auth.uid && bookingData.user_id !== context.auth.uid) {
+        throw new functions.https.HttpsError('permission-denied', 'Booking does not belong to this user');
+      }
+
       await db.collection('bookings').doc(bookingId).update({
         paymentStatus: 'paid',
         status: 'confirmed',
@@ -533,7 +564,14 @@ export const processRefund = functions.https.onCall(async (data, context) => {
       throw new functions.https.HttpsError('invalid-argument', `Invalid Razorpay payment ID: ${paymentId}`);
     }
 
-    const amountInPaise = Math.round(amount * 100);
+    // Cap refund at the booking's total price to prevent over-refunds
+    const bookingTotal = booking?.totalPrice ?? booking?.total_amount ?? amount;
+    const safeAmount = Math.min(amount, bookingTotal);
+    if (safeAmount <= 0) {
+      throw new functions.https.HttpsError('invalid-argument', 'Refund amount must be greater than zero');
+    }
+
+    const amountInPaise = Math.round(safeAmount * 100);
 
     functions.logger.info('Processing refund:', { paymentId, bookingId, amountInPaise, reason });
 
@@ -745,7 +783,9 @@ export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
     const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || functions.config().razorpay?.webhook_secret;
 
     if (!webhookSecret || webhookSecret === 'whsec_placeholder_update_after_webhook_setup') {
-      functions.logger.warn('⚠️ Webhook secret not configured — skipping signature check (testing mode)');
+      functions.logger.error('Webhook secret not configured — rejecting request');
+      res.status(500).send('Webhook not configured');
+      return;
     } else if (!webhookSignature) {
       res.status(400).send('Missing webhook signature');
       return;
@@ -1130,4 +1170,106 @@ export const notifyBankDetailsUpdate = functions.https.onCall(async (data, conte
 
   functions.logger.info('Bank details update email sent:', { farmhouseId, to: BANK_UPDATE_EMAIL });
   return { success: true };
+});
+
+// ─── Server-side AES-256 helpers ─────────────────────────────────────────────
+// Key = SHA-256(userId + ENCRYPTION_SECRET). Same derivation as the former
+// client-side CryptoJS code so existing ciphertext can still be decrypted.
+
+function getServerEncryptionSecret(): string {
+  const secret = process.env.ENCRYPTION_SECRET;
+  if (!secret || secret.length < 32) {
+    throw new functions.https.HttpsError('internal', 'ENCRYPTION_SECRET not configured on server');
+  }
+  return secret;
+}
+
+function serverDeriveKey(userId: string, secret: string): Buffer {
+  // SHA-256 hex → 32-byte Buffer (matches CryptoJS hex-parsed key)
+  const keyHex = crypto.createHash('sha256').update(userId + secret).digest('hex');
+  return Buffer.from(keyHex, 'hex');
+}
+
+function serverEncrypt(plainText: string, userId: string, secret: string): string {
+  const key = serverDeriveKey(userId, secret);
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+  let encrypted = cipher.update(plainText, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  return `enc_v2_${iv.toString('hex')}:${encrypted}`;
+}
+
+function serverDecrypt(encryptedText: string, userId: string, secret: string): string {
+  const key = serverDeriveKey(userId, secret);
+  if (encryptedText.startsWith('enc_v2_')) {
+    const payload = encryptedText.slice('enc_v2_'.length);
+    const colonIdx = payload.indexOf(':');
+    const iv = Buffer.from(payload.slice(0, colonIdx), 'hex');
+    const ciphertext = payload.slice(colonIdx + 1);
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+    let decrypted = decipher.update(ciphertext, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  }
+  throw new Error('Unknown encryption format');
+}
+
+// ─── encryptBankDetails ───────────────────────────────────────────────────────
+// Called by the client before saving KYC data. Encrypts bank details
+// server-side so ENCRYPTION_SECRET never needs to live in the client bundle.
+export const encryptBankDetails = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+  const { accountNumber, ifscCode } = data;
+  if (!accountNumber || !ifscCode) {
+    throw new functions.https.HttpsError('invalid-argument', 'accountNumber and ifscCode are required');
+  }
+  const secret = getServerEncryptionSecret();
+  return {
+    encryptedAccountNumber: serverEncrypt(String(accountNumber).trim(), context.auth.uid, secret),
+    encryptedIFSC: serverEncrypt(String(ifscCode).trim().toUpperCase(), context.auth.uid, secret),
+  };
+});
+
+// ─── getBankDetails ───────────────────────────────────────────────────────────
+// Returns decrypted bank details only to the farmhouse owner.
+export const getBankDetails = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+  const { farmhouseId } = data;
+  if (!farmhouseId) {
+    throw new functions.https.HttpsError('invalid-argument', 'farmhouseId is required');
+  }
+  const farmDoc = await db.collection('farmhouses').doc(farmhouseId).get();
+  if (!farmDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'Farmhouse not found');
+  }
+  const farmData = farmDoc.data()!;
+  if (farmData.ownerId !== context.auth.uid) {
+    throw new functions.https.HttpsError('permission-denied', 'Not authorized');
+  }
+  const bankDetails = farmData.kyc?.bankDetails;
+  if (!bankDetails) {
+    return { bankDetails: null };
+  }
+  if (!bankDetails.encrypted) {
+    // Stored plain (legacy) — return as-is
+    return { bankDetails };
+  }
+  const secret = getServerEncryptionSecret();
+  try {
+    return {
+      bankDetails: {
+        ...bankDetails,
+        accountNumber: serverDecrypt(bankDetails.accountNumber, context.auth.uid, secret),
+        ifscCode: serverDecrypt(bankDetails.ifscCode, context.auth.uid, secret),
+        encrypted: false,
+      },
+    };
+  } catch (err) {
+    functions.logger.error('getBankDetails decryption failed:', { farmhouseId, err });
+    throw new functions.https.HttpsError('internal', 'Failed to decrypt bank details');
+  }
 });
