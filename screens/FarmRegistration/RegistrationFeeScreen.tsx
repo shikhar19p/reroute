@@ -63,8 +63,7 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
         user.displayName || farm.kyc.person1.name || 'Farmhouse Owner',
         user.email || '',
         farm.contactPhone1 || '',
-        'Farmhouse Registration Fee',
-        true
+        'Farmhouse Registration Fee'
       );
 
       await saveFarmRegistration(farm);

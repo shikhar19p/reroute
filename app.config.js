@@ -65,7 +65,8 @@ export default {
       firebaseAppId: process.env.FIREBASE_APP_ID,
       googleWebClientId: process.env.GOOGLE_WEB_CLIENT_ID,
       razorpayKeyId: process.env.RAZORPAY_KEY_ID,
-      encryptionSecret: process.env.ENCRYPTION_SECRET,
+      // ENCRYPTION_SECRET is intentionally NOT included here.
+      // Bank detail encryption/decryption is handled server-side in Cloud Functions only.
       environment: process.env.ENVIRONMENT || 'development',
       eas: {
         projectId: "b4fd15d4-8419-4cd7-b47a-ba697e65979e"

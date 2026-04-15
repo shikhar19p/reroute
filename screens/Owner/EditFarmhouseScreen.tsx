@@ -24,7 +24,7 @@ import { db, storage } from '../../firebaseConfig';
 import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useDialog } from '../../components/CustomDialog';
-import { encryptSensitiveData, decryptSensitiveData, isEncrypted } from '../../utils/encryption';
+// Bank detail encryption/decryption is handled server-side via Cloud Functions
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
 type RootStackParamList = {
@@ -100,19 +100,6 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
 
   const rawData = farmhouse as any;
 
-  const decryptBankDetails = (field: string) => {
-    if (!field) return '';
-    try {
-      if (isEncrypted(field)) {
-        return decryptSensitiveData(field, farmhouse.ownerId);
-      }
-      return field;
-    } catch (error) {
-      console.error('Error decrypting bank details:', error);
-      return field;
-    }
-  };
-
   // Helper to read a boolean/truthy amenity from raw firestore data
   const getAmenityBool = (key: string): boolean => {
     const val = rawData.amenities?.[key];
@@ -165,21 +152,45 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
     // Rules
     petsNotAllowed: farmhouse.rules?.pets === false,
     additionalRules: rawData.rules?.additionalRules || rawData.rules?.customRules || '',
-    // Bank Details
+    // Bank Details — populated after CF decryption call below
     accountHolderName: rawData.kyc?.bankDetails?.accountHolderName || '',
-    accountNumber: decryptBankDetails(rawData.kyc?.bankDetails?.accountNumber),
-    ifscCode: decryptBankDetails(rawData.kyc?.bankDetails?.ifscCode),
+    accountNumber: '',
+    ifscCode: '',
     branchName: rawData.kyc?.bankDetails?.branchName || '',
     photos: farmhouse.photos || [],
   });
 
-  // Store original bank details to detect changes
-  const originalBankDetails = {
+  // Fetch decrypted bank details from server on mount
+  const [bankDetailsLoading, setBankDetailsLoading] = React.useState(true);
+  const originalBankDetails = React.useRef({
     accountHolderName: rawData.kyc?.bankDetails?.accountHolderName || '',
-    accountNumber: decryptBankDetails(rawData.kyc?.bankDetails?.accountNumber),
-    ifscCode: decryptBankDetails(rawData.kyc?.bankDetails?.ifscCode),
+    accountNumber: '',
+    ifscCode: '',
     branchName: rawData.kyc?.bankDetails?.branchName || '',
-  };
+  });
+
+  React.useEffect(() => {
+    const getBankDetailsFn = httpsCallable(getFunctions(), 'getBankDetails');
+    getBankDetailsFn({ farmhouseId: farmhouse.id })
+      .then((result: any) => {
+        const bd = result.data?.bankDetails;
+        if (bd) {
+          const accountNumber = bd.accountNumber || '';
+          const ifscCode = bd.ifscCode || '';
+          setFormData(prev => ({ ...prev, accountNumber, ifscCode }));
+          originalBankDetails.current = {
+            accountHolderName: bd.accountHolderName || rawData.kyc?.bankDetails?.accountHolderName || '',
+            accountNumber,
+            ifscCode,
+            branchName: bd.branchName || rawData.kyc?.bankDetails?.branchName || '',
+          };
+        }
+      })
+      .catch((err) => {
+        console.error('Could not load bank details:', err);
+      })
+      .finally(() => setBankDetailsLoading(false));
+  }, [farmhouse.id]);
 
   const updateField = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -370,10 +381,10 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
 
   const isBankDetailsChanged = () => {
     return (
-      formData.accountHolderName.trim() !== originalBankDetails.accountHolderName ||
-      formData.accountNumber.trim() !== originalBankDetails.accountNumber ||
-      formData.ifscCode.trim().toUpperCase() !== originalBankDetails.ifscCode.toUpperCase() ||
-      formData.branchName.trim() !== originalBankDetails.branchName
+      formData.accountHolderName.trim() !== originalBankDetails.current.accountHolderName ||
+      formData.accountNumber.trim() !== originalBankDetails.current.accountNumber ||
+      formData.ifscCode.trim().toUpperCase() !== originalBankDetails.current.ifscCode.toUpperCase() ||
+      formData.branchName.trim() !== originalBankDetails.current.branchName
     );
   };
 
@@ -388,12 +399,21 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
       const accountNumberTrimmed = formData.accountNumber.trim();
       const ifscCodeTrimmed = formData.ifscCode.trim().toUpperCase();
 
-      const encryptedAccountNumber = accountNumberTrimmed
-        ? await encryptSensitiveData(accountNumberTrimmed, farmhouse.ownerId)
-        : (rawData.kyc?.bankDetails?.accountNumber || '');
-      const encryptedIFSC = ifscCodeTrimmed
-        ? await encryptSensitiveData(ifscCodeTrimmed, farmhouse.ownerId)
-        : (rawData.kyc?.bankDetails?.ifscCode || '');
+      let encryptedAccountNumber = rawData.kyc?.bankDetails?.accountNumber || '';
+      let encryptedIFSC = rawData.kyc?.bankDetails?.ifscCode || '';
+
+      if (accountNumberTrimmed && ifscCodeTrimmed) {
+        const encryptBankDetailsFn = httpsCallable<
+          { accountNumber: string; ifscCode: string },
+          { encryptedAccountNumber: string; encryptedIFSC: string }
+        >(getFunctions(), 'encryptBankDetails');
+        const encResult = await encryptBankDetailsFn({
+          accountNumber: accountNumberTrimmed,
+          ifscCode: ifscCodeTrimmed,
+        });
+        encryptedAccountNumber = encResult.data.encryptedAccountNumber;
+        encryptedIFSC = encResult.data.encryptedIFSC;
+      }
 
       const bankChanged = isBankDetailsChanged();
 

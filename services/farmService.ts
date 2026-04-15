@@ -1,7 +1,7 @@
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db, storage, auth } from '../firebaseConfig';
-import { encryptSensitiveData } from '../utils/encryption';
 
 const uriToBlob = async (uri: string): Promise<Blob> => {
   try {
@@ -129,15 +129,17 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
       )
     : null;
 
-  // Encrypt sensitive bank details
-  const encryptedAccountNumber = await encryptSensitiveData(
-    farmData.kyc.bankDetails.accountNumber,
-    userId
-  );
-  const encryptedIFSC = await encryptSensitiveData(
-    farmData.kyc.bankDetails.ifscCode,
-    userId
-  );
+  // Encrypt sensitive bank details server-side (ENCRYPTION_SECRET never leaves Cloud Functions)
+  const encryptBankDetailsFn = httpsCallable<
+    { accountNumber: string; ifscCode: string },
+    { encryptedAccountNumber: string; encryptedIFSC: string }
+  >(getFunctions(), 'encryptBankDetails');
+  const encryptResult = await encryptBankDetailsFn({
+    accountNumber: farmData.kyc.bankDetails.accountNumber,
+    ifscCode: farmData.kyc.bankDetails.ifscCode,
+  });
+  const encryptedAccountNumber = encryptResult.data.encryptedAccountNumber;
+  const encryptedIFSC = encryptResult.data.encryptedIFSC;
   const farmDoc = {
     propertyType: farmData.propertyType || 'farmhouse',
     basicDetails: {
