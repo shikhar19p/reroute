@@ -12,23 +12,25 @@ import { Platform } from 'react-native';
 const isDevelopment = __DEV__;
 const environment = Constants.expoConfig?.extra?.environment || 'development';
 
-// Development-only fallback config (replace with your dev Firebase project)
-const devConfig = isDevelopment ? {
+// Firebase web config — these are PUBLIC client-side identifiers, not secrets.
+// Security is enforced by Firebase Security Rules, not by hiding these values.
+// They are safe to commit and bundle in the web app.
+const hardcodedConfig = {
   apiKey: 'AIzaSyDMLXQjQSSZRPUdlOeNf1afg2WPPQFSTAI',
   authDomain: 'rustique-6b7c4.firebaseapp.com',
   projectId: 'rustique-6b7c4',
   storageBucket: 'rustique-6b7c4.firebasestorage.app',
   messagingSenderId: '272634614965',
   appId: '1:272634614965:web:82bb8ef1772cac9c019afc',
-} : null;
+};
 
 const firebaseConfig = {
-  apiKey: Constants.expoConfig?.extra?.firebaseApiKey || devConfig?.apiKey || '',
-  authDomain: Constants.expoConfig?.extra?.firebaseAuthDomain || devConfig?.authDomain || '',
-  projectId: Constants.expoConfig?.extra?.firebaseProjectId || devConfig?.projectId || '',
-  storageBucket: Constants.expoConfig?.extra?.firebaseStorageBucket || devConfig?.storageBucket || '',
-  messagingSenderId: Constants.expoConfig?.extra?.firebaseMessagingSenderId || devConfig?.messagingSenderId || '',
-  appId: Constants.expoConfig?.extra?.firebaseAppId || devConfig?.appId || '',
+  apiKey: Constants.expoConfig?.extra?.firebaseApiKey || hardcodedConfig.apiKey,
+  authDomain: Constants.expoConfig?.extra?.firebaseAuthDomain || hardcodedConfig.authDomain,
+  projectId: Constants.expoConfig?.extra?.firebaseProjectId || hardcodedConfig.projectId,
+  storageBucket: Constants.expoConfig?.extra?.firebaseStorageBucket || hardcodedConfig.storageBucket,
+  messagingSenderId: Constants.expoConfig?.extra?.firebaseMessagingSenderId || hardcodedConfig.messagingSenderId,
+  appId: Constants.expoConfig?.extra?.firebaseAppId || hardcodedConfig.appId,
 };
 
 // Validate that all required config values are present
