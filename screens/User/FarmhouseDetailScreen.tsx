@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
   Dimensions, Linking, Share, TextInput, FlatList, RefreshControl
 } from 'react-native';
 import LocationMapView from '../../components/LocationMapView';
+import AnimatedImage from '../../components/AnimatedImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Heart, MapPin, Users, Home, Star, Clock, Share2 } from 'lucide-react-native';
 import { Calendar, DateData } from 'react-native-calendars';
@@ -617,7 +618,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
               setCurrentImageIndex(index);
             }}>
             {images.map((img, index) => (
-              <Image key={index} source={{ uri: img }} style={styles.image} resizeMode="cover" />
+              <AnimatedImage key={index} uri={img} style={styles.image} resizeMode="cover" />
             ))}
           </ScrollView>
           <View style={styles.imageCounter}>

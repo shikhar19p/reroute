@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
-  Image, ActivityIndicator, Linking, Dimensions, RefreshControl
+  ActivityIndicator, Linking, Dimensions, RefreshControl
 } from 'react-native';
+import AnimatedImage from '../../components/AnimatedImage';
 import LocationMapView from '../../components/LocationMapView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -327,8 +328,8 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
 
         {farmhouse && farmhouse.photoUrls && farmhouse.photoUrls.length > 0 && (
           <View style={styles.imageSection}>
-            <Image 
-              source={{ uri: farmhouse.photoUrls[currentImageIndex] }} 
+            <AnimatedImage
+              uri={farmhouse.photoUrls[currentImageIndex]}
               style={styles.farmhouseImage}
               resizeMode="cover"
             />

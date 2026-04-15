@@ -1,6 +1,31 @@
 import React, { createContext, useCallback, useContext, useMemo, useState, ReactNode, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { useAuth } from '../authContext';
+
+// Platform-aware key-value storage for draft persistence
+async function storageGet(key: string): Promise<string | null> {
+  if (Platform.OS === 'web') {
+    try { return localStorage.getItem(key); } catch { return null; }
+  }
+  const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  return AsyncStorage.getItem(key);
+}
+async function storageSet(key: string, value: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    try { localStorage.setItem(key, value); } catch {}
+    return;
+  }
+  const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  await AsyncStorage.setItem(key, value);
+}
+async function storageRemove(key: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    try { localStorage.removeItem(key); } catch {}
+    return;
+  }
+  const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  await AsyncStorage.removeItem(key);
+}
 
 interface Photo {
   uri: string;
@@ -243,7 +268,7 @@ export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) 
       const hasData = farm.name || farm.contactPhone1 || farm.city || farm.area || farm.photos.length > 0;
 
       if (hasData) {
-        await AsyncStorage.setItem(draftKey, JSON.stringify(farm));
+        await storageSet(draftKey, JSON.stringify(farm));
         setHasDraft(true);
       }
     } catch (error) {
@@ -255,7 +280,7 @@ export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) 
   const loadDraft = useCallback(async (): Promise<boolean> => {
     try {
       const draftKey = getDraftKey();
-      const draftData = await AsyncStorage.getItem(draftKey);
+      const draftData = await storageGet(draftKey);
 
       if (draftData) {
         const parsedDraft = JSON.parse(draftData);
@@ -266,7 +291,7 @@ export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) 
           return true;
         }
         // Corrupted draft - clear it
-        await AsyncStorage.removeItem(draftKey);
+        await storageRemove(draftKey);
         setHasDraft(false);
         return false;
       }
@@ -281,7 +306,7 @@ export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) 
   const clearDraft = useCallback(async () => {
     try {
       const draftKey = getDraftKey();
-      await AsyncStorage.removeItem(draftKey);
+      await storageRemove(draftKey);
       setHasDraft(false);
     } catch (error) {
       console.warn('Error clearing draft:', error);
@@ -293,7 +318,7 @@ export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) 
     const checkForDraft = async () => {
       try {
         const draftKey = getDraftKey();
-        const draftData = await AsyncStorage.getItem(draftKey);
+        const draftData = await storageGet(draftKey);
         setHasDraft(!!draftData);
         setIsInitialized(true);
       } catch (error) {

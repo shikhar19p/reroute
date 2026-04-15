@@ -44,7 +44,9 @@
       "Read(//c/Users/91IN/Saved Games/new-repo/reroute-admin/src/**)",
       "Read(//c/Users/91IN/Saved Games/new-repo/reroute-admin/**)",
       "Bash(grep -l \"firebase-admin\\\\|Admin\\\\|admin\" /d/reroute/scripts/*.ts)",
-      "Bash(ls /d/reroute/*.json)"
+      "Bash(ls /d/reroute/*.json)",
+      "Bash(grep -E \"\\\\.ts$\")",
+      "Bash(node:*)"
     ],
     "deny": [],
     "ask": []

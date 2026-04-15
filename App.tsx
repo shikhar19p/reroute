@@ -2,7 +2,7 @@ import React, { useEffect, useCallback } from 'react';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, View, StyleSheet, Text, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   useFonts,
@@ -15,10 +15,10 @@ import * as Font from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import Constants from 'expo-constants';
 
-// Configure Google Sign-In only in real builds — the native module isn't
-// available in Expo Go, so importing it there would crash immediately.
+// Configure Google Sign-In only in real native builds.
+// Not available in Expo Go or on web — the native module would crash.
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
-if (!isExpoGo) {
+if (Platform.OS !== 'web' && !isExpoGo) {
   const { GoogleSignin } = require('@react-native-google-signin/google-signin');
   GoogleSignin.configure({
     webClientId: '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com',

@@ -108,16 +108,74 @@ export async function createOrder(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Web: Load Razorpay checkout.js and open modal via browser SDK
+// ---------------------------------------------------------------------------
+
+function loadRazorpayScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined') return resolve();
+    if ((window as any).Razorpay) return resolve();
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load Razorpay checkout script'));
+    document.head.appendChild(script);
+  });
+}
+
+async function initiatePaymentWeb(paymentDetails: PaymentDetails): Promise<PaymentResponse> {
+  await loadRazorpayScript();
+  return new Promise((resolve, reject) => {
+    const options = {
+      key: RAZORPAY_KEY_ID,
+      amount: paymentDetails.amount,
+      currency: paymentDetails.currency,
+      name: 'ReRoute Adventures',
+      description: paymentDetails.description,
+      order_id: paymentDetails.orderId,
+      prefill: {
+        name: paymentDetails.customerName,
+        email: paymentDetails.customerEmail,
+        contact: paymentDetails.customerPhone,
+      },
+      theme: { color: '#C5A565' },
+      handler(response: any) {
+        resolve({
+          razorpay_payment_id: response.razorpay_payment_id,
+          razorpay_order_id: response.razorpay_order_id,
+          razorpay_signature: response.razorpay_signature,
+        });
+      },
+      modal: {
+        ondismiss() {
+          reject(new Error('Payment was cancelled by user'));
+        },
+      },
+    };
+    const rzp = new (window as any).Razorpay(options);
+    rzp.on('payment.failed', (res: any) => {
+      reject(new Error(res?.error?.description || 'Payment failed'));
+    });
+    rzp.open();
+  });
+}
+
 /**
  * Initialize Razorpay payment
  * @param paymentDetails Payment configuration
  * @returns Payment response with transaction details
  */
 export async function initiatePayment(paymentDetails: PaymentDetails): Promise<PaymentResponse> {
+  // Web: use browser-based Razorpay checkout
+  if (Platform.OS === 'web') {
+    return initiatePaymentWeb(paymentDetails);
+  }
+
+  // Native: use react-native-razorpay
   try {
     const options = {
       description: paymentDetails.description,
-      image: 'https://your-app-logo-url.com/logo.png', // Replace with your app logo
       currency: paymentDetails.currency,
       key: RAZORPAY_KEY_ID,
       amount: paymentDetails.amount,
@@ -128,13 +186,11 @@ export async function initiatePayment(paymentDetails: PaymentDetails): Promise<P
         contact: paymentDetails.customerPhone,
         name: paymentDetails.customerName,
       },
-      theme: {
-        color: '#C5A565',
-      },
+      theme: { color: '#C5A565' },
     };
 
     if (!RazorpayCheckout) {
-      throw new Error('Payments are not supported on web. Please use the mobile app.');
+      throw new Error('Payment module not available');
     }
 
     // Open Razorpay checkout

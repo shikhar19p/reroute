@@ -1,9 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, ActivityIndicator, Text } from 'react-native';
-import { WebView } from 'react-native-webview';
+import React, { createElement, useEffect, useRef, useState } from 'react';
+import { Animated, View, StyleSheet, TouchableOpacity, Text, Platform } from 'react-native';
 import { MapPin } from 'lucide-react-native';
 import { Linking } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+
+// WebView is native-only — load conditionally so the web bundle doesn't fail
+const WebView = Platform.OS !== 'web'
+  ? require('react-native-webview').WebView
+  : null;
 
 interface LocationMapViewProps {
   location: string;
@@ -66,10 +70,118 @@ function buildMapHtml(lat: number, lng: number, isDark: boolean): string {
 </html>`;
 }
 
+function MapSkeleton({ height, isDark }: { height: number; isDark: boolean }) {
+  const shimmer = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(0.6)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmer, { toValue: 1, duration: 1100, useNativeDriver: true }),
+        Animated.timing(shimmer, { toValue: 0, duration: 1100, useNativeDriver: true }),
+      ])
+    ).start();
+
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 0.6, duration: 900, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
+  const bg = isDark ? '#1a1a1a' : '#e8e4dc';
+  const line = isDark ? '#2e2e2e' : '#d2cdc3';
+  const pinBg = isDark ? '#2a2a2a' : '#c9c4bb';
+
+  const shimmerOpacity = shimmer.interpolate({ inputRange: [0, 1], outputRange: [0.0, 0.5] });
+
+  return (
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: bg, overflow: 'hidden' }]}>
+      {/* Fake road grid */}
+      <View style={[mapSkeletonStyles.hLine, { top: height * 0.35, backgroundColor: line }]} />
+      <View style={[mapSkeletonStyles.hLine, { top: height * 0.62, backgroundColor: line }]} />
+      <View style={[mapSkeletonStyles.vLine, { left: '28%', backgroundColor: line }]} />
+      <View style={[mapSkeletonStyles.vLine, { left: '60%', backgroundColor: line }]} />
+      {/* Thinner secondary roads */}
+      <View style={[mapSkeletonStyles.hLine, { top: height * 0.20, backgroundColor: line, opacity: 0.5, height: 1 }]} />
+      <View style={[mapSkeletonStyles.vLine, { left: '44%', backgroundColor: line, opacity: 0.5, width: 1 }]} />
+
+      {/* Moving shimmer sweep */}
+      <Animated.View
+        style={[
+          mapSkeletonStyles.shimmerSweep,
+          { opacity: shimmerOpacity, backgroundColor: isDark ? '#fff' : '#fff' },
+        ]}
+      />
+
+      {/* Pulsing pin in center */}
+      <View style={mapSkeletonStyles.pinCenter}>
+        <Animated.View
+          style={[
+            mapSkeletonStyles.pinRing,
+            { opacity: pulse, borderColor: '#C5A565' },
+          ]}
+        />
+        <Animated.View style={[mapSkeletonStyles.pinDot, { opacity: pulse, backgroundColor: pinBg }]} />
+      </View>
+
+      {/* "Loading map…" label */}
+      <Animated.Text style={[mapSkeletonStyles.loadingLabel, { opacity: pulse, color: isDark ? '#555' : '#aaa8a0' }]}>
+        Loading map…
+      </Animated.Text>
+    </View>
+  );
+}
+
+const mapSkeletonStyles = StyleSheet.create({
+  hLine: { position: 'absolute', left: 0, right: 0, height: 2 },
+  vLine: { position: 'absolute', top: 0, bottom: 0, width: 2 },
+  shimmerSweep: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: '45%',
+    left: '-50%',
+    transform: [{ skewX: '-10deg' }],
+  },
+  pinCenter: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -16 }, { translateY: -16 }],
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 32,
+    height: 32,
+  },
+  pinRing: {
+    position: 'absolute',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+  },
+  pinDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  loadingLabel: {
+    position: 'absolute',
+    bottom: 12,
+    alignSelf: 'center',
+    fontSize: 11,
+    fontWeight: '500',
+    letterSpacing: 0.4,
+  },
+});
+
 export default function LocationMapView({ location, mapLink, height = 200 }: LocationMapViewProps) {
   const { colors, isDark } = useTheme();
   const [coords, setCoords] = useState<[number, number] | null>(null);
   const [loading, setLoading] = useState(true);
+  const mapFade = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     let cancelled = false;
@@ -104,6 +216,17 @@ export default function LocationMapView({ location, mapLink, height = 200 }: Loc
     return () => { cancelled = true; };
   }, [location, mapLink]);
 
+  // Fade in the map once coords are ready
+  useEffect(() => {
+    if (!loading && coords) {
+      Animated.timing(mapFade, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [loading, coords]);
+
   const openMaps = () => {
     const url = mapLink
       || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
@@ -116,26 +239,46 @@ export default function LocationMapView({ location, mapLink, height = 200 }: Loc
       onPress={openMaps}
       style={[styles.wrapper, { borderColor: colors.border, height }]}
     >
-      {loading && (
-        <View style={[styles.centered, { backgroundColor: isDark ? '#111' : '#e8e8e8' }]}>
-          <ActivityIndicator color={colors.primary} size="small" />
-        </View>
+      {/* Skeleton shown while loading */}
+      {loading && <MapSkeleton height={height} isDark={isDark} />}
+
+      {/* Web: render iframe with Leaflet HTML inline */}
+      {!loading && coords && Platform.OS === 'web' && (
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: mapFade }]}>
+          {createElement('iframe', {
+            key: 'map-iframe',
+            srcDoc: buildMapHtml(coords[0], coords[1], isDark),
+            style: {
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              border: 'none',
+            } as any,
+            sandbox: 'allow-scripts',
+            title: 'Map',
+          } as any)}
+        </Animated.View>
       )}
 
-      {!loading && coords && (
-        <WebView
-          source={{ html: buildMapHtml(coords[0], coords[1], isDark), baseUrl: '' }}
-          style={StyleSheet.absoluteFill}
-          javaScriptEnabled
-          domStorageEnabled
-          originWhitelist={['*']}
-          mixedContentMode="always"
-          androidLayerType="hardware"
-          scrollEnabled={false}
-          showsHorizontalScrollIndicator={false}
-          showsVerticalScrollIndicator={false}
-          pointerEvents="none"
-        />
+      {/* Native: render WebView */}
+      {!loading && coords && Platform.OS !== 'web' && WebView && (
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: mapFade }]}>
+          <WebView
+            source={{ html: buildMapHtml(coords[0], coords[1], isDark), baseUrl: '' }}
+            style={StyleSheet.absoluteFill}
+            javaScriptEnabled
+            domStorageEnabled
+            originWhitelist={['*']}
+            mixedContentMode="always"
+            androidLayerType="hardware"
+            scrollEnabled={false}
+            showsHorizontalScrollIndicator={false}
+            showsVerticalScrollIndicator={false}
+            pointerEvents="none"
+          />
+        </Animated.View>
       )}
 
       {!loading && !coords && (
@@ -147,7 +290,7 @@ export default function LocationMapView({ location, mapLink, height = 200 }: Loc
         </View>
       )}
 
-      {/* Tap overlay — transparent, captures the touch on top of WebView */}
+      {/* Tap overlay — transparent, captures the touch on top of WebView/iframe */}
       <View style={StyleSheet.absoluteFill} pointerEvents="box-only" />
     </TouchableOpacity>
   );

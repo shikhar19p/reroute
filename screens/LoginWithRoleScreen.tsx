@@ -13,7 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Google from 'expo-auth-session/providers/google';
 import * as WebBrowser from 'expo-web-browser';
 import Constants from 'expo-constants';
-import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithCredential, signInWithPopup } from 'firebase/auth';
+import { Platform } from 'react-native';
 import { auth } from '../firebaseConfig';
 import { useDialog } from '../components/CustomDialog';
 
@@ -48,16 +49,16 @@ export default function LoginWithRoleScreen({ navigation }: any) {
 
   // Configure and clear cached native Google account on mount (native builds only)
   useEffect(() => {
-    if (!isExpoGo) {
+    if (Platform.OS !== 'web' && !isExpoGo) {
       const { GoogleSignin } = require('@react-native-google-signin/google-signin');
       GoogleSignin.configure({ webClientId: WEB_CLIENT_ID });
       GoogleSignin.signOut().catch(() => {});
     }
   }, []);
 
-  // Handle expo-auth-session response (Expo Go path)
+  // Handle expo-auth-session response (Expo Go / web fallback path)
   useEffect(() => {
-    if (!isExpoGo || !response) return;
+    if (Platform.OS === 'web' || !isExpoGo || !response) return;
 
     if (response.type === 'success') {
       const { accessToken, idToken } = response.authentication ?? {};
@@ -97,12 +98,29 @@ export default function LoginWithRoleScreen({ navigation }: any) {
     setLoading(true);
     setError(null);
 
-    if (isExpoGo) {
-      // Web-based OAuth via expo-auth-session — works in Expo Go
+    if (Platform.OS === 'web') {
+      // Web: Firebase popup sign-in — no native modules needed
+      try {
+        const provider = new GoogleAuthProvider();
+        await signInWithPopup(auth, provider);
+        setLoading(false);
+      } catch (err: any) {
+        if (
+          err.code === 'auth/popup-closed-by-user' ||
+          err.code === 'auth/cancelled-popup-request'
+        ) {
+          setError('Sign-in cancelled');
+        } else {
+          setError(err.message || 'Authentication failed');
+        }
+        setLoading(false);
+      }
+    } else if (isExpoGo) {
+      // Expo Go: web-based OAuth via expo-auth-session
       // Result is handled in the useEffect above
       await promptAsync();
     } else {
-      // Native Google Sign-In for real builds (dev client / standalone)
+      // Native real build: @react-native-google-signin
       try {
         const { GoogleSignin } = require('@react-native-google-signin/google-signin');
         GoogleSignin.configure({ webClientId: WEB_CLIENT_ID });
@@ -111,8 +129,7 @@ export default function LoginWithRoleScreen({ navigation }: any) {
         const idToken = result.idToken || result.data?.idToken;
         if (!idToken) throw new Error('No ID token received');
         const credential = GoogleAuthProvider.credential(idToken);
-        const userCredential = await signInWithCredential(auth, credential);
-        console.log('✅ Firebase sign-in successful, user:', userCredential.user.uid);
+        await signInWithCredential(auth, credential);
         setLoading(false);
       } catch (err: any) {
         if (err.code === '-5' || err.code === '12501') {

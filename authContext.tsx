@@ -9,6 +9,9 @@ const _isExpoGo = Constants.executionEnvironment === 'storeClient';
 if (Platform.OS !== 'web' && !_isExpoGo) {
   GoogleSignin = require('@react-native-google-signin/google-signin').GoogleSignin;
 }
+
+// On web, Firebase auth handles sign-out automatically via onAuthStateChanged.
+// No native GoogleSignin module is used.
 import { auth, db } from './firebaseConfig';
 import { saveSession, loadSession, clearSession, UserSession } from './sessionManager';
 
