@@ -61,8 +61,10 @@ export const auth = Platform.OS === 'web'
       ),
     });
 
-// Firestore's default WebChannel (HTTP/2) transport is unreliable in React Native.
-// experimentalForceLongPolling switches to plain HTTP which works on all platforms.
-export const db = initializeFirestore(app, { experimentalForceLongPolling: true });
+// Firestore long polling is needed on native (WebChannel is unreliable in React Native).
+// On web, use the default transport — long polling causes issues in browsers.
+export const db = initializeFirestore(app,
+  Platform.OS !== 'web' ? { experimentalForceLongPolling: true } : {}
+);
 
 export const storage = getStorage(app);

@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { FlatList, Image, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, RefreshControl } from 'react-native';
+import { FlatList, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, RefreshControl } from 'react-native';
+import AnimatedImage from '../../../components/AnimatedImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Heart, MapPin, Users, Star } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
@@ -49,8 +50,8 @@ export default function WishlistScreen({ navigation }: any) {
       activeOpacity={0.8}
     >
       <View style={styles.imageContainer}>
-        <Image
-          source={{ uri: item.photos?.[0] || 'https://via.placeholder.com/400x300' }}
+        <AnimatedImage
+          uri={item.photos?.[0] || ''}
           style={styles.image}
         />
         <TouchableOpacity

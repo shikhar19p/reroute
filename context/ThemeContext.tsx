@@ -1,7 +1,23 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useColorScheme } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useColorScheme, Platform } from 'react-native';
 import { premiumLightTheme, premiumDarkTheme, PremiumTheme } from '../theme/premiumTheme';
+
+async function storageGet(key: string): Promise<string | null> {
+  if (Platform.OS === 'web') {
+    try { return localStorage.getItem(key); } catch { return null; }
+  }
+  const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  return AsyncStorage.getItem(key);
+}
+
+async function storageSet(key: string, value: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    try { localStorage.setItem(key, value); } catch {}
+    return;
+  }
+  const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  await AsyncStorage.setItem(key, value);
+}
 
 interface ThemeContextType {
   theme: PremiumTheme;
@@ -25,7 +41,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const loadThemePreference = async () => {
     try {
-      const savedTheme = await AsyncStorage.getItem('theme');
+      const savedTheme = await storageGet('theme');
       if (savedTheme !== null) {
         setIsDark(savedTheme === 'dark');
       } else {
@@ -40,7 +56,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const newTheme = !isDark;
     setIsDark(newTheme);
     try {
-      await AsyncStorage.setItem('theme', newTheme ? 'dark' : 'light');
+      await storageSet('theme', newTheme ? 'dark' : 'light');
     } catch (error) {
       console.error('Error saving theme:', error);
     }

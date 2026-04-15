@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, StatusBar,
+  View, Text, TouchableOpacity, ScrollView, StyleSheet, StatusBar,
   Modal, TextInput, FlatList, Share, ActivityIndicator, RefreshControl
 } from 'react-native';
+import AnimatedImage from '../../components/AnimatedImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Heart, Search, SlidersHorizontal, ArrowUpDown, Bell, Share2, Star, MapPin } from 'lucide-react-native';
 import { useAuth } from '../../authContext';
@@ -39,8 +40,8 @@ const FarmhouseCard = React.memo(({
     onPress={onPress}
   >
     <View style={styles.imageContainer}>
-      <Image
-        source={{ uri: item.photos?.[0] || 'https://via.placeholder.com/400x300' }}
+      <AnimatedImage
+        uri={item.photos?.[0] || ''}
         style={styles.propertyImage}
         resizeMode="cover"
       />
