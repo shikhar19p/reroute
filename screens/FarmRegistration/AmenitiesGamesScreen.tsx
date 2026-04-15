@@ -22,20 +22,58 @@ type AmenitiesGamesScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, any>;
 };
 
-const amenitiesList = [
-  { key: 'tv', label: 'TV', type: 'counter' as const },
-  { key: 'geyser', label: 'Geyser', type: 'counter' as const },
-  { key: 'bonfire', label: 'Bonfire', type: 'counter' as const },
-  { key: 'pool', label: 'Swimming Pool', type: 'toggle' as const },
-  { key: 'decorService', label: 'Decor Service Availability', type: 'toggle' as const },
-  { key: 'restaurant', label: 'Restaurant', type: 'toggle' as const },
-  { key: 'foodPrepOnDemand', label: 'Food Prep on Demand', type: 'toggle' as const },
-  { key: 'djMusicSystem', label: 'DJ / Music System', type: 'toggle' as const },
-  { key: 'projector', label: 'Projector', type: 'toggle' as const },
+const amenitiesGroups = [
+  {
+    title: 'Essentials',
+    items: [
+      { key: 'wifi', label: 'WiFi' },
+      { key: 'ac', label: 'Air Conditioning' },
+      { key: 'parking', label: 'Parking' },
+      { key: 'kitchen', label: 'Kitchen' },
+      { key: 'tv', label: 'TV' },
+      { key: 'geyser', label: 'Geyser (Hot Water)' },
+    ],
+  },
+  {
+    title: 'Outdoors',
+    items: [
+      { key: 'pool', label: 'Swimming Pool' },
+      { key: 'bonfire', label: 'Bonfire' },
+      { key: 'bbq', label: 'BBQ / Grill' },
+      { key: 'outdoorSeating', label: 'Outdoor Seating' },
+      { key: 'hotTub', label: 'Hot Tub / Jacuzzi' },
+    ],
+  },
+  {
+    title: 'Entertainment',
+    items: [
+      { key: 'djMusicSystem', label: 'DJ / Music System' },
+      { key: 'projector', label: 'Projector' },
+    ],
+  },
+  {
+    title: 'Food & Services',
+    items: [
+      { key: 'restaurant', label: 'Restaurant' },
+      { key: 'foodPrepOnDemand', label: 'Food Prep on Demand' },
+      { key: 'decorService', label: 'Decor Service' },
+    ],
+  },
+  {
+    title: 'Games & Sports',
+    items: [
+      { key: 'chess', label: 'Chess' },
+      { key: 'carrom', label: 'Carom Board' },
+      { key: 'volleyball', label: 'Volleyball' },
+      { key: 'badminton', label: 'Badminton Court' },
+      { key: 'tableTennis', label: 'Table Tennis' },
+      { key: 'cricket', label: 'Cricket Ground' },
+    ],
+  },
 ];
 
 export default function AmenitiesGamesScreen({ navigation }: AmenitiesGamesScreenProps) {
-  const { farm, incAmenity, decAmenity, setField } = useFarmRegistration();
+  const { farm, setField } = useFarmRegistration();
 
   const handleToggle = useCallback(
     (path: string[], value: boolean) => {
@@ -57,52 +95,29 @@ export default function AmenitiesGamesScreen({ navigation }: AmenitiesGamesScree
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Amenities & Games</Text>
-
-          {amenitiesList.map((item) => (
-            <View key={item.key} style={styles.amenityRow}>
-              <Text style={styles.amenityLabel}>{item.label}</Text>
-
-              {item.type === 'toggle' ? (
-                <Switch
-                  value={(farm.amenities as any)[item.key]}
-                  onValueChange={(value) => setField(['amenities', item.key], value)}
-                  trackColor={{ false: '#E5E7EB', true: '#4CAF50' }}
-                  thumbColor="#FFFFFF"
-                />
-              ) : (
-                <View style={styles.counterControls}>
-                  <TouchableOpacity
-                    onPress={() => decAmenity(item.key)}
-                    style={styles.counterButton}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.chevronDown}>−</Text>
-                  </TouchableOpacity>
-
-                  <Text style={styles.counterValue}>
-                    {(farm.amenities as any)[item.key] ?? 0}
-                  </Text>
-
-                  <TouchableOpacity
-                    onPress={() => incAmenity(item.key)}
-                    style={[styles.counterButton, styles.counterButtonActive]}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.chevronUp}>+</Text>
-                  </TouchableOpacity>
+          {amenitiesGroups.map((group) => (
+            <View key={group.title} style={styles.section}>
+              <Text style={styles.groupTitle}>{group.title}</Text>
+              {group.items.map((item) => (
+                <View key={item.key} style={styles.amenityRow}>
+                  <Text style={styles.amenityLabel}>{item.label}</Text>
+                  <Switch
+                    value={(farm.amenities as any)[item.key] || false}
+                    onValueChange={(value) => handleToggle(['amenities', item.key], value)}
+                    trackColor={{ false: '#E5E7EB', true: '#4CAF50' }}
+                    thumbColor="#FFFFFF"
+                  />
                 </View>
-              )}
+              ))}
             </View>
           ))}
 
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Additional Amenities (Optional)</Text>
+          <View style={styles.section}>
+            <Text style={styles.groupTitle}>Additional Amenities</Text>
             <TextInput
               value={farm.amenities.customAmenities ?? ''}
               onChangeText={(text) => setField(['amenities', 'customAmenities'], text)}
-              placeholder="e.g., BBQ grill, Outdoor seating, Gazebo..."
+              placeholder="e.g., Game room, Swing set, Gazebo..."
               placeholderTextColor="#9CA3AF"
               style={[styles.input, styles.multilineInput]}
               multiline
@@ -110,73 +125,51 @@ export default function AmenitiesGamesScreen({ navigation }: AmenitiesGamesScree
               textAlignVertical="top"
             />
           </View>
-        </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Rules & Restrictions</Text>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Rules & Restrictions</Text>
 
-          <View style={styles.ruleRow}>
-            <Text style={styles.ruleLabel}>Unmarried couples not allowed</Text>
-            <Switch
-              value={farm.rules.unmarriedNotAllowed}
-              onValueChange={(value) => handleToggle(['rules', 'unmarriedNotAllowed'], value)}
-              trackColor={{ false: '#E5E7EB', true: '#EF4444' }}
-              thumbColor="#FFFFFF"
-            />
+            <View style={styles.ruleRow}>
+              <Text style={styles.ruleLabel}>Pets not allowed</Text>
+              <Switch
+                value={farm.rules.petsNotAllowed}
+                onValueChange={(value) => handleToggle(['rules', 'petsNotAllowed'], value)}
+                trackColor={{ false: '#E5E7EB', true: '#EF4444' }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Additional Rules (Optional)</Text>
+              <TextInput
+                value={farm.rules.customRules ?? ''}
+                onChangeText={(text) => setField(['rules', 'customRules'], text)}
+                placeholder="Add any other rules or restrictions..."
+                placeholderTextColor="#9CA3AF"
+                style={[styles.input, styles.multilineInput]}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+            </View>
           </View>
-
-          <View style={styles.ruleRow}>
-            <Text style={styles.ruleLabel}>Pets not allowed</Text>
-            <Switch
-              value={farm.rules.petsNotAllowed}
-              onValueChange={(value) => handleToggle(['rules', 'petsNotAllowed'], value)}
-              trackColor={{ false: '#E5E7EB', true: '#EF4444' }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Quiet Hours (Optional)</Text>
-            <TextInput
-              value={farm.rules.quietHours ?? ''}
-              onChangeText={(text) => setField(['rules', 'quietHours'], text)}
-              placeholder="e.g., 10 PM - 6 AM"
-              placeholderTextColor="#9CA3AF"
-              style={styles.input}
-            />
-          </View>
-
-          <View style={styles.fieldContainer}>
-            <Text style={styles.fieldLabel}>Additional Rules (Optional)</Text>
-            <TextInput
-              value={farm.rules.customRules ?? ''}
-              onChangeText={(text) => setField(['rules', 'customRules'], text)}
-              placeholder="Add any other rules or restrictions..."
-              placeholderTextColor="#9CA3AF"
-              style={[styles.input, styles.multilineInput]}
-              multiline
-              numberOfLines={3}
-              textAlignVertical="top"
-            />
-          </View>
-        </View>
         </ScrollView>
 
         <View style={styles.footer}>
-        <TouchableOpacity
-          style={styles.secondaryButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.secondaryButtonText}>Back</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.primaryButton}
-          onPress={() => navigation.navigate('FarmRulesRestrictions')}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.primaryButtonText}>Next: Review</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.secondaryButtonText}>Back</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.primaryButton}
+            onPress={() => navigation.navigate('FarmRulesRestrictions')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.primaryButtonText}>Next: Review</Text>
+          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -199,13 +192,21 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   section: {
-    marginBottom: 32,
+    marginBottom: 24,
+  },
+  groupTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#6B7280',
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: '#1F2937',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   amenityRow: {
     flexDirection: 'row',
@@ -215,41 +216,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: '#F9FAFB',
     borderRadius: 12,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   amenityLabel: {
     fontSize: 16,
     fontWeight: '500',
     color: '#374151',
-  },
-  counterControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  counterButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#E5E7EB',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  counterButtonActive: {
-    backgroundColor: '#4CAF50',
-  },
-  chevronDown: {
-    fontSize: 18,
-  },
-  chevronUp: {
-    fontSize: 18,
-  },
-  counterValue: {
-    minWidth: 32,
-    textAlign: 'center',
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
   },
   ruleRow: {
     flexDirection: 'row',
@@ -269,7 +241,7 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   fieldContainer: {
-    marginTop: 16,
+    marginTop: 8,
   },
   fieldLabel: {
     fontSize: 15,

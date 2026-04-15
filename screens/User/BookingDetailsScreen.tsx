@@ -71,8 +71,7 @@ interface Farmhouse {
     additionalRules?: string;
     customRules?: string;
     petsNotAllowed?: boolean;
-    quietHours?: boolean;
-    unmarriedNotAllowed?: boolean;
+    pets?: boolean;
   };
 }
 
@@ -498,52 +497,45 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
             <>
               <Text style={[styles.subsectionTitle, { color: colors.text }]}>Amenities</Text>
               <View style={styles.amenitiesGrid}>
-                {farmhouse.amenities.pool === true && (
-                  <View style={[styles.amenityChip, { backgroundColor: colors.background }]}>
-                    <Droplet size={16} color="#3B82F6" />
-                    <Text style={[styles.amenityText, { color: colors.text }]}>Swimming Pool</Text>
-                  </View>
-                )}
-                {Number(farmhouse.amenities.bonfire || 0) > 0 && (
-                  <View style={[styles.amenityChip, { backgroundColor: colors.background }]}>
-                    <Flame size={16} color="#F59E0B" />
-                    <Text style={[styles.amenityText, { color: colors.text }]}>Bonfire</Text>
-                  </View>
-                )}
-                {Number(farmhouse.amenities.tv || 0) > 0 && (
-                  <View style={[styles.amenityChip, { backgroundColor: colors.background }]}>
-                    <Tv size={16} color="#8B5CF6" />
-                    <Text style={[styles.amenityText, { color: colors.text }]}>TV</Text>
-                  </View>
-                )}
-                {Number(farmhouse.amenities.geyser || 0) > 0 && (
-                  <View style={[styles.amenityChip, { backgroundColor: colors.background }]}>
-                    <Text style={[styles.amenityText, { color: colors.text }]}>
-                      Geyser ({Number(farmhouse.amenities.geyser)})
-                    </Text>
-                  </View>
-                )}
-                {Number(farmhouse.amenities.carroms || 0) > 0 && (
-                  <View style={[styles.amenityChip, { backgroundColor: colors.background }]}>
-                    <Text style={[styles.amenityText, { color: colors.text }]}>Carroms</Text>
-                  </View>
-                )}
-                {Number(farmhouse.amenities.chess || 0) > 0 && (
-                  <View style={[styles.amenityChip, { backgroundColor: colors.background }]}>
-                    <Text style={[styles.amenityText, { color: colors.text }]}>Chess</Text>
-                  </View>
-                )}
-                {Number(farmhouse.amenities.volleyball || 0) > 0 && (
-                  <View style={[styles.amenityChip, { backgroundColor: colors.background }]}>
-                    <Text style={[styles.amenityText, { color: colors.text }]}>Volleyball</Text>
-                  </View>
-                )}
+                {(() => {
+                  const a = farmhouse.amenities as any;
+                  const items: Array<{ label: string; icon?: any; color?: string }> = [];
+                  if (a.wifi) items.push({ label: 'WiFi' });
+                  if (a.ac) items.push({ label: 'AC' });
+                  if (a.parking) items.push({ label: 'Parking' });
+                  if (a.kitchen) items.push({ label: 'Kitchen' });
+                  if (a.tv > 0 || a.tv === true) items.push({ label: 'TV' });
+                  if (a.geyser > 0 || a.geyser === true) items.push({ label: 'Geyser' });
+                  if (a.pool) items.push({ label: 'Swimming Pool' });
+                  if (a.bonfire > 0 || a.bonfire === true) items.push({ label: 'Bonfire' });
+                  if (a.bbq) items.push({ label: 'BBQ / Grill' });
+                  if (a.outdoorSeating) items.push({ label: 'Outdoor Seating' });
+                  if (a.hotTub) items.push({ label: 'Hot Tub' });
+                  if (a.djMusicSystem) items.push({ label: 'DJ / Music System' });
+                  if (a.projector) items.push({ label: 'Projector' });
+                  if (a.restaurant) items.push({ label: 'Restaurant' });
+                  if (a.foodPrepOnDemand) items.push({ label: 'Food on Demand' });
+                  if (a.decorService) items.push({ label: 'Decor Service' });
+                  if (a.chess > 0 || a.chess === true) items.push({ label: 'Chess' });
+                  if (a.carroms > 0 || a.carroms === true) items.push({ label: 'Carom Board' });
+                  if (a.volleyball > 0 || a.volleyball === true) items.push({ label: 'Volleyball' });
+                  if (a.badminton) items.push({ label: 'Badminton' });
+                  if (a.tableTennis) items.push({ label: 'Table Tennis' });
+                  if (a.cricket) items.push({ label: 'Cricket' });
+                  return items.map((item, i) => (
+                    <View key={i} style={[styles.amenityChip, { backgroundColor: colors.background }]}>
+                      <Text style={[styles.amenityText, { color: colors.text }]}>{item.label}</Text>
+                    </View>
+                  ));
+                })()}
               </View>
-              {farmhouse.amenities.customAmenities && farmhouse.amenities.customAmenities.trim() !== '' && (
-                <Text style={[styles.customAmenities, { color: colors.placeholder }]}>
-                  {farmhouse.amenities.customAmenities}
-                </Text>
-              )}
+              {(() => {
+                const a = farmhouse.amenities as any;
+                const extra = a.additionalAmenities || a.customAmenities || '';
+                return extra.trim() ? (
+                  <Text style={[styles.customAmenities, { color: colors.placeholder }]}>{extra}</Text>
+                ) : null;
+              })()}
             </>
           )}
         </View>
@@ -578,24 +570,10 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
               <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Property Rules</Text>
             </View>
 
-            {farmhouse.rules.unmarriedNotAllowed && (
-              <View style={styles.ruleItem}>
-                <Text style={styles.ruleBullet}>•</Text>
-                <Text style={[styles.ruleText, { color: colors.text }]}>Unmarried couples not allowed</Text>
-              </View>
-            )}
-
             {farmhouse.rules.petsNotAllowed && (
               <View style={styles.ruleItem}>
                 <Text style={styles.ruleBullet}>•</Text>
                 <Text style={[styles.ruleText, { color: colors.text }]}>Pets not allowed</Text>
-              </View>
-            )}
-
-            {farmhouse.rules.quietHours && (
-              <View style={styles.ruleItem}>
-                <Text style={styles.ruleBullet}>•</Text>
-                <Text style={[styles.ruleText, { color: colors.text }]}>Quiet hours must be observed</Text>
               </View>
             )}
 

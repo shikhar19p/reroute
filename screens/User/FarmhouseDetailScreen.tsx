@@ -242,15 +242,30 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   // ========== END PRICING HELPER FUNCTIONS ==========
 
   const amenitiesList = useMemo(() => {
-    const amenities = farmhouse.amenities;
+    const a = farmhouse.amenities as any;
     const list: string[] = [];
-    if (amenities.tv > 0) list.push(`${amenities.tv} TV${amenities.tv > 1 ? 's' : ''}`);
-    if (amenities.geyser > 0) list.push(`${amenities.geyser} Geyser${amenities.geyser > 1 ? 's' : ''}`);
-    if (amenities.bonfire > 0) list.push('Bonfire');
-    if (amenities.chess > 0) list.push('Chess');
-    if (amenities.carroms > 0) list.push('Carroms');
-    if (amenities.volleyball > 0) list.push('Volleyball');
-    if (amenities.pool) list.push('Swimming Pool');
+    if (a.wifi) list.push('WiFi');
+    if (a.ac) list.push('Air Conditioning');
+    if (a.parking) list.push('Parking');
+    if (a.kitchen) list.push('Kitchen');
+    if (a.tv > 0 || a.tv === true) list.push('TV');
+    if (a.geyser > 0 || a.geyser === true) list.push('Geyser');
+    if (a.pool) list.push('Swimming Pool');
+    if (a.bonfire > 0 || a.bonfire === true) list.push('Bonfire');
+    if (a.bbq) list.push('BBQ / Grill');
+    if (a.outdoorSeating) list.push('Outdoor Seating');
+    if (a.hotTub) list.push('Hot Tub / Jacuzzi');
+    if (a.djMusicSystem) list.push('DJ / Music System');
+    if (a.projector) list.push('Projector');
+    if (a.restaurant) list.push('Restaurant');
+    if (a.foodPrepOnDemand) list.push('Food Prep on Demand');
+    if (a.decorService) list.push('Decor Service');
+    if (a.chess > 0 || a.chess === true) list.push('Chess');
+    if (a.carroms > 0 || a.carroms === true) list.push('Carom Board');
+    if (a.volleyball > 0 || a.volleyball === true) list.push('Volleyball');
+    if (a.badminton) list.push('Badminton Court');
+    if (a.tableTennis) list.push('Table Tennis');
+    if (a.cricket) list.push('Cricket Ground');
     return list;
   }, [farmhouse.amenities]);
 
@@ -264,14 +279,8 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     const rules = farmhouse.rules;
     if (!rules) return ['House rules will be provided by the owner.'];
     const list: string[] = [];
-    if (!rules.unmarriedCouples) list.push('Unmarried couples not allowed');
-    else list.push('Unmarried couples are welcome');
     if (rules.pets) list.push('Pets allowed');
     else list.push('No pets allowed');
-    if (rules.quietHours) {
-      const quietHoursText = typeof rules.quietHours === 'string' ? rules.quietHours : 'enforced';
-      list.push(`Quiet hours: ${quietHoursText}`);
-    }
     return list;
   }, [farmhouse.rules]);
 

@@ -134,7 +134,6 @@ function SplashWithAuthCheck({ message, onReady, onComplete }: {
   // Wait for: animation done + auth ready + minimum time
   React.useEffect(() => {
     if (animationDone && !authLoading && minTimeElapsed) {
-      console.log('✅ Splash animation, auth, and min time complete');
       setTimeout(onComplete, 200);
     }
   }, [animationDone, authLoading, minTimeElapsed, onComplete]);
@@ -143,10 +142,7 @@ function SplashWithAuthCheck({ message, onReady, onComplete }: {
     <AnimatedSplashScreen
       message={authLoading ? "Initializing..." : message}
       onReady={onReady}
-      onAnimationComplete={() => {
-        console.log('✅ Splash animation complete, waiting for auth...');
-        setAnimationDone(true);
-      }}
+      onAnimationComplete={() => setAnimationDone(true)}
     />
   );
 }
@@ -237,11 +233,8 @@ function UserTabs() {
 function AppNavigator() {
   const { user, loading } = useAuth();
 
-  console.log('📄 AppNavigator render - loading:', loading, 'user:', user?.email, 'role:', user?.role);
-
   // Show a minimal loading indicator while auth initializes
   if (loading) {
-    console.log('⏳ Auth still loading...');
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="rgb(244, 173, 50)" />
@@ -251,23 +244,10 @@ function AppNavigator() {
 
   // Determine initial route based on user role
   const getInitialRoute = () => {
-    if (!user) {
-      console.log('🔓 No user - going to Welcome');
-      return 'Welcome';
-    }
-    if (!user.role) {
-      console.log('🔓 User authenticated but no role - going to RoleSelection');
-      return 'RoleSelection';
-    }
-    if (user.role === 'customer') {
-      console.log('🔓 Customer role - going to UserHome');
-      return 'UserHome';
-    }
-    if (user.role === 'owner') {
-      console.log('🔓 Owner role - going to OwnerNavigator');
-      return 'OwnerNavigator';
-    }
-    console.log('🔓 Unknown state - going to Welcome');
+    if (!user) return 'Welcome';
+    if (!user.role) return 'RoleSelection';
+    if (user.role === 'customer') return 'UserHome';
+    if (user.role === 'owner') return 'OwnerNavigator';
     return 'Welcome';
   };
 
@@ -467,18 +447,15 @@ export default function App() {
 
   // Keep native splash visible until custom splash is ready
   React.useEffect(() => {
-    console.log('🚀 App component mounted');
-    // Set app ready immediately - custom splash will render
     setAppReady(true);
   }, []);
 
   // Hide native splash only after custom splash renders
   const onCustomSplashReady = useCallback(async () => {
-    console.log('✅ Custom splash ready, hiding native splash');
     try {
       await SplashScreen.hideAsync();
     } catch (e) {
-      console.error('❌ Error hiding splash:', e);
+      console.error('Error hiding splash:', e);
     }
   }, []);
 
@@ -489,13 +466,8 @@ export default function App() {
   useEffect(() => {
     // Run in background without blocking
     setTimeout(() => {
-      registerForPushNotifications().then((token) => {
-        if (token) {
-          console.log('✅ Push notification token:', token);
-          // TODO: Save token to user profile in Firestore
-        }
-      }).catch(err => {
-        console.log('⚠️ Push notifications not available:', err.message);
+      registerForPushNotifications().catch(() => {
+        // Push notifications unavailable — not critical
       });
     }, 5000); // Delay by 5 seconds to not block startup
   }, []);
@@ -505,7 +477,6 @@ export default function App() {
 
   React.useEffect(() => {
     if (SKIP_SPLASH) {
-      console.log('⚡ DEV MODE: Skipping splash screen');
       SplashScreen.hideAsync().catch(() => {});
       setShowApp(true);
     }
@@ -519,16 +490,11 @@ export default function App() {
         <AnimatedSplashWithAuth
           message="Loading..."
           onReady={onCustomSplashReady}
-          onComplete={() => {
-            console.log('✅ Splash complete, showing app');
-            setShowApp(true);
-          }}
+          onComplete={() => setShowApp(true)}
         />
       </View>
     );
   }
-
-  console.log('🎨 Rendering main app');
 
   // Show app only after splash completes
   return (

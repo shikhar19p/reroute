@@ -79,7 +79,7 @@ export default function OwnerHomeScreen({ navigation }: Props) {
               onPress={handleAddFarmhouse}
               activeOpacity={0.9}
             >
-              <PlusCircle size={28} color={colors.primary} />
+              <PlusCircle size={20} color={colors.primary} />
               <Text style={styles.addButtonText}>
                 Add Your Farmhouse
               </Text>

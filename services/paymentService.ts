@@ -63,8 +63,6 @@ export async function createOrder(
   const startTime = Date.now();
 
   try {
-    console.log('📝 Creating Razorpay order:', { amount, currency, bookingId, userId });
-
     const createOrderFn = httpsCallable(functions, 'createOrder', {
       timeout: 30000, // 30 seconds — accounts for cold starts + Razorpay API latency
     });
@@ -75,9 +73,6 @@ export async function createOrder(
       bookingId,
       userId,
     });
-
-    const duration = Date.now() - startTime;
-    console.log(`✅ Order created in ${duration}ms`);
 
     const data = result.data as any;
 
@@ -95,9 +90,7 @@ export async function createOrder(
       keyId: data.keyId,
     };
   } catch (error: any) {
-    const duration = Date.now() - startTime;
-    console.error(`❌ Error creating order after ${duration}ms:`, error);
-    console.error('❌ Function error details:', error?.details, '| code:', error?.code);
+    console.error('Error creating order:', error);
 
     // Firebase callable timeout: code is 'functions/deadline-exceeded', message is 'deadline-exceeded'
     if (
@@ -140,8 +133,6 @@ export async function initiatePayment(paymentDetails: PaymentDetails): Promise<P
       },
     };
 
-    console.log('🔐 Initiating Razorpay payment with options:', options);
-
     if (!RazorpayCheckout) {
       throw new Error('Payments are not supported on web. Please use the mobile app.');
     }
@@ -151,11 +142,9 @@ export async function initiatePayment(paymentDetails: PaymentDetails): Promise<P
 
     // react-native-razorpay sometimes returns a stringified JSON
     const data = typeof rawData === 'string' ? JSON.parse(rawData) : rawData;
-
-    console.log('✅ Payment successful:', data);
     return data as PaymentResponse;
   } catch (error: any) {
-    console.error('❌ Payment failed:', error);
+    console.error('Payment failed:', error);
 
     // IMPORTANT: Check for post-payment parsing error BEFORE PAYMENT_CANCELLED.
     // Razorpay uses code=0 for both user cancellation AND parsing errors.
@@ -207,7 +196,6 @@ export async function savePaymentRecord(
     };
 
     const docRef = await addDoc(collection(db, 'payments'), paymentData);
-    console.log('💾 Payment record saved with ID:', docRef.id);
     return docRef.id;
   } catch (error) {
     console.error('Error saving payment record:', error);
@@ -230,7 +218,6 @@ export async function updatePaymentStatus(
       errorMessage,
       updatedAt: serverTimestamp(),
     });
-    console.log('✅ Payment status updated:', paymentId, status);
   } catch (error) {
     console.error('Error updating payment status:', error);
     throw error;
@@ -248,13 +235,6 @@ export async function processRefund(
   reason?: string
 ): Promise<{ refundId: string; status: string }> {
   try {
-    console.log('🔄 Processing refund:', {
-      razorpayPaymentId,
-      refundAmount,
-      bookingId,
-      reason,
-    });
-
     const processRefundFn = httpsCallable(functions, 'processRefund');
     const result = await processRefundFn({
       paymentId: razorpayPaymentId,
@@ -269,14 +249,12 @@ export async function processRefund(
       throw new Error(data.error || 'Refund processing failed');
     }
 
-    console.log('✅ Refund processed successfully:', data.refundId);
-
     return {
       refundId: data.refundId,
       status: data.status,
     };
   } catch (error: any) {
-    console.error('❌ Error processing refund:', error);
+    console.error('Error processing refund:', error);
     throw new Error(error.message || 'Failed to process refund. Please contact support.');
   }
 }
@@ -293,11 +271,7 @@ export async function verifyPaymentSignature(
   skipVerification: boolean = false
 ): Promise<boolean> {
   try {
-    console.log('🔍 Verifying payment signature:', { orderId, paymentId, bookingId });
-
-    // For registration payments, verification is optional
     if (skipVerification) {
-      console.log('⚠️ Skipping server-side verification (registration payment)');
       return true;
     }
 
@@ -318,10 +292,9 @@ export async function verifyPaymentSignature(
       throw new Error(data.error || 'Payment verification failed');
     }
 
-    console.log('✅ Payment verified successfully:', data.verified);
     return data.verified;
   } catch (error: any) {
-    console.error('❌ Error verifying payment:', error);
+    console.error('Error verifying payment:', error);
 
     throw new Error('Payment verification failed. Please contact support with your transaction ID.');
   }
@@ -372,7 +345,6 @@ export async function completePaymentFlow(
 
     return paymentResponse;
   } catch (error: any) {
-    console.error('❌ Payment flow failed:', error);
     throw error;
   }
 }
