@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>ReRoute Adventures</title>
+    <style>
+      /* Body fills the full viewport with a muted background for desktop */
+      html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background-color: #1a1a1a;
+      }
+
+      /* Prevent body scroll — ScrollView inside the app handles it */
+      body {
+        overflow: hidden;
+      }
+
+      /*
+       * On mobile (≤ 480px) the app fills the full viewport.
+       * On desktop it is centered at mobile width so it doesn't stretch.
+       */
+      #root {
+        display: flex;
+        height: 100%;
+
+        /* Desktop: center the mobile-width app */
+        max-width: 480px;
+        width: 100%;
+        margin-left: auto;
+        margin-right: auto;
+
+        /* Subtle card shadow so the app "floats" on the dark desktop background */
+        box-shadow: 0 0 60px rgba(0, 0, 0, 0.5);
+        position: relative;
+        overflow: hidden;
+        background-color: #F9F8EF;
+      }
+
+      /* On genuinely small screens (phones), remove the desktop card treatment */
+      @media (max-width: 480px) {
+        html, body {
+          background-color: #F9F8EF;
+        }
+        #root {
+          box-shadow: none;
+          max-width: 100%;
+        }
+      }
+    </style>
+    <link rel="icon" href="/favicon.ico" />
+  </head>
+  <body>
+    <noscript>You need to enable JavaScript to run this app.</noscript>
+    <div id="root"></div>
+  </body>
+</html>
