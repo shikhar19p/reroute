@@ -170,7 +170,7 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right', 'bottom']}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
       <View style={styles.header}>
@@ -374,7 +374,7 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 20,
     paddingTop: 8,
-    paddingBottom: 100,
+    paddingBottom: 20,
   },
   locationRow: {
     flexDirection: 'row',
@@ -462,7 +462,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: 16,
   },
   addButton: {
     paddingHorizontal: 32,

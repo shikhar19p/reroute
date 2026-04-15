@@ -167,10 +167,10 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
   const mainImage = images[0] || 'https://via.placeholder.com/400x300';
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right', 'bottom']}>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: 24 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -364,7 +364,6 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
             ))}
           </View>
 
-          <View style={{ height: 100 }} />
         </View>
 
         {/* Owner Quick Actions (no title) */}

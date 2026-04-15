@@ -36,7 +36,7 @@ export default function OwnerHomeScreen({ navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right', 'bottom']}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
       {/* Header */}
@@ -194,12 +194,12 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   scrollContent: {
-    paddingBottom: 40,
+    paddingBottom: 20,
   },
   heroSection: {
     marginHorizontal: 20,
     marginTop: 10,
-    marginBottom: 30,
+    marginBottom: 16,
     borderRadius: 20,
     overflow: 'hidden',
     elevation: 4,
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   heroGradient: {
-    padding: 32,
+    padding: 24,
     alignItems: 'center',
   },
   heroIconContainer: {
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
   },
   featuresSection: {
     paddingHorizontal: 20,
-    marginBottom: 30,
+    marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 22,

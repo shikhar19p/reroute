@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import {
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -16,7 +18,7 @@ import {
   completePaymentFlow,
 } from '../../services/paymentService';
 import { parseError } from '../../utils/errorHandler';
-import { CreditCard, Check } from 'lucide-react-native';
+import { CreditCard, Check, Square, CheckSquare } from 'lucide-react-native';
 
 type RegistrationFeeScreenProps = {
   navigation: NativeStackNavigationProp<any, any>;
@@ -27,10 +29,20 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
   const { showDialog } = useDialog();
   const { user } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   const REGISTRATION_FEE = farm.propertyType === 'resort' ? 5000 : 2000;
 
   const handlePayment = async () => {
+    if (!agreedToTerms) {
+      showDialog({
+        title: 'Terms Required',
+        message: 'Please read and accept the Terms & Conditions before proceeding with payment.',
+        type: 'warning',
+      });
+      return;
+    }
+
     if (!user) {
       showDialog({
         title: 'Error',
@@ -43,22 +55,19 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
     setIsProcessing(true);
 
     try {
-      // Complete Razorpay payment flow (skip server verification for registration)
       await completePaymentFlow(
-        REGISTRATION_FEE, // Amount in rupees - completePaymentFlow handles conversion to paise
+        REGISTRATION_FEE,
         'INR',
-        'registration-' + Date.now(), // Unique registration ID
+        'registration-' + Date.now(),
         user.uid,
         user.displayName || farm.kyc.person1.name || 'Farmhouse Owner',
         user.email || '',
         farm.contactPhone1 || '',
         'Farmhouse Registration Fee',
-        true // Skip server-side verification for registration payments
+        true
       );
 
-      const result = await saveFarmRegistration(farm);
-
-      // Clear draft after successful registration
+      await saveFarmRegistration(farm);
       await clearDraft();
 
       showDialog({
@@ -75,10 +84,7 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
       });
     } catch (error: any) {
       console.error('Payment/Registration error:', error);
-
-      // Parse error into user-friendly message
       const { title, message, isCancellation } = parseError(error);
-
       showDialog({
         title: isCancellation ? 'Payment Cancelled' : title,
         message: isCancellation
@@ -99,42 +105,70 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
   return (
     <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
       <View style={styles.container}>
-        <View style={styles.content}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={styles.iconContainer}>
-            <CreditCard size={36} color="#C5A565" />
+            <CreditCard size={32} color="#C5A565" />
           </View>
 
           <Text style={styles.title}>Registration Fee</Text>
           <Text style={styles.subtitle}>
-            One-time registration fee to list your {farm.propertyType === 'resort' ? 'resort' : 'farmhouse'} on our platform
+            One-time fee to list your {farm.propertyType === 'resort' ? 'resort' : 'farmhouse'} on our platform
           </Text>
 
           <View style={styles.feeCard}>
             <Text style={styles.feeLabel}>Registration Fee</Text>
-            <Text style={styles.feeAmount}>₹{REGISTRATION_FEE}</Text>
-            <Text style={styles.feeNote}>One-time payment</Text>
+            <Text style={styles.feeAmount}>₹{REGISTRATION_FEE.toLocaleString('en-IN')}</Text>
+            <Text style={styles.feeNote}>One-time payment · Non-refundable</Text>
           </View>
 
           <View style={styles.benefitsContainer}>
-            <Text style={styles.benefitsTitle}>What you get:</Text>
-            <View style={styles.benefitItem}>
-              <Check size={14} color="#16A34A" />
-              <Text style={styles.benefitText}>Premium listing on platform</Text>
-            </View>
-            <View style={styles.benefitItem}>
-              <Check size={14} color="#16A34A" />
-              <Text style={styles.benefitText}>Verified farmhouse badge</Text>
-            </View>
-            <View style={styles.benefitItem}>
-              <Check size={14} color="#16A34A" />
-              <Text style={styles.benefitText}>Access to booking management</Text>
-            </View>
-            <View style={styles.benefitItem}>
-              <Check size={14} color="#16A34A" />
-              <Text style={styles.benefitText}>24/7 customer support</Text>
-            </View>
+            <Text style={styles.benefitsTitle}>What you get</Text>
+            {[
+              'Premium listing on platform',
+              'Verified farmhouse badge',
+              'Access to booking management',
+              '24/7 customer support',
+            ].map((item) => (
+              <View key={item} style={styles.benefitItem}>
+                <Check size={14} color="#16A34A" />
+                <Text style={styles.benefitText}>{item}</Text>
+              </View>
+            ))}
           </View>
-        </View>
+
+          {/* T&C Checkbox */}
+          <TouchableOpacity
+            style={styles.termsRow}
+            onPress={() => setAgreedToTerms((v) => !v)}
+            activeOpacity={0.7}
+          >
+            {agreedToTerms
+              ? <CheckSquare size={20} color="#C5A565" />
+              : <Square size={20} color="#9CA3AF" />
+            }
+            <Text style={styles.termsText}>
+              I have read and agree to the{' '}
+              <Text
+                style={styles.termsLink}
+                onPress={() => Linking.openURL('https://rustique.in/terms')}
+              >
+                Terms &amp; Conditions
+              </Text>
+              {' '}and{' '}
+              <Text
+                style={styles.termsLink}
+                onPress={() => Linking.openURL('https://rustique.in/refund-policy')}
+              >
+                Refund Policy
+              </Text>
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
 
         <View style={styles.footer}>
           <TouchableOpacity
@@ -146,15 +180,18 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
             <Text style={styles.secondaryButtonText}>Back</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.primaryButton, isProcessing && styles.buttonDisabled]}
+            style={[
+              styles.primaryButton,
+              (!agreedToTerms || isProcessing) && styles.buttonDisabled,
+            ]}
             onPress={handlePayment}
             activeOpacity={0.8}
-            disabled={isProcessing}
+            disabled={!agreedToTerms || isProcessing}
           >
             {isProcessing ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <Text style={styles.primaryButtonText}>Pay Now</Text>
+              <Text style={styles.primaryButtonText}>Pay ₹{REGISTRATION_FEE.toLocaleString('en-IN')}</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -171,94 +208,112 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  content: {
+  scroll: {
     flex: 1,
-    padding: 24,
+  },
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 20,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   iconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#F0F9FF',
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: '#FDF8EE',
+    borderWidth: 1.5,
+    borderColor: '#C5A565',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
-  },
-  icon: {
-    fontSize: 50,
+    marginBottom: 14,
   },
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '700',
     color: '#1F2937',
-    marginBottom: 12,
+    marginBottom: 8,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#6B7280',
     textAlign: 'center',
-    marginBottom: 32,
-    paddingHorizontal: 20,
+    marginBottom: 20,
+    paddingHorizontal: 16,
+    lineHeight: 20,
   },
   feeCard: {
     width: '100%',
     backgroundColor: '#F9FAFB',
     borderWidth: 2,
-    borderColor: '#4CAF50',
+    borderColor: '#C5A565',
     borderRadius: 16,
-    padding: 24,
+    paddingVertical: 20,
+    paddingHorizontal: 24,
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 16,
   },
   feeLabel: {
-    fontSize: 16,
-    color: '#6B7280',
-    marginBottom: 8,
-  },
-  feeAmount: {
-    fontSize: 48,
-    fontWeight: '700',
-    color: '#4CAF50',
-    marginBottom: 8,
-  },
-  feeNote: {
     fontSize: 14,
     color: '#6B7280',
+    marginBottom: 6,
+  },
+  feeAmount: {
+    fontSize: 44,
+    fontWeight: '700',
+    color: '#C5A565',
+    marginBottom: 4,
+  },
+  feeNote: {
+    fontSize: 13,
+    color: '#9CA3AF',
   },
   benefitsContainer: {
     width: '100%',
     backgroundColor: '#F9FAFB',
     borderRadius: 12,
-    padding: 20,
+    padding: 16,
+    marginBottom: 16,
   },
   benefitsTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
     color: '#1F2937',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   benefitItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  benefitIcon: {
-    fontSize: 18,
-    color: '#4CAF50',
-    marginRight: 12,
-    fontWeight: '700',
+    gap: 10,
+    marginBottom: 10,
   },
   benefitText: {
-    fontSize: 15,
+    fontSize: 14,
     color: '#374151',
+  },
+  termsRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    paddingVertical: 4,
+  },
+  termsText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 20,
+  },
+  termsLink: {
+    color: '#C5A565',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   footer: {
     flexDirection: 'row',
     gap: 12,
-    padding: 20,
+    padding: 16,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderColor: '#E5E7EB',
@@ -268,7 +323,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
     borderRadius: 12,
-    paddingVertical: 16,
+    paddingVertical: 15,
     alignItems: 'center',
   },
   secondaryButtonText: {
@@ -278,11 +333,11 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#C5A565',
     borderRadius: 12,
-    paddingVertical: 16,
+    paddingVertical: 15,
     alignItems: 'center',
-    shadowColor: '#4CAF50',
+    shadowColor: '#C5A565',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -291,9 +346,11 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   buttonDisabled: {
-    opacity: 0.5,
+    opacity: 0.45,
+    elevation: 0,
+    shadowOpacity: 0,
   },
 });

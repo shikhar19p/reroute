@@ -479,7 +479,7 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right', 'bottom']}>
       {/* Date Picker Modal */}
       <Modal
         visible={datePickerIndex !== null}
@@ -863,7 +863,6 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
             </View>
           </View>
 
-          <View style={{ height: 100 }} />
         </ScrollView>
 
         <View style={[styles.footer, { backgroundColor: colors.cardBackground, borderTopColor: colors.border }]}>
@@ -887,7 +886,7 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollView: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 120 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 16 },
   headerSection: { paddingVertical: 20 },
   headerTitle: { fontSize: 28, fontWeight: 'bold', marginBottom: 4 },
   headerSubtitle: { fontSize: 14 },

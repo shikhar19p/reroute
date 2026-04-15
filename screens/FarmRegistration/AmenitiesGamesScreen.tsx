@@ -188,11 +188,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 12,
     paddingBottom: 20,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: 16,
   },
   groupTitle: {
     fontSize: 16,
