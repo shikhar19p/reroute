@@ -172,20 +172,24 @@ export function sanitizePII(data: string, type: 'aadhaar' | 'pan' | 'phone' | 'i
  * CRITICAL: Never commit encryption keys to version control!
  * Generate using: openssl rand -base64 32
  */
-const ENCRYPTION_SECRET = Constants.expoConfig?.extra?.encryptionSecret ||
-  process.env.ENCRYPTION_SECRET;
+function getEncryptionSecret(): string {
+  const secret =
+    Constants.expoConfig?.extra?.encryptionSecret ||
+    (typeof process !== 'undefined' ? process.env?.ENCRYPTION_SECRET : undefined);
 
-if (!ENCRYPTION_SECRET || ENCRYPTION_SECRET.length < 32) {
-  console.error('❌ CRITICAL: ENCRYPTION_SECRET not configured or too weak!');
-  console.error('Set ENCRYPTION_SECRET in .env with minimum 32 characters');
-  throw new Error('Encryption not configured. Cannot proceed with sensitive data operations.');
+  if (!secret || secret.length < 32) {
+    throw new Error(
+      'Encryption not configured. Set ENCRYPTION_SECRET in .env (minimum 32 characters).'
+    );
+  }
+  return secret;
 }
 
 /**
  * Derive encryption key from user ID for user-specific encryption
  */
 function deriveKey(userId: string): string {
-  return CryptoJS.SHA256(userId + ENCRYPTION_SECRET).toString();
+  return CryptoJS.SHA256(userId + getEncryptionSecret()).toString();
 }
 
 /**
