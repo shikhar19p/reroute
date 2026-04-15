@@ -453,21 +453,27 @@ export const verifyPayment = functions.https.onCall(async (data, context) => {
       // but some payment methods land in authorized first)
       await getRazorpay().payments.capture(razorpay_payment_id, rzpPayment.amount, rzpPayment.currency);
       functions.logger.info('Payment captured:', { paymentId: razorpay_payment_id });
+    } else if (paymentStatus === 'created') {
+      // UPI/QR payments can briefly show 'created' right after the user pays,
+      // before Razorpay auto-captures. HMAC is valid so the payment is genuine —
+      // confirm the booking optimistically. Razorpay will capture async.
+      functions.logger.warn('Payment still in created state after HMAC verification — proceeding for UPI/QR.', { paymentId: razorpay_payment_id });
     } else if (paymentStatus !== 'captured') {
-      // 'created', 'refunded', or any other unexpected state
+      // 'refunded', or any other unexpected state
       throw new functions.https.HttpsError(
         'failed-precondition',
         `Payment is in an unexpected state: ${paymentStatus}. Cannot confirm booking.`
       );
     }
 
-    // Payment is captured — safe to confirm the booking.
-    await db.collection('payment_orders').doc(razorpay_order_id).update({
+    // HMAC verified and payment is not failed — safe to confirm the booking.
+    // Use set+merge so this never crashes if the payment_orders doc is missing.
+    await db.collection('payment_orders').doc(razorpay_order_id).set({
       paymentId: razorpay_payment_id,
       signature: razorpay_signature,
       status: 'verified',
       verifiedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+    }, { merge: true });
 
     if (bookingId) {
       await db.collection('bookings').doc(bookingId).update({
