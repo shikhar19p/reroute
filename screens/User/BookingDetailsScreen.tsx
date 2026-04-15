@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
-  Image, ActivityIndicator, Linking, Dimensions, RefreshControl
+  ActivityIndicator, Linking, Dimensions, RefreshControl
 } from 'react-native';
+import AnimatedImage from '../../components/AnimatedImage';
+import LocationMapView from '../../components/LocationMapView';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { 
-  ArrowLeft, Calendar, MapPin, Phone, Clock, AlertCircle, 
+import {
+  ArrowLeft, Calendar, MapPin, Phone, Mail, Clock, AlertCircle,
   CheckCircle, ChevronLeft, ChevronRight, Home, Users,
   Droplet, Flame, Tv, Shield
 } from 'lucide-react-native';
@@ -34,6 +36,15 @@ interface Booking {
   userName: string;
   userPhone: string;
   couponCode?: string | null;
+  transactionId?: string;
+  refundAmount?: number;
+  refundPercentage?: number;
+  refundStatus?: string;
+  refundDate?: any;
+  cancellationReason?: string;
+  cancelledAt?: any;
+  razorpayRefundId?: string;
+  refundNote?: string;
 }
 
 interface Farmhouse {
@@ -61,8 +72,7 @@ interface Farmhouse {
     additionalRules?: string;
     customRules?: string;
     petsNotAllowed?: boolean;
-    quietHours?: boolean;
-    unmarriedNotAllowed?: boolean;
+    pets?: boolean;
   };
 }
 
@@ -78,64 +88,27 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   useEffect(() => {
-    if (bookingParam) {
-      setBooking(bookingParam);
-      if (bookingParam.farmhouseId) {
-        fetchFarmhouseOnly(bookingParam.farmhouseId, bookingParam.farmhouseName);
-      } else {
-        setLoading(false);
-      }
-    } else if (bookingId) {
+    // Always fetch fresh from Firestore if we have any ID
+    const id = bookingId || bookingParam?.id;
+    if (id) {
       fetchBookingDetails();
     } else {
-      // No booking data provided - navigation error
       setLoading(false);
     }
-  }, [bookingId, bookingParam]);
-
-  const fetchFarmhouseOnly = async (farmhouseId: string, farmhouseName: string) => {
-    try {
-      setLoading(true);
-      const farmhouseRef = doc(db, 'farmhouses', farmhouseId);
-      const farmhouseSnap = await getDoc(farmhouseRef);
-      
-      if (farmhouseSnap.exists()) {
-        const farmhouseData = farmhouseSnap.data();
-        const basicDetails = farmhouseData?.basicDetails || {};
-        
-        setFarmhouse({
-          name: basicDetails.name || farmhouseData?.name || farmhouseName || 'Unknown Property',
-          area: basicDetails.area || farmhouseData?.area || '',
-          city: basicDetails.city || farmhouseData?.city || '',
-          contactPhone1: basicDetails.contactPhone1 || farmhouseData?.contactPhone1 || '',
-          contactPhone2: basicDetails.contactPhone2 || farmhouseData?.contactPhone2 || '',
-          description: basicDetails.description || farmhouseData?.description || '',
-          mapLink: basicDetails.mapLink || farmhouseData?.mapLink || '',
-          capacity: String(basicDetails.capacity || farmhouseData?.capacity || '0'),
-          bedrooms: String(basicDetails.bedrooms || farmhouseData?.bedrooms || '0'),
-          photoUrls: Array.isArray(farmhouseData?.photoUrls) ? farmhouseData.photoUrls : [],
-          amenities: farmhouseData?.amenities || {},
-          rules: farmhouseData?.rules || {},
-        } as Farmhouse);
-      }
-    } catch (error) {
-      console.error('Error fetching farmhouse:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [bookingId]);
 
   const fetchBookingDetails = async () => {
     try {
       setLoading(true);
-      
-      if (!bookingId) {
+
+      const id = bookingId || bookingParam?.id;
+      if (!id) {
         console.error('No booking ID provided');
         setLoading(false);
         return;
       }
 
-      const bookingRef = doc(db, 'bookings', bookingId);
+      const bookingRef = doc(db, 'bookings', id);
       const bookingSnap = await getDoc(bookingRef);
       
       if (!bookingSnap.exists()) {
@@ -145,7 +118,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
       }
 
       const rawBookingData = bookingSnap.data();
-      const bookingData = { 
+      const bookingData = {
         id: bookingSnap.id,
         bookingType: rawBookingData?.bookingType || 'overnight',
         checkInDate: rawBookingData?.checkInDate || '',
@@ -163,6 +136,15 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
         userName: rawBookingData?.userName || '',
         userPhone: rawBookingData?.userPhone || '',
         couponCode: rawBookingData?.couponCode || null,
+        transactionId: rawBookingData?.transactionId || null,
+        refundAmount: rawBookingData?.refundAmount ? Number(rawBookingData.refundAmount) : undefined,
+        refundPercentage: rawBookingData?.refundPercentage ? Number(rawBookingData.refundPercentage) : undefined,
+        refundStatus: rawBookingData?.refundStatus || undefined,
+        refundDate: rawBookingData?.refundDate || undefined,
+        cancellationReason: rawBookingData?.cancellationReason || undefined,
+        cancelledAt: rawBookingData?.cancelledAt || undefined,
+        razorpayRefundId: rawBookingData?.razorpayRefundId || undefined,
+        refundNote: rawBookingData?.refundNote || undefined,
       } as Booking;
       
       setBooking(bookingData);
@@ -215,7 +197,11 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchBookingDetails();
+    // fetchBookingDetails uses bookingId from route.params or falls back to bookingParam.id
+    const id = bookingId || bookingParam?.id;
+    if (id) {
+      await fetchBookingDetails();
+    }
     setRefreshing(false);
   };
 
@@ -285,7 +271,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
     );
   }
 
-  if (!booking || !farmhouse) {
+  if (!booking) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
         <View style={styles.errorContainer}>
@@ -326,10 +312,15 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
           />
         }
       >
-        <View style={[styles.statusBanner, { 
-          backgroundColor: booking.status === 'confirmed' ? '#10B981' : '#F59E0B' 
+        <View style={[styles.statusBanner, {
+          backgroundColor: booking.status === 'confirmed' ? '#10B981' :
+                           booking.status === 'cancelled' ? '#EF4444' :
+                           booking.status === 'completed' ? '#3B82F6' : '#F59E0B'
         }]}>
-          <CheckCircle size={20} color="white" />
+          {booking.status === 'cancelled'
+            ? <AlertCircle size={20} color="white" />
+            : <CheckCircle size={20} color="white" />
+          }
           <Text style={styles.statusText}>
             Booking {(booking.status || 'pending').toUpperCase()}
           </Text>
@@ -337,8 +328,8 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
 
         {farmhouse && farmhouse.photoUrls && farmhouse.photoUrls.length > 0 && (
           <View style={styles.imageSection}>
-            <Image 
-              source={{ uri: farmhouse.photoUrls[currentImageIndex] }} 
+            <AnimatedImage
+              uri={farmhouse.photoUrls[currentImageIndex]}
               style={styles.farmhouseImage}
               resizeMode="cover"
             />
@@ -374,17 +365,17 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
 
         <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <Text style={[styles.farmhouseName, { color: colors.text }]}>
-            {farmhouse.name || 'Unknown Property'}
+            {farmhouse?.name || booking.farmhouseName || 'Unknown Property'}
           </Text>
-          {(farmhouse.area || farmhouse.city) && (
-            <View style={styles.locationRow}>
-              <MapPin size={16} color={colors.placeholder} />
-              <Text style={[styles.locationText, { color: colors.placeholder }]}>
-                {`${farmhouse.area || ''}${farmhouse.city ? (farmhouse.area ? `, ${farmhouse.city}` : farmhouse.city) : ''}`}
+          {farmhouse && (farmhouse.area || farmhouse.city || farmhouse.mapLink) && (
+            <View style={[styles.locationRow, { gap: 4 }]}>
+              <MapPin size={13} color={colors.placeholder} />
+              <Text style={[styles.locationText, { color: colors.placeholder }]} numberOfLines={1}>
+                {[farmhouse.area, farmhouse.city].filter(Boolean).join(', ') || farmhouse.mapLink}
               </Text>
             </View>
           )}
-          {farmhouse.description && (
+          {farmhouse?.description && (
             <Text style={[styles.description, { color: colors.text }]}>
               {farmhouse.description}
             </Text>
@@ -470,9 +461,10 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
           </View>
         </View>
 
+        {farmhouse && (
         <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Property Details</Text>
-          
+
           <View style={styles.statsRow}>
             <View style={[styles.statBox, { backgroundColor: colors.background }]}>
               <Users size={24} color={colors.buttonBackground} />
@@ -490,126 +482,99 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
               <Text style={[styles.statLabel, { color: colors.placeholder }]}>Bedrooms</Text>
             </View>
 
-            {farmhouse.mapLink && (
-              <TouchableOpacity 
-                style={[styles.statBox, { backgroundColor: colors.background }]}
-                onPress={openMap}
-              >
-                <MapPin size={24} color={colors.buttonBackground} />
-                <Text style={[styles.statLink, { color: colors.buttonBackground }]}>View Map</Text>
-              </TouchableOpacity>
-            )}
+          </View>
+
+          {/* Where you'll be */}
+          <View style={[styles.locationSection, { borderTopColor: colors.border }]}>
+            <Text style={[styles.subsectionTitle, { color: colors.text }]}>Where you'll be</Text>
+            <LocationMapView
+              location={[farmhouse.area, farmhouse.city].filter(Boolean).join(', ') || 'Location'}
+              mapLink={farmhouse.mapLink}
+              height={170}
+            />
           </View>
 
           {farmhouse.amenities && Object.keys(farmhouse.amenities).length > 0 && (
             <>
               <Text style={[styles.subsectionTitle, { color: colors.text }]}>Amenities</Text>
               <View style={styles.amenitiesGrid}>
-                {farmhouse.amenities.pool === true && (
-                  <View style={[styles.amenityChip, { backgroundColor: colors.background }]}>
-                    <Droplet size={16} color="#3B82F6" />
-                    <Text style={[styles.amenityText, { color: colors.text }]}>Swimming Pool</Text>
-                  </View>
-                )}
-                {Number(farmhouse.amenities.bonfire || 0) > 0 && (
-                  <View style={[styles.amenityChip, { backgroundColor: colors.background }]}>
-                    <Flame size={16} color="#F59E0B" />
-                    <Text style={[styles.amenityText, { color: colors.text }]}>Bonfire</Text>
-                  </View>
-                )}
-                {Number(farmhouse.amenities.tv || 0) > 0 && (
-                  <View style={[styles.amenityChip, { backgroundColor: colors.background }]}>
-                    <Tv size={16} color="#8B5CF6" />
-                    <Text style={[styles.amenityText, { color: colors.text }]}>TV</Text>
-                  </View>
-                )}
-                {Number(farmhouse.amenities.geyser || 0) > 0 && (
-                  <View style={[styles.amenityChip, { backgroundColor: colors.background }]}>
-                    <Text style={[styles.amenityText, { color: colors.text }]}>
-                      Geyser ({Number(farmhouse.amenities.geyser)})
-                    </Text>
-                  </View>
-                )}
-                {Number(farmhouse.amenities.carroms || 0) > 0 && (
-                  <View style={[styles.amenityChip, { backgroundColor: colors.background }]}>
-                    <Text style={[styles.amenityText, { color: colors.text }]}>Carroms</Text>
-                  </View>
-                )}
-                {Number(farmhouse.amenities.chess || 0) > 0 && (
-                  <View style={[styles.amenityChip, { backgroundColor: colors.background }]}>
-                    <Text style={[styles.amenityText, { color: colors.text }]}>Chess</Text>
-                  </View>
-                )}
-                {Number(farmhouse.amenities.volleyball || 0) > 0 && (
-                  <View style={[styles.amenityChip, { backgroundColor: colors.background }]}>
-                    <Text style={[styles.amenityText, { color: colors.text }]}>Volleyball</Text>
-                  </View>
-                )}
+                {(() => {
+                  const a = farmhouse.amenities as any;
+                  const items: Array<{ label: string; icon?: any; color?: string }> = [];
+                  if (a.wifi) items.push({ label: 'WiFi' });
+                  if (a.ac) items.push({ label: 'AC' });
+                  if (a.parking) items.push({ label: 'Parking' });
+                  if (a.kitchen) items.push({ label: 'Kitchen' });
+                  if (a.tv > 0 || a.tv === true) items.push({ label: 'TV' });
+                  if (a.geyser > 0 || a.geyser === true) items.push({ label: 'Geyser' });
+                  if (a.pool) items.push({ label: 'Swimming Pool' });
+                  if (a.bonfire > 0 || a.bonfire === true) items.push({ label: 'Bonfire' });
+                  if (a.bbq) items.push({ label: 'BBQ / Grill' });
+                  if (a.outdoorSeating) items.push({ label: 'Outdoor Seating' });
+                  if (a.hotTub) items.push({ label: 'Hot Tub' });
+                  if (a.djMusicSystem) items.push({ label: 'DJ / Music System' });
+                  if (a.projector) items.push({ label: 'Projector' });
+                  if (a.restaurant) items.push({ label: 'Restaurant' });
+                  if (a.foodPrepOnDemand) items.push({ label: 'Food on Demand' });
+                  if (a.decorService) items.push({ label: 'Decor Service' });
+                  if (a.chess > 0 || a.chess === true) items.push({ label: 'Chess' });
+                  if (a.carroms > 0 || a.carroms === true) items.push({ label: 'Carom Board' });
+                  if (a.volleyball > 0 || a.volleyball === true) items.push({ label: 'Volleyball' });
+                  if (a.badminton) items.push({ label: 'Badminton' });
+                  if (a.tableTennis) items.push({ label: 'Table Tennis' });
+                  if (a.cricket) items.push({ label: 'Cricket' });
+                  return items.map((item, i) => (
+                    <View key={i} style={[styles.amenityChip, { backgroundColor: colors.background }]}>
+                      <Text style={[styles.amenityText, { color: colors.text }]}>{item.label}</Text>
+                    </View>
+                  ));
+                })()}
               </View>
-              {farmhouse.amenities.customAmenities && farmhouse.amenities.customAmenities.trim() !== '' && (
-                <Text style={[styles.customAmenities, { color: colors.placeholder }]}>
-                  {farmhouse.amenities.customAmenities}
-                </Text>
-              )}
+              {(() => {
+                const a = farmhouse.amenities as any;
+                const extra = a.additionalAmenities || a.customAmenities || '';
+                return extra.trim() ? (
+                  <Text style={[styles.customAmenities, { color: colors.placeholder }]}>{extra}</Text>
+                ) : null;
+              })()}
             </>
           )}
         </View>
-
-        {(farmhouse.contactPhone1 || farmhouse.contactPhone2) && (
-          <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Owner Contact</Text>
-            
-            {farmhouse.contactPhone1 && (
-              <TouchableOpacity 
-                style={[styles.contactButton, { backgroundColor: colors.background }]}
-                onPress={() => callOwner(farmhouse.contactPhone1)}
-              >
-                <Phone size={20} color={colors.buttonBackground} />
-                <Text style={[styles.contactText, { color: colors.text }]}>
-                  {farmhouse.contactPhone1}
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            {farmhouse.contactPhone2 && farmhouse.contactPhone2.trim() !== '' && (
-              <TouchableOpacity 
-                style={[styles.contactButton, { backgroundColor: colors.background }]}
-                onPress={() => callOwner(farmhouse.contactPhone2)}
-              >
-                <Phone size={20} color={colors.buttonBackground} />
-                <Text style={[styles.contactText, { color: colors.text }]}>
-                  {farmhouse.contactPhone2}
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
         )}
 
-        {farmhouse.rules && Object.values(farmhouse.rules).some(v => v) && (
+        {/* Support Contact */}
+        <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Need Help?</Text>
+          <Text style={[styles.contactNote, { color: colors.placeholder }]}>
+            For any queries related to your booking, reach out to us:
+          </Text>
+          <TouchableOpacity
+            style={[styles.contactButton, { backgroundColor: colors.background }]}
+            onPress={() => Linking.openURL('tel:+918280353535')}
+          >
+            <Phone size={20} color={colors.buttonBackground} />
+            <Text style={[styles.contactText, { color: colors.text }]}>+91 82803 53535</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.contactButton, { backgroundColor: colors.background }]}
+            onPress={() => Linking.openURL('mailto:rustiquebyranareddy@gmail.com')}
+          >
+            <Mail size={20} color={colors.buttonBackground} />
+            <Text style={[styles.contactText, { color: colors.text }]}>rustiquebyranareddy@gmail.com</Text>
+          </TouchableOpacity>
+        </View>
+
+        {farmhouse?.rules && Object.values(farmhouse.rules).some(v => v) && (
           <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
             <View style={styles.cardHeader}>
               <Shield size={20} color={colors.buttonBackground} />
               <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Property Rules</Text>
             </View>
 
-            {farmhouse.rules.unmarriedNotAllowed && (
-              <View style={styles.ruleItem}>
-                <Text style={styles.ruleBullet}>•</Text>
-                <Text style={[styles.ruleText, { color: colors.text }]}>Unmarried couples not allowed</Text>
-              </View>
-            )}
-
             {farmhouse.rules.petsNotAllowed && (
               <View style={styles.ruleItem}>
                 <Text style={styles.ruleBullet}>•</Text>
                 <Text style={[styles.ruleText, { color: colors.text }]}>Pets not allowed</Text>
-              </View>
-            )}
-
-            {farmhouse.rules.quietHours && (
-              <View style={styles.ruleItem}>
-                <Text style={styles.ruleBullet}>•</Text>
-                <Text style={[styles.ruleText, { color: colors.text }]}>Quiet hours must be observed</Text>
               </View>
             )}
 
@@ -626,7 +591,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
 
         <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Payment Summary</Text>
-          
+
           <View style={styles.infoRow}>
             <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Base Price</Text>
             <Text style={[styles.infoValue, { color: colors.text }]}>
@@ -655,13 +620,144 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
             </Text>
           </View>
 
-          <View style={[styles.paidBadge, { backgroundColor: '#10B981' }]}>
+          {booking.transactionId && (
+            <View style={[styles.infoRow, { marginTop: 8 }]}>
+              <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Transaction ID</Text>
+              <Text style={[styles.transactionId, { color: colors.text }]} numberOfLines={1}>
+                {booking.transactionId}
+              </Text>
+            </View>
+          )}
+
+          <View style={[styles.paidBadge, { backgroundColor: booking.paymentStatus === 'paid' ? '#10B981' : '#F59E0B' }]}>
             <CheckCircle size={16} color="white" />
             <Text style={styles.paidText}>
               Payment {(booking.paymentStatus || 'pending').toUpperCase()}
             </Text>
           </View>
         </View>
+
+        {/* Show refund details for cancelled bookings */}
+        {booking.status === 'cancelled' && (
+          <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+            <View style={[styles.cancelledHeader, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEE2E2' }]}>
+              <AlertCircle size={20} color="#EF4444" />
+              <Text style={[styles.cancelledTitle, { color: '#EF4444' }]}>Booking Cancelled</Text>
+            </View>
+
+            {booking.cancelledAt && (
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Cancelled On</Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {formatTimestamp(booking.cancelledAt)}
+                </Text>
+              </View>
+            )}
+
+            {booking.cancellationReason && (
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Reason</Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {booking.cancellationReason}
+                </Text>
+              </View>
+            )}
+
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            <Text style={[styles.subsectionTitle, { color: colors.text }]}>Refund Information</Text>
+
+            {booking.refundAmount !== undefined && booking.refundAmount > 0 ? (
+              <>
+                <View style={styles.infoRow}>
+                  <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Refund Amount</Text>
+                  <Text style={[styles.refundAmount, { color: '#10B981' }]}>
+                    ₹{Number(booking.refundAmount).toLocaleString('en-IN')}
+                  </Text>
+                </View>
+
+                {booking.refundPercentage !== undefined && (
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Refund Percentage</Text>
+                    <Text style={[styles.infoValue, { color: colors.text }]}>
+                      {booking.refundPercentage}%
+                    </Text>
+                  </View>
+                )}
+
+                <View style={styles.infoRow}>
+                  <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Refund Status</Text>
+                  <View style={[styles.refundStatusBadge, {
+                    backgroundColor: booking.refundStatus === 'completed' ? '#10B981' :
+                                   booking.refundStatus === 'processing' ? '#F59E0B' :
+                                   booking.refundStatus === 'failed' ? '#EF4444' : '#6B7280'
+                  }]}>
+                    <Text style={styles.refundStatusText}>
+                      {(booking.refundStatus || 'Pending').toUpperCase()}
+                    </Text>
+                  </View>
+                </View>
+
+                {booking.refundDate && (
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Refund Date</Text>
+                    <Text style={[styles.infoValue, { color: colors.text }]}>
+                      {formatTimestamp(booking.refundDate)}
+                    </Text>
+                  </View>
+                )}
+
+                {booking.transactionId && (
+                  <View style={[styles.infoRow, { marginTop: 12 }]}>
+                    <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Payment ID</Text>
+                    <Text style={[styles.transactionId, { color: colors.text }]} numberOfLines={1}>
+                      {booking.transactionId}
+                    </Text>
+                  </View>
+                )}
+
+                {booking.razorpayRefundId && (
+                  <View style={styles.infoRow}>
+                    <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Refund ID</Text>
+                    <Text style={[styles.transactionId, { color: colors.text }]} numberOfLines={1}>
+                      {booking.razorpayRefundId}
+                    </Text>
+                  </View>
+                )}
+
+                <View style={[styles.refundNote, { backgroundColor: isDark ? 'rgba(59, 130, 246, 0.1)' : '#EFF6FF', borderColor: '#3B82F6' }]}>
+                  <AlertCircle size={16} color="#3B82F6" />
+                  <Text style={[styles.refundNoteText, { color: colors.text }]}>
+                    {booking.refundStatus === 'completed'
+                      ? 'Refund has been processed to your original payment method.'
+                      : booking.refundStatus === 'processing'
+                      ? 'Refund is being processed and will reflect in 5-7 business days.'
+                      : booking.refundStatus === 'failed'
+                      ? 'Refund processing failed. Please contact support with your transaction ID.'
+                      : 'Refund will be processed within 24 hours to your original payment method.'
+                    }
+                  </Text>
+                </View>
+
+                {booking.refundNote && (
+                  <Text style={[styles.supportText, { color: '#F59E0B', marginBottom: 4 }]}>
+                    Note: {booking.refundNote}
+                  </Text>
+                )}
+
+                <Text style={[styles.supportText, { color: colors.placeholder }]}>
+                  For refund queries, contact support with your Booking ID and Refund ID
+                </Text>
+              </>
+            ) : (
+              <View style={[styles.infoBox, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEE2E2', borderColor: '#EF4444' }]}>
+                <AlertCircle size={16} color="#EF4444" />
+                <Text style={[styles.infoBoxText, { color: colors.text }]}>
+                  No refund applicable as per cancellation policy (cancelled after check-in time)
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -730,8 +826,8 @@ const styles = StyleSheet.create({
     borderWidth: 1 
   },
   farmhouseName: { fontSize: 24, fontWeight: 'bold', marginBottom: 8 },
-  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
-  locationText: { fontSize: 14 },
+  locationRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  locationText: { fontSize: 13, flex: 1 },
   description: { fontSize: 15, lineHeight: 22 },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
@@ -784,15 +880,44 @@ const styles = StyleSheet.create({
   },
   amenityText: { fontSize: 13, fontWeight: '500' },
   customAmenities: { fontSize: 13, marginTop: 12, lineHeight: 20 },
-  contactButton: { 
-    flexDirection: 'row', 
+  contactNote: { fontSize: 13, marginBottom: 12, lineHeight: 18 },
+  contactButton: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 16, 
+    padding: 16,
     borderRadius: 10,
     marginBottom: 12
   },
   contactText: { fontSize: 16, fontWeight: '600' },
+  transactionId: { fontSize: 12, fontWeight: '500', flex: 1, textAlign: 'right', fontFamily: 'monospace' },
+  cancelledHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16
+  },
+  cancelledTitle: { fontSize: 16, fontWeight: '700' },
+  refundAmount: { fontSize: 16, fontWeight: 'bold' },
+  refundStatusBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 6
+  },
+  refundStatusText: { color: 'white', fontSize: 12, fontWeight: '700' },
+  refundNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 12
+  },
+  refundNoteText: { fontSize: 13, flex: 1, lineHeight: 18 },
+  supportText: { fontSize: 12, marginTop: 12, fontStyle: 'italic', textAlign: 'center' },
   ruleItem: { flexDirection: 'row', gap: 8, marginBottom: 10 },
   ruleBullet: { color: '#EF4444', fontSize: 18, fontWeight: 'bold' },
   ruleText: { fontSize: 14, flex: 1, lineHeight: 20 },
@@ -811,4 +936,6 @@ const styles = StyleSheet.create({
     marginTop: 12
   },
   paidText: { color: 'white', fontSize: 14, fontWeight: '700' },
+
+  locationSection: { marginTop: 20, paddingTop: 20, borderTopWidth: StyleSheet.hairlineWidth },
 });
