@@ -1,10 +1,14 @@
 import { doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '../firebaseConfig';
 import { Booking } from './bookingService';
 import { processRefund } from './paymentService';
 import { sendCancellationNotification } from './notificationService';
 import { logAuditEvent } from './auditService';
 import { removeBookedDatesFromFarmhouse } from './availabilityService';
+import { REFUND_POLICY } from '../config/refundPolicy';
+
+const functions = getFunctions();
 
 export interface CancellationPolicy {
   freeCancellationDays: number; // Days before check-in for free cancellation
@@ -15,10 +19,10 @@ export interface CancellationPolicy {
 
 // Default cancellation policy (can be customized per farmhouse)
 export const DEFAULT_CANCELLATION_POLICY: CancellationPolicy = {
-  freeCancellationDays: 7, // Free cancellation if cancelled 7+ days before
-  partialRefundDays: 3, // 50% refund if cancelled 3-7 days before
+  freeCancellationDays: 1, // 50% refund if cancelled 1+ days before
+  partialRefundDays: 1, // No refund if cancelled within 24 hours
   partialRefundPercentage: 50,
-  processingFee: 50, // ₹50 processing fee
+  processingFee: 0, // No processing fee
 };
 
 export interface CancellationResult {
@@ -35,6 +39,7 @@ export interface CancellationResult {
 export function calculateRefundAmount(
   totalAmount: number,
   checkInDate: string,
+  isOwnerCancellation: boolean = false,
   policy: CancellationPolicy = DEFAULT_CANCELLATION_POLICY
 ): {
   refundAmount: number;
@@ -42,12 +47,23 @@ export function calculateRefundAmount(
   processingFee: number;
   reason: string;
 } {
+  // If owner cancels, always give 100% refund
+  if (isOwnerCancellation) {
+    return {
+      refundAmount: totalAmount,
+      refundPercentage: 100,
+      processingFee: 0,
+      reason: 'Full refund - Cancelled by property owner',
+    };
+  }
+
   const now = new Date();
   const checkIn = new Date(checkInDate);
-  const daysUntilCheckIn = Math.ceil((checkIn.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const hoursUntilCheckIn = (checkIn.getTime() - now.getTime()) / (1000 * 60 * 60);
+  const threshold = REFUND_POLICY.FULL_REFUND_THRESHOLD_HOURS;
 
   // Cancellation after check-in date - no refund
-  if (daysUntilCheckIn < 0) {
+  if (hoursUntilCheckIn < 0) {
     return {
       refundAmount: 0,
       refundPercentage: 0,
@@ -56,35 +72,23 @@ export function calculateRefundAmount(
     };
   }
 
-  // Free cancellation window
-  if (daysUntilCheckIn >= policy.freeCancellationDays) {
-    const refundAmount = totalAmount - policy.processingFee;
+  // Within 24 hours of check-in - 50% refund
+  if (hoursUntilCheckIn < threshold) {
+    const refundAmount = (totalAmount * REFUND_POLICY.PARTIAL_REFUND_PERCENTAGE) / 100;
     return {
-      refundAmount: Math.max(0, refundAmount),
-      refundPercentage: 100,
-      processingFee: policy.processingFee,
-      reason: `Free cancellation (${daysUntilCheckIn} days before check-in)`,
+      refundAmount,
+      refundPercentage: REFUND_POLICY.PARTIAL_REFUND_PERCENTAGE,
+      processingFee: REFUND_POLICY.PROCESSING_FEE_RUPEES,
+      reason: `50% refund - Cancellation within 24 hours of check-in (${Math.floor(hoursUntilCheckIn)} hours remaining)`,
     };
   }
 
-  // Partial refund window
-  if (daysUntilCheckIn >= policy.partialRefundDays) {
-    const refundBeforeFee = (totalAmount * policy.partialRefundPercentage) / 100;
-    const refundAmount = refundBeforeFee - policy.processingFee;
-    return {
-      refundAmount: Math.max(0, refundAmount),
-      refundPercentage: policy.partialRefundPercentage,
-      processingFee: policy.processingFee,
-      reason: `Partial refund (${policy.partialRefundPercentage}% refund - cancelled ${daysUntilCheckIn} days before check-in)`,
-    };
-  }
-
-  // Within non-refundable window
+  // More than 24 hours before check-in - 100% refund
   return {
-    refundAmount: 0,
-    refundPercentage: 0,
+    refundAmount: totalAmount,
+    refundPercentage: REFUND_POLICY.FULL_REFUND_PERCENTAGE,
     processingFee: 0,
-    reason: `Non-refundable (cancelled ${daysUntilCheckIn} days before check-in)`,
+    reason: `100% refund - Cancelled ${Math.floor(hoursUntilCheckIn)} hours before check-in`,
   };
 }
 
@@ -94,7 +98,8 @@ export function calculateRefundAmount(
 export async function cancelBookingWithRefund(
   bookingId: string,
   userId: string,
-  reason?: string
+  reason?: string,
+  isOwnerCancellation: boolean = false
 ): Promise<CancellationResult> {
   try {
     // Get booking details
@@ -107,8 +112,8 @@ export async function cancelBookingWithRefund(
 
     const booking = { id: bookingSnap.id, ...bookingSnap.data() } as Booking;
 
-    // Verify user owns this booking
-    if (booking.userId !== userId) {
+    // Verify user owns this booking (skip check for owner cancellations)
+    if (!isOwnerCancellation && booking.userId !== userId) {
       throw new Error('Unauthorized: You can only cancel your own bookings');
     }
 
@@ -120,7 +125,8 @@ export async function cancelBookingWithRefund(
     // Calculate refund
     const refundCalc = calculateRefundAmount(
       booking.totalPrice,
-      booking.checkInDate
+      booking.checkInDate,
+      isOwnerCancellation
     );
 
     // Update booking status
@@ -150,10 +156,50 @@ export async function cancelBookingWithRefund(
 
     // Process refund if applicable
     if (refundCalc.refundAmount > 0 && booking.paymentStatus === 'paid') {
-      // Note: In production, this should trigger a backend function to process actual refund
-      // For now, we'll just update the payment status
-      // await processRefund(paymentId, razorpayPaymentId, refundCalc.refundAmount);
-      console.log(`💰 Refund of ₹${refundCalc.refundAmount} will be processed`);
+      try {
+        // Process refund via Razorpay Cloud Function
+        if (booking.transactionId) {
+          console.log(`💰 Processing refund of ₹${refundCalc.refundAmount} via Razorpay...`);
+
+          const refundResult = await processRefund(
+            booking.transactionId, // Razorpay payment ID
+            refundCalc.refundAmount, // Refund amount in rupees
+            bookingId,
+            reason || 'Booking cancellation'
+          );
+
+          console.log('✅ Refund processed successfully:', refundResult.refundId);
+
+          // Update booking with refund details
+          const refundStatus =
+            refundResult.status === 'not_applicable' ? 'not_applicable' :
+            refundResult.status === 'processed' ? 'completed' : 'processing';
+          await updateDoc(bookingRef, {
+            refundStatus,
+            refundDate: serverTimestamp(),
+            ...(refundResult.status === 'not_applicable' && {
+              refundNote: 'Payment authorization expired — no charge was made to your account',
+            }),
+          });
+        } else {
+          console.warn('⚠️ No transaction ID found for booking, skipping refund processing');
+          // Update refund status to manual review
+          await updateDoc(bookingRef, {
+            refundStatus: 'pending',
+            refundNote: 'Manual refund processing required - no transaction ID',
+          });
+        }
+      } catch (refundError: any) {
+        console.error('❌ Error processing refund:', refundError);
+        // Update booking with refund error
+        await updateDoc(bookingRef, {
+          refundStatus: 'failed',
+          refundError: refundError.message || 'Refund processing failed',
+        });
+        // Don't throw - booking is already cancelled, refund can be processed manually
+      }
+    } else if (refundCalc.refundAmount > 0) {
+      console.log(`ℹ️ Refund applicable (₹${refundCalc.refundAmount}) but payment not completed`);
     }
 
     // Send cancellation notification
@@ -176,6 +222,18 @@ export async function cancelBookingWithRefund(
         reason: reason || 'User requested cancellation',
       }
     );
+
+    // Send cancellation emails to user, owner, and admin via Cloud Function
+    try {
+      const notifyFn = httpsCallable(functions, 'notifyBookingCancellation');
+      await notifyFn({
+        bookingId,
+        refundAmount: refundCalc.refundAmount,
+        refundPercentage: refundCalc.refundPercentage,
+        reason: reason || 'User requested cancellation',
+        isOwnerCancellation,
+      });
+    } catch (_) {}
 
     console.log('✅ Booking cancelled successfully:', bookingId);
 
@@ -201,13 +259,15 @@ export function getCancellationPolicyDescription(
   return `
 Cancellation Policy:
 
-• Free Cancellation: Cancel ${policy.freeCancellationDays}+ days before check-in for full refund (minus ₹${policy.processingFee} processing fee)
+• Cancel more than 24 hours before check-in: 100% refund
 
-• Partial Refund: Cancel ${policy.partialRefundDays}-${policy.freeCancellationDays - 1} days before check-in for ${policy.partialRefundPercentage}% refund (minus ₹${policy.processingFee} processing fee)
+• Cancel within 24 hours of check-in: 50% refund
 
-• Non-Refundable: Cancellations within ${policy.partialRefundDays} days of check-in are non-refundable
+• Owner cancellation: 100% refund (full amount returned)
 
-• Refunds are processed within 5-7 business days
+• No refund for cancellations after check-in time
+
+• Refunds are processed within 5-7 business days to your original payment method
   `.trim();
 }
 
@@ -249,26 +309,3 @@ export async function previewCancellationRefund(
   }
 }
 
-/**
- * Check if booking can be modified (dates, guests, etc.)
- * Typically allowed within 24-48 hours before check-in
- */
-export function canModifyBooking(checkInDate: string): boolean {
-  const now = new Date();
-  const checkIn = new Date(checkInDate);
-  const hoursUntilCheckIn = (checkIn.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-  // Allow modifications if check-in is more than 48 hours away
-  return hoursUntilCheckIn > 48;
-}
-
-/**
- * Get cancellation statistics for analytics
- */
-export interface CancellationStats {
-  totalCancellations: number;
-  freeRefunds: number;
-  partialRefunds: number;
-  noRefunds: number;
-  totalRefundAmount: number;
-}

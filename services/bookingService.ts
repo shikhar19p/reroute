@@ -43,8 +43,9 @@ export interface Booking {
   bankName?: string;
   cancellationDate?: string;
   refundAmount?: number;
-  refundStatus?: 'pending' | 'processing' | 'completed' | 'failed';
+  refundStatus?: 'pending' | 'processing' | 'completed' | 'failed' | 'not_applicable';
   refundDate?: string;
+  razorpayRefundId?: string;
   createdAt: any;
   updatedAt?: any;
 }
@@ -122,7 +123,6 @@ export async function createBooking(bookingData: Omit<Booking, 'id' | 'createdAt
       // Silently ignore audit log failures - booking is still created
     }
 
-    console.log('Booking created successfully with ID:', docRef.id);
     return docRef.id;
   } catch (error) {
     if (error instanceof Error && error.message.includes('Validation failed')) {
@@ -202,7 +202,6 @@ export async function updateBookingStatus(
       status,
       updatedAt: serverTimestamp()
     });
-    console.log('Booking status updated:', bookingId, status);
   } catch (error) {
     console.error('Error updating booking status:', error);
     throw error;
@@ -239,11 +238,8 @@ export async function cancelBooking(bookingId: string): Promise<void> {
         await removeBookedDatesFromFarmhouse(farmhouseId, checkInDate, checkOutDate);
       } catch (dateError) {
         console.error('Warning: Failed to remove dates from farmhouse:', dateError);
-        // Don't throw - booking is already cancelled
       }
     }
-    
-    console.log('Booking cancelled and dates removed from farmhouse');
   } catch (error) {
     console.error('Error cancelling booking:', error);
     throw error;
@@ -254,7 +250,6 @@ export async function cancelBooking(bookingId: string): Promise<void> {
 export async function deleteBooking(bookingId: string): Promise<void> {
   try {
     await deleteDoc(doc(db, 'bookings', bookingId));
-    console.log('Booking deleted:', bookingId);
   } catch (error) {
     console.error('Error deleting booking:', error);
     throw error;
@@ -272,7 +267,6 @@ export async function updatePaymentStatus(
       paymentStatus,
       updatedAt: serverTimestamp()
     });
-    console.log('Payment status updated:', bookingId, paymentStatus);
   } catch (error) {
     console.error('Error updating payment status:', error);
     throw error;
@@ -292,16 +286,128 @@ export async function updateRefundStatus(
       refund_status: refundStatus,
       updatedAt: serverTimestamp(),
     };
-    
+
     if (refundDate) {
       updateData.refundDate = refundDate;
       updateData.refund_date = refundDate;
     }
-    
+
     await updateDoc(bookingRef, updateData);
-    console.log('Refund status updated:', bookingId, refundStatus);
   } catch (error) {
     console.error('Error updating refund status:', error);
     throw error;
+  }
+}
+
+/**
+ * Cleanup abandoned pending bookings for a specific user (older than specified minutes)
+ * Returns the number of bookings cleaned up
+ */
+export async function cleanupAbandonedBookings(
+  userId: string,
+  maxAgeMinutes: number = 2
+): Promise<number> {
+  try {
+    if (!userId) return 0;
+
+    const cutoffTime = new Date();
+    cutoffTime.setMinutes(cutoffTime.getMinutes() - maxAgeMinutes);
+
+    // Query for user's pending bookings only
+    const q = query(
+      collection(db, 'bookings'),
+      where('userId', '==', userId),
+      where('status', '==', 'pending'),
+      where('paymentStatus', '==', 'pending')
+    );
+
+    const snapshot = await getDocs(q);
+    let cleanedCount = 0;
+
+    for (const bookingDoc of snapshot.docs) {
+      const booking = { id: bookingDoc.id, ...bookingDoc.data() } as Booking;
+
+      // Check if booking is older than cutoff time
+      const createdAt = booking.createdAt?.toDate?.() || new Date(0);
+
+      if (createdAt < cutoffTime) {
+        // Remove dates from farmhouse
+        if (booking.farmhouseId && booking.checkInDate && booking.checkOutDate) {
+          try {
+            await removeBookedDatesFromFarmhouse(
+              booking.farmhouseId,
+              booking.checkInDate,
+              booking.checkOutDate
+            );
+          } catch (dateError) {
+            console.error('Warning: Failed to remove dates during cleanup:', dateError);
+          }
+        }
+
+        // Soft-delete: mark as cancelled instead of hard delete
+        // (Firestore security rules allow users to update but not delete their bookings)
+        await updateDoc(doc(db, 'bookings', booking.id), {
+          status: 'cancelled',
+          paymentStatus: 'failed',
+          cancellationReason: 'Payment timeout - booking abandoned',
+          updatedAt: serverTimestamp(),
+        });
+        cleanedCount++;
+      }
+    }
+
+    return cleanedCount;
+  } catch (error) {
+    console.error('Error cleaning up abandoned bookings:', error);
+    return 0;
+  }
+}
+
+/**
+ * Cleanup a specific booking if it's still pending
+ * Used when user cancels payment or navigates away
+ */
+export async function cleanupPendingBooking(bookingId: string): Promise<boolean> {
+  try {
+    const bookingRef = doc(db, 'bookings', bookingId);
+    const bookingSnap = await getDoc(bookingRef);
+
+    if (!bookingSnap.exists()) {
+      return true;
+    }
+
+    const booking = { id: bookingSnap.id, ...bookingSnap.data() } as Booking;
+
+    // Cleanup if pending or if webhook already marked payment failed but didn't unblock dates
+    if (booking.status === 'pending' && (booking.paymentStatus === 'pending' || booking.paymentStatus === 'failed')) {
+
+      // Remove dates from farmhouse
+      if (booking.farmhouseId && booking.checkInDate && booking.checkOutDate) {
+        try {
+          await removeBookedDatesFromFarmhouse(
+            booking.farmhouseId,
+            booking.checkInDate,
+            booking.checkOutDate
+          );
+        } catch (dateError) {
+          console.error('Warning: Failed to remove dates during cleanup:', dateError);
+        }
+      }
+
+      // Soft-delete: mark as cancelled instead of hard delete
+      // (Firestore security rules allow users to update but not delete their bookings)
+      await updateDoc(bookingRef, {
+        status: 'cancelled',
+        paymentStatus: 'failed',
+        cancellationReason: 'Payment not completed',
+        updatedAt: serverTimestamp(),
+      });
+      return true;
+    } else {
+      return false;
+    }
+  } catch (error) {
+    console.error('Error cleaning up pending booking:', error);
+    return false;
   }
 }
