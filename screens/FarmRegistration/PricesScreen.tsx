@@ -200,7 +200,7 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
           {priceFields.map(({ key, label, placeholder, section }, index) => (
             <View key={key}>
               {(index === 0 || priceFields[index - 1].section !== section) && (
-                <View style={styles.sectionHeader}>
+                <View style={[styles.sectionHeader, index === 0 && { marginTop: 0 }]}>
                   <Text style={styles.sectionIcon}>Rs.</Text>
                   <Text style={styles.sectionTitle}>{section}</Text>
                 </View>
@@ -298,14 +298,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 12,
     paddingBottom: 20,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 24,
-    marginBottom: 16,
+    marginTop: 16,
+    marginBottom: 12,
     gap: 8,
   },
   sectionIcon: {

@@ -206,7 +206,7 @@ export default function BookingsListScreen({ route, navigation }: Props) {
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right', 'bottom']}>
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Bookings</Text>
         <Text style={[styles.headerSub, { color: colors.placeholder }]}>{bookings.length} total</Text>
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
   filtersRow: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, gap: 8, flexWrap: 'wrap' },
   filterChip: { borderWidth: 1, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16 },
   filterText: { fontSize: 12, fontWeight: '600' },
-  list: { padding: 12, paddingBottom: 100 },
+  list: { padding: 12, paddingBottom: 20 },
   card: { borderRadius: 12, padding: 12, borderWidth: 1, marginBottom: 12 },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   title: { fontSize: 16, fontWeight: '700', flex: 1, marginRight: 8 },

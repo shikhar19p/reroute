@@ -95,7 +95,7 @@ export default function ManageBlockedDatesScreen({ route, navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right', 'bottom']}>
       {loading ? (
         <View style={styles.loading}><ActivityIndicator size="large" color={colors.buttonBackground} /></View>
       ) : (
