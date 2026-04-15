@@ -49,28 +49,19 @@ export async function registerForPushNotifications(): Promise<string | null> {
     }
 
     if (finalStatus !== 'granted') {
-      console.log('⚠️ Push notification permissions not granted');
       return null;
     }
 
-    // Get the Expo push token
     const projectId =
       Constants.expoConfig?.extra?.eas?.projectId ||
       (Constants as any).easConfig?.projectId;
     const token = (
       await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : {})
     ).data;
-    console.log('✅ Push notification token obtained');
 
     return token;
   } catch (error) {
     // Suppress FCM configuration errors - they're optional for development
-    if (error instanceof Error && error.message.includes('FirebaseApp')) {
-      console.log('ℹ️ Push notifications disabled (FCM not configured - optional for development)');
-      // To enable: https://docs.expo.dev/push-notifications/fcm-credentials/
-    } else {
-      console.log('⚠️ Push notification registration skipped:', error instanceof Error ? error.message : 'Unknown error');
-    }
     return null;
   }
 }
@@ -94,8 +85,6 @@ export async function sendLocalNotification(
       },
       trigger: null, // null means show immediately
     });
-
-    console.log('📱 Local notification sent:', notificationId);
     return notificationId;
   } catch (error) {
     console.error('Error sending local notification:', error);
@@ -123,8 +112,6 @@ export async function scheduleNotification(
       },
       trigger: triggerDate,
     });
-
-    console.log('⏰ Scheduled notification:', notificationId, 'for', triggerDate);
     return notificationId;
   } catch (error) {
     console.error('Error scheduling notification:', error);
@@ -138,7 +125,6 @@ export async function scheduleNotification(
 export async function cancelScheduledNotification(notificationId: string): Promise<void> {
   try {
     await Notifications.cancelScheduledNotificationAsync(notificationId);
-    console.log('✅ Cancelled notification:', notificationId);
   } catch (error) {
     console.error('Error cancelling notification:', error);
     throw error;
@@ -156,7 +142,6 @@ export async function saveNotificationToFirestore(
       ...notification,
       createdAt: serverTimestamp(),
     });
-    console.log('💾 Notification saved to Firestore:', docRef.id);
     return docRef.id;
   } catch (error) {
     console.error('Error saving notification:', error);
@@ -294,7 +279,6 @@ export async function scheduleBookingReminder(
       read: false,
     });
 
-    console.log('⏰ Booking reminder scheduled:', notificationId);
   }
 }
 
@@ -332,13 +316,10 @@ export function setupNotificationListeners(
 ): void {
   // Listener for notifications received while app is foregrounded
   const receivedSubscription = Notifications.addNotificationReceivedListener((notification) => {
-    console.log('📱 Notification received:', notification);
     onNotificationReceived?.(notification);
   });
 
-  // Listener for when user taps on notification
   const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
-    console.log('👆 Notification tapped:', response);
     onNotificationPressed?.(response);
   });
 

@@ -40,10 +40,8 @@ export default function RoleSelectionScreen({ navigation }: any) {
             try {
               setLoggingOut(true);
               await logout();
-              console.log('✅ User signed out successfully');
-              // Navigation will be handled automatically by AuthContext
             } catch (error) {
-              console.error('❌ Error signing out:', error);
+              console.error('Error signing out:', error);
               setLoggingOut(false);
               showDialog({
                 title: 'Sign out failed',
@@ -58,25 +56,19 @@ export default function RoleSelectionScreen({ navigation }: any) {
   };
 
   const handleRoleSelection = async (role: 'customer' | 'owner') => {
-    console.log('🎯 Button pressed! Selected role:', role);
-
     if (!user) {
       showDialog({
         title: 'Not signed in',
         message: 'Please sign in to continue.',
         type: 'error'
       });
-      console.log('❌ No user found');
       return;
     }
 
-    console.log('✅ User found:', user.email);
     setSelectedRole(role);
     setLoading(true);
 
     try {
-      console.log('📝 Starting role save process...');
-
       // Try to save to Firestore
       try {
         const userDocRef = doc(db, 'users', user.uid);
@@ -85,7 +77,6 @@ export default function RoleSelectionScreen({ navigation }: any) {
         let existingRoles: ('owner' | 'customer')[] = [];
         if (userDoc.exists()) {
           const userData = userDoc.data();
-          // Get existing roles or create array from existing role
           if (userData?.roles && Array.isArray(userData.roles)) {
             existingRoles = userData.roles;
           } else if (userData?.role) {
@@ -93,7 +84,6 @@ export default function RoleSelectionScreen({ navigation }: any) {
           }
         }
 
-        // Add new role if not already present
         if (!existingRoles.includes(role)) {
           existingRoles.push(role);
         }
@@ -101,11 +91,10 @@ export default function RoleSelectionScreen({ navigation }: any) {
         if (userDoc.exists()) {
           await setDoc(userDocRef, {
             ...userDoc.data(),
-            role, // Current active role
-            roles: existingRoles, // All roles user has
+            role,
+            roles: existingRoles,
             updatedAt: new Date().toISOString(),
           }, { merge: true });
-          console.log('✅ Role saved to Firestore, roles:', existingRoles);
         } else {
           await setDoc(userDocRef, {
             uid: user.uid,
@@ -113,14 +102,12 @@ export default function RoleSelectionScreen({ navigation }: any) {
             displayName: user.displayName,
             photoURL: user.photoURL,
             role,
-            roles: [role], // Initialize with selected role
+            roles: [role],
             createdAt: new Date().toISOString(),
           });
-          console.log('✅ New user document created in Firestore');
         }
       } catch (firestoreError: any) {
-        console.warn('⚠️ Could not save to Firestore:', firestoreError.message);
-        console.log('💡 Continuing with local storage only');
+        console.warn('Could not save to Firestore:', firestoreError.message);
       }
 
       // Update local session with role and roles array
@@ -134,21 +121,16 @@ export default function RoleSelectionScreen({ navigation }: any) {
         role,
         roles: userRoles,
       });
-      console.log('✅ Role saved to local storage, roles:', userRoles);
 
       setLoading(false);
-      console.log('🎉 Role selection complete!');
 
-      // Navigate to appropriate screen
       if (role === 'customer') {
-        console.log('🚀 Navigating to UserHome');
         navigation.replace('UserHome');
       } else if (role === 'owner') {
-        console.log('🚀 Navigating to OwnerNavigator');
         navigation.replace('OwnerNavigator');
       }
     } catch (error: any) {
-      console.error('❌ Error setting role:', error);
+      console.error('Error setting role:', error);
       showDialog({
         title: 'Couldn\'t continue',
         message: 'Please try again.',

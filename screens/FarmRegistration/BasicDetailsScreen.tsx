@@ -36,10 +36,48 @@ const fieldConfigs = [
 ];
 
 export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenProps) {
-  const { farm, setField, hasDraft, loadDraft, clearDraft, resetFarm } = useFarmRegistration();
+  const { farm, setField, hasDraft, loadDraft, clearDraft, resetFarm, saveDraft } = useFarmRegistration();
   const { showDialog } = useDialog();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [draftChecked, setDraftChecked] = useState(false);
+
+  // Intercept back navigation to offer save/discard draft
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
+      const hasData = farm.name || farm.contactPhone1 || farm.city || farm.area || farm.photos.length > 0;
+      if (!hasData) return;
+
+      e.preventDefault();
+      showDialog({
+        title: 'Exit Registration?',
+        message: 'Would you like to save your progress as a draft?',
+        type: 'confirm',
+        buttons: [
+          {
+            text: 'Discard',
+            style: 'destructive',
+            onPress: async () => {
+              await clearDraft();
+              navigation.dispatch(e.data.action);
+            },
+          },
+          {
+            text: 'Save Draft',
+            style: 'default',
+            onPress: async () => {
+              await saveDraft();
+              navigation.dispatch(e.data.action);
+            },
+          },
+          {
+            text: 'Stay',
+            style: 'cancel',
+          },
+        ],
+      });
+    });
+    return unsubscribe;
+  }, [navigation, farm, showDialog, clearDraft, saveDraft]);
 
   // Check for saved draft on mount
   useEffect(() => {

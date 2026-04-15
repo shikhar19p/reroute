@@ -43,8 +43,6 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
     setIsProcessing(true);
 
     try {
-      console.log('🔄 Starting registration fee payment...');
-
       // Complete Razorpay payment flow (skip server verification for registration)
       await completePaymentFlow(
         REGISTRATION_FEE, // Amount in rupees - completePaymentFlow handles conversion to paise
@@ -58,12 +56,7 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
         true // Skip server-side verification for registration payments
       );
 
-      console.log('✅ Payment successful!');
-
-      // Save the farm registration after successful payment
-      console.log('📝 Saving farm registration...');
       const result = await saveFarmRegistration(farm);
-      console.log('✅ Registration successful!', result);
 
       // Clear draft after successful registration
       await clearDraft();
@@ -81,7 +74,7 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
         }]
       });
     } catch (error: any) {
-      console.error('❌ Payment/Registration error:', error);
+      console.error('Payment/Registration error:', error);
 
       // Parse error into user-friendly message
       const { title, message, isCancellation } = parseError(error);

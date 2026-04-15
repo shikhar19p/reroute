@@ -10,22 +10,39 @@ interface Photo {
 }
 
 interface Amenities {
-  tv: number;
-  geyser: number;
-  bonfire: number;
+  // Essentials
+  wifi: boolean;
+  ac: boolean;
+  parking: boolean;
+  kitchen: boolean;
+  tv: boolean;
+  geyser: boolean;
+  // Outdoors
   pool: boolean;
-  decorService: boolean;
-  restaurant: boolean;
-  foodPrepOnDemand: boolean;
+  bonfire: boolean;
+  bbq: boolean;
+  outdoorSeating: boolean;
+  hotTub: boolean;
+  // Entertainment
   djMusicSystem: boolean;
   projector: boolean;
+  // Food & Services
+  restaurant: boolean;
+  foodPrepOnDemand: boolean;
+  decorService: boolean;
+  // Games & Sports
+  chess: boolean;
+  carrom: boolean;
+  volleyball: boolean;
+  badminton: boolean;
+  tableTennis: boolean;
+  cricket: boolean;
+  // Additional
   customAmenities: string;
 }
 
 interface Rules {
-  unmarriedNotAllowed: boolean;
   petsNotAllowed: boolean;
-  quietHours: string;
   customRules: string;
 }
 
@@ -131,21 +148,32 @@ const createInitialFarm = (): Farm => ({
   },
   photos: [],
   amenities: {
-    tv: 0,
-    geyser: 0,
-    bonfire: 0,
+    wifi: false,
+    ac: false,
+    parking: false,
+    kitchen: false,
+    tv: false,
+    geyser: false,
     pool: false,
-    decorService: false,
-    restaurant: false,
-    foodPrepOnDemand: false,
+    bonfire: false,
+    bbq: false,
+    outdoorSeating: false,
+    hotTub: false,
     djMusicSystem: false,
     projector: false,
+    restaurant: false,
+    foodPrepOnDemand: false,
+    decorService: false,
+    chess: false,
+    carrom: false,
+    volleyball: false,
+    badminton: false,
+    tableTennis: false,
+    cricket: false,
     customAmenities: '',
   },
   rules: {
-    unmarriedNotAllowed: false,
     petsNotAllowed: false,
-    quietHours: '',
     customRules: '',
   },
   kyc: {

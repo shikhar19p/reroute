@@ -148,9 +148,7 @@ const createDefaultFarmhouse = (id: string): Farmhouse => {
       pool: false,
     },
     rules: {
-      unmarriedCouples: false,
       pets: false,
-      quietHours: false,
     },
     ownerId: '',
     status: 'pending',
@@ -212,12 +210,26 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
         carroms: data.amenities?.carroms || 0,
         volleyball: data.amenities?.volleyball || 0,
         pool: data.amenities?.pool || false,
+        wifi: data.amenities?.wifi || false,
+        ac: data.amenities?.ac || false,
+        parking: data.amenities?.parking || false,
+        kitchen: data.amenities?.kitchen || false,
+        bbq: data.amenities?.bbq || false,
+        outdoorSeating: data.amenities?.outdoorSeating || false,
+        hotTub: data.amenities?.hotTub || false,
+        djMusicSystem: data.amenities?.djMusicSystem || false,
+        projector: data.amenities?.projector || false,
+        restaurant: data.amenities?.restaurant || false,
+        foodPrepOnDemand: data.amenities?.foodPrepOnDemand || false,
+        decorService: data.amenities?.decorService || false,
+        badminton: data.amenities?.badminton || false,
+        tableTennis: data.amenities?.tableTennis || false,
+        cricket: data.amenities?.cricket || false,
+        additionalAmenities: data.amenities?.additionalAmenities || data.amenities?.customAmenities || '',
       },
-      
+
       rules: {
-        unmarriedCouples: !data.rules?.unmarriedNotAllowed,
         pets: !data.rules?.petsNotAllowed,
-        quietHours: data.rules?.quietHours || false,
       },
       
       ownerId: data.ownerId || '',
@@ -276,9 +288,7 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
     },
     
     rules: data.rules || {
-      unmarriedCouples: false,
       pets: false,
-      quietHours: false,
     },
     
     ownerId: data.ownerId || '',

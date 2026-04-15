@@ -123,7 +123,6 @@ export async function createBooking(bookingData: Omit<Booking, 'id' | 'createdAt
       // Silently ignore audit log failures - booking is still created
     }
 
-    console.log('Booking created successfully with ID:', docRef.id);
     return docRef.id;
   } catch (error) {
     if (error instanceof Error && error.message.includes('Validation failed')) {
@@ -203,7 +202,6 @@ export async function updateBookingStatus(
       status,
       updatedAt: serverTimestamp()
     });
-    console.log('Booking status updated:', bookingId, status);
   } catch (error) {
     console.error('Error updating booking status:', error);
     throw error;
@@ -240,11 +238,8 @@ export async function cancelBooking(bookingId: string): Promise<void> {
         await removeBookedDatesFromFarmhouse(farmhouseId, checkInDate, checkOutDate);
       } catch (dateError) {
         console.error('Warning: Failed to remove dates from farmhouse:', dateError);
-        // Don't throw - booking is already cancelled
       }
     }
-    
-    console.log('Booking cancelled and dates removed from farmhouse');
   } catch (error) {
     console.error('Error cancelling booking:', error);
     throw error;
@@ -255,7 +250,6 @@ export async function cancelBooking(bookingId: string): Promise<void> {
 export async function deleteBooking(bookingId: string): Promise<void> {
   try {
     await deleteDoc(doc(db, 'bookings', bookingId));
-    console.log('Booking deleted:', bookingId);
   } catch (error) {
     console.error('Error deleting booking:', error);
     throw error;
@@ -273,7 +267,6 @@ export async function updatePaymentStatus(
       paymentStatus,
       updatedAt: serverTimestamp()
     });
-    console.log('Payment status updated:', bookingId, paymentStatus);
   } catch (error) {
     console.error('Error updating payment status:', error);
     throw error;
@@ -300,7 +293,6 @@ export async function updateRefundStatus(
     }
 
     await updateDoc(bookingRef, updateData);
-    console.log('Refund status updated:', bookingId, refundStatus);
   } catch (error) {
     console.error('Error updating refund status:', error);
     throw error;
@@ -316,10 +308,7 @@ export async function cleanupAbandonedBookings(
   maxAgeMinutes: number = 2
 ): Promise<number> {
   try {
-    if (!userId) {
-      console.log('⚠️ No userId provided for cleanup, skipping');
-      return 0;
-    }
+    if (!userId) return 0;
 
     const cutoffTime = new Date();
     cutoffTime.setMinutes(cutoffTime.getMinutes() - maxAgeMinutes);
@@ -342,8 +331,6 @@ export async function cleanupAbandonedBookings(
       const createdAt = booking.createdAt?.toDate?.() || new Date(0);
 
       if (createdAt < cutoffTime) {
-        console.log(`🧹 Cleaning up abandoned booking ${booking.id} created at ${createdAt}`);
-
         // Remove dates from farmhouse
         if (booking.farmhouseId && booking.checkInDate && booking.checkOutDate) {
           try {
@@ -369,13 +356,9 @@ export async function cleanupAbandonedBookings(
       }
     }
 
-    if (cleanedCount > 0) {
-      console.log(`✅ Cleaned up ${cleanedCount} abandoned booking(s) for user ${userId}`);
-    }
-
     return cleanedCount;
   } catch (error) {
-    console.error('❌ Error cleaning up abandoned bookings:', error);
+    console.error('Error cleaning up abandoned bookings:', error);
     return 0;
   }
 }
@@ -390,7 +373,6 @@ export async function cleanupPendingBooking(bookingId: string): Promise<boolean>
     const bookingSnap = await getDoc(bookingRef);
 
     if (!bookingSnap.exists()) {
-      console.log('Booking not found, already cleaned up');
       return true;
     }
 
@@ -398,7 +380,6 @@ export async function cleanupPendingBooking(bookingId: string): Promise<boolean>
 
     // Cleanup if pending or if webhook already marked payment failed but didn't unblock dates
     if (booking.status === 'pending' && (booking.paymentStatus === 'pending' || booking.paymentStatus === 'failed')) {
-      console.log(`🧹 Cleaning up pending booking ${bookingId}`);
 
       // Remove dates from farmhouse
       if (booking.farmhouseId && booking.checkInDate && booking.checkOutDate) {
@@ -421,14 +402,12 @@ export async function cleanupPendingBooking(bookingId: string): Promise<boolean>
         cancellationReason: 'Payment not completed',
         updatedAt: serverTimestamp(),
       });
-      console.log('✅ Pending booking cleaned up successfully');
       return true;
     } else {
-      console.log('Booking is no longer pending, skipping cleanup');
       return false;
     }
   } catch (error) {
-    console.error('❌ Error cleaning up pending booking:', error);
+    console.error('Error cleaning up pending booking:', error);
     return false;
   }
 }

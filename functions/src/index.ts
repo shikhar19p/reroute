@@ -54,6 +54,8 @@ const smtpTransporter = nodemailer.createTransport({
 
 const FROM_EMAIL = process.env.SMTP_FROM || functions.config().smtp?.from || 'noreply@reroute.app';
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || functions.config().smtp?.admin_email || '';
+// Bank details update notifications go to this address
+const BANK_UPDATE_EMAIL = process.env.BANK_UPDATE_EMAIL || functions.config().smtp?.bank_update_email || 'rustiquebyranareddy@gmail.com';
 
 // ─── Email helper ─────────────────────────────────────────────────────────────
 async function sendEmail(to: string | string[], subject: string, html: string): Promise<void> {
@@ -322,7 +324,7 @@ async function sendBookingConfirmationEmails(bookingId: string, transactionId: s
     if (b.userEmail) {
       await sendEmail(
         b.userEmail,
-        `Booking Confirmed — ${b.farmhouseName} | Reroute`,
+        `[Booking] Confirmed — ${b.farmhouseName} | Reroute`,
         bookingConfirmationUserEmail({ ...b, transactionId })
       );
     }
@@ -331,7 +333,7 @@ async function sendBookingConfirmationEmails(bookingId: string, transactionId: s
     if (ownerEmail) {
       await sendEmail(
         ownerEmail,
-        `New Booking Received — ${b.farmhouseName} | Reroute`,
+        `[Booking] New Booking Received — ${b.farmhouseName} | Reroute`,
         bookingConfirmationOwnerEmail(b)
       );
     }
@@ -340,7 +342,7 @@ async function sendBookingConfirmationEmails(bookingId: string, transactionId: s
     if (ADMIN_EMAIL) {
       await sendEmail(
         ADMIN_EMAIL,
-        `[Admin] New Booking — ${b.farmhouseName}`,
+        `[Booking] New — ${b.farmhouseName}`,
         bookingConfirmationAdminEmail({ ...b, transactionId })
       );
     }
@@ -620,15 +622,15 @@ export const processRefund = functions.https.onCall(async (data, context) => {
           await sendEmail(
             bData.userEmail,
             refundStatus === 'completed'
-              ? `Refund Processed — ₹${amount} | Reroute`
-              : `Refund Initiated — ₹${amount} | Reroute`,
+              ? `[Refund] Processed — ₹${amount} | Reroute`
+              : `[Refund] Initiated — ₹${amount} | Reroute`,
             refundStatusEmail(bData, amount, refund.id, 'processed')
           );
         }
         if (ADMIN_EMAIL) {
           await sendEmail(
             ADMIN_EMAIL,
-            `[Admin] Refund ${refundStatus} — Booking ${bookingId}`,
+            `[Refund] ${refundStatus} — Booking ${bookingId}`,
             refundStatusEmail(bData, amount, refund.id, 'processed')
           );
         }
@@ -683,7 +685,7 @@ export const notifyBookingCancellation = functions.https.onCall(async (data, con
     if (b.userEmail) {
       await sendEmail(
         b.userEmail,
-        `Booking Cancelled — ${b.farmhouseName} | Reroute`,
+        `[Cancellation] Booking Cancelled — ${b.farmhouseName} | Reroute`,
         cancellationUserEmail(b, refundAmount, refundPercentage, reason)
       );
     }
@@ -691,7 +693,7 @@ export const notifyBookingCancellation = functions.https.onCall(async (data, con
     if (ownerEmail) {
       await sendEmail(
         ownerEmail,
-        `Booking Cancellation — ${b.farmhouseName} | Reroute`,
+        `[Cancellation] Booking Cancelled — ${b.farmhouseName} | Reroute`,
         cancellationOwnerEmail(b, reason, isOwnerCancellation, refundAmount, refundPercentage)
       );
     }
@@ -699,7 +701,7 @@ export const notifyBookingCancellation = functions.https.onCall(async (data, con
     if (ADMIN_EMAIL) {
       await sendEmail(
         ADMIN_EMAIL,
-        `[Admin] Booking Cancelled — ${b.farmhouseName}`,
+        `[Cancellation] Booking Cancelled — ${b.farmhouseName}`,
         cancellationAdminEmail(b, refundAmount, refundPercentage, reason, isOwnerCancellation)
       );
     }
@@ -709,14 +711,14 @@ export const notifyBookingCancellation = functions.https.onCall(async (data, con
       if (ADMIN_EMAIL) {
         await sendEmail(
           ADMIN_EMAIL,
-          `[URGENT] Refund Failed — Booking ${bookingId}`,
+          `[Refund] URGENT — Refund Failed for Booking ${bookingId}`,
           refundStatusEmail(b, refundAmount, null, 'failed')
         );
       }
       if (b.userEmail) {
         await sendEmail(
           b.userEmail,
-          'Refund Processing Issue — Reroute',
+          '[Refund] Processing Issue — Reroute',
           refundStatusEmail(b, refundAmount, null, 'failed')
         );
       }
@@ -902,7 +904,7 @@ async function handleRefundUpdate(refund: any) {
           if (b.userEmail) {
             sendEmail(
               b.userEmail,
-              `Refund Processed — ₹${refundAmount} | Reroute`,
+              `[Refund] Processed — ₹${refundAmount} | Reroute`,
               refundStatusEmail(b, refundAmount, refundId, 'processed')
             ).catch(() => {});
           }
@@ -911,3 +913,215 @@ async function handleRefundUpdate(refund: any) {
     }
   }
 }
+
+// ─── Email templates: registration & approval ────────────────────────────────
+
+function newListingAdminEmail(farmhouseName: string, ownerName: string, city: string, area: string, propertyType: string, farmhouseId: string): string {
+  return baseLayout(`
+    <h2 style="color:#1565C0;margin-top:0;">[New Listing] Farmhouse Registration Submitted</h2>
+    <p>A new ${propertyType || 'farmhouse'} has been registered and is awaiting approval.</p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;margin:20px 0;">
+      <tr style="background:#f9f9f9;"><td style="padding:12px 16px;font-weight:bold;width:45%;color:#555;">Property Name</td><td style="padding:12px 16px;">${farmhouseName}</td></tr>
+      <tr><td style="padding:12px 16px;font-weight:bold;color:#555;">Property Type</td><td style="padding:12px 16px;text-transform:capitalize;">${propertyType || 'farmhouse'}</td></tr>
+      <tr style="background:#f9f9f9;"><td style="padding:12px 16px;font-weight:bold;color:#555;">Location</td><td style="padding:12px 16px;">${area}, ${city}</td></tr>
+      <tr><td style="padding:12px 16px;font-weight:bold;color:#555;">Owner</td><td style="padding:12px 16px;">${ownerName || 'Unknown'}</td></tr>
+      <tr style="background:#f9f9f9;"><td style="padding:12px 16px;font-weight:bold;color:#555;">Farmhouse ID</td><td style="padding:12px 16px;font-family:monospace;font-size:13px;">${farmhouseId}</td></tr>
+    </table>
+
+    <div style="background:#E3F2FD;border-left:4px solid #1565C0;padding:16px;border-radius:4px;margin:20px 0;">
+      <p style="margin:0;font-size:14px;color:#1565C0;">Please review the KYC documents and approve or reject the listing in the admin panel.</p>
+    </div>
+  `);
+}
+
+function newListingOwnerEmail(farmhouseName: string, ownerName: string): string {
+  return baseLayout(`
+    <h2 style="color:#4CAF50;margin-top:0;">Registration Submitted Successfully</h2>
+    <p>Hi <strong>${ownerName || 'there'}</strong>,</p>
+    <p>Thank you for registering <strong>${farmhouseName}</strong> on Reroute. Your property has been submitted for review.</p>
+
+    <div style="background:#E8F5E9;border-left:4px solid #4CAF50;padding:16px;border-radius:4px;margin:20px 0;">
+      <p style="margin:0;font-size:14px;color:#2E7D32;">
+        Our team will review your KYC documents and listing details. You will receive an email once your property is approved and goes live on the platform.
+      </p>
+    </div>
+
+    <p style="color:#555;">For any queries, reach out to us at <a href="mailto:support@reroute.app" style="color:#4CAF50;">support@reroute.app</a>.</p>
+  `);
+}
+
+function approvalStatusEmail(farmhouseName: string, ownerName: string, newStatus: string, rejectionReason?: string): string {
+  const isApproved = newStatus === 'approved';
+  const isRejected = newStatus === 'rejected';
+  const accentColor = isApproved ? '#4CAF50' : isRejected ? '#F44336' : '#FF9800';
+  const statusLabel = isApproved ? 'Approved' : isRejected ? 'Rejected' : 'Under Review';
+
+  return baseLayout(`
+    <h2 style="color:${accentColor};margin-top:0;">Listing Status Update: ${statusLabel}</h2>
+    <p>Hi <strong>${ownerName || 'there'}</strong>,</p>
+    <p>The status of your property <strong>${farmhouseName}</strong> has been updated.</p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;margin:20px 0;">
+      <tr style="background:#f9f9f9;"><td style="padding:12px 16px;font-weight:bold;width:45%;color:#555;">Property</td><td style="padding:12px 16px;">${farmhouseName}</td></tr>
+      <tr><td style="padding:12px 16px;font-weight:bold;color:#555;">New Status</td><td style="padding:12px 16px;font-weight:bold;color:${accentColor};text-transform:capitalize;">${statusLabel}</td></tr>
+      ${rejectionReason ? `<tr style="background:#f9f9f9;"><td style="padding:12px 16px;font-weight:bold;color:#555;">Reason</td><td style="padding:12px 16px;">${rejectionReason}</td></tr>` : ''}
+    </table>
+
+    ${isApproved ? `
+    <div style="background:#E8F5E9;border-left:4px solid #4CAF50;padding:16px;border-radius:4px;margin:20px 0;">
+      <p style="margin:0;font-size:14px;color:#2E7D32;">
+        Congratulations! Your property is now live on Reroute and guests can start booking.
+      </p>
+    </div>` : ''}
+
+    ${isRejected ? `
+    <div style="background:#FFEBEE;border-left:4px solid #F44336;padding:16px;border-radius:4px;margin:20px 0;">
+      <p style="margin:0;font-size:14px;color:#C62828;">
+        If you believe this is a mistake or need clarification, please contact <a href="mailto:support@reroute.app" style="color:#F44336;">support@reroute.app</a>.
+      </p>
+    </div>` : ''}
+
+    <p style="color:#555;">Log in to the Reroute app to view your listing details.</p>
+  `);
+}
+
+function bankDetailsUpdateEmail(farmhouseName: string, farmhouseId: string, ownerId: string): string {
+  return baseLayout(`
+    <h2 style="color:#FF9800;margin-top:0;">[Bank Update] Bank Details Changed</h2>
+    <p>The bank account details for a farmhouse have been updated. Please verify before processing any payouts.</p>
+
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;margin:20px 0;">
+      <tr style="background:#f9f9f9;"><td style="padding:12px 16px;font-weight:bold;width:45%;color:#555;">Farmhouse</td><td style="padding:12px 16px;">${farmhouseName}</td></tr>
+      <tr><td style="padding:12px 16px;font-weight:bold;color:#555;">Farmhouse ID</td><td style="padding:12px 16px;font-family:monospace;font-size:13px;">${farmhouseId}</td></tr>
+      <tr style="background:#f9f9f9;"><td style="padding:12px 16px;font-weight:bold;color:#555;">Owner ID</td><td style="padding:12px 16px;font-family:monospace;font-size:13px;">${ownerId}</td></tr>
+      <tr><td style="padding:12px 16px;font-weight:bold;color:#555;">Updated At</td><td style="padding:12px 16px;">${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</td></tr>
+    </table>
+
+    <div style="background:#FFF3E0;border-left:4px solid #FF9800;padding:16px;border-radius:4px;margin:20px 0;">
+      <p style="margin:0;font-size:14px;color:#E65100;">
+        Action required: Please log in to the admin panel and verify the new bank details before approving any pending payouts for this property.
+      </p>
+    </div>
+  `);
+}
+
+// ─── Firestore trigger: new farmhouse registered ──────────────────────────────
+export const onFarmhouseCreated = functions.firestore
+  .document('farmhouses/{farmhouseId}')
+  .onCreate(async (snap, context) => {
+    const farmhouseId = context.params.farmhouseId;
+    const data = snap.data();
+
+    const farmhouseName = data.basicDetails?.name || 'Unnamed Property';
+    const city = data.basicDetails?.city || '';
+    const area = data.basicDetails?.area || '';
+    const propertyType = data.propertyType || 'farmhouse';
+    const ownerId = data.ownerId;
+
+    // Get owner info
+    let ownerName = 'Unknown';
+    let ownerEmail: string | null = null;
+    if (ownerId) {
+      try {
+        const ownerDoc = await db.collection('users').doc(ownerId).get();
+        ownerName = ownerDoc.data()?.displayName || ownerDoc.data()?.name || 'Unknown';
+        ownerEmail = ownerDoc.data()?.email || null;
+      } catch (err) {
+        functions.logger.warn('Could not fetch owner details for new listing email:', { ownerId, err });
+      }
+    }
+
+    // Notify admin
+    if (ADMIN_EMAIL) {
+      await sendEmail(
+        ADMIN_EMAIL,
+        `[New Listing] ${farmhouseName} — ${area}, ${city}`,
+        newListingAdminEmail(farmhouseName, ownerName, city, area, propertyType, farmhouseId)
+      );
+    }
+
+    // Notify owner
+    if (ownerEmail) {
+      await sendEmail(
+        ownerEmail,
+        `[Registration] Submitted — ${farmhouseName} | Reroute`,
+        newListingOwnerEmail(farmhouseName, ownerName)
+      );
+    }
+
+    functions.logger.info('New listing emails sent:', { farmhouseId, farmhouseName });
+  });
+
+// ─── Firestore trigger: approval status changed ───────────────────────────────
+export const onFarmhouseApprovalChanged = functions.firestore
+  .document('farmhouses/{farmhouseId}')
+  .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+
+    // Only fire when status field actually changes
+    if (before.status === after.status) return;
+
+    const farmhouseId = context.params.farmhouseId;
+    const farmhouseName = after.basicDetails?.name || 'Unnamed Property';
+    const newStatus: string = after.status;
+    const ownerId = after.ownerId;
+
+    let ownerEmail: string | null = null;
+    let ownerName = 'there';
+    if (ownerId) {
+      try {
+        const ownerDoc = await db.collection('users').doc(ownerId).get();
+        ownerEmail = ownerDoc.data()?.email || null;
+        ownerName = ownerDoc.data()?.displayName || ownerDoc.data()?.name || 'there';
+      } catch (err) {
+        functions.logger.warn('Could not fetch owner email for approval notification:', { ownerId, err });
+      }
+    }
+
+    if (!ownerEmail) {
+      functions.logger.warn('No owner email found for approval notification:', { farmhouseId, newStatus });
+      return;
+    }
+
+    const statusLabel = newStatus === 'approved' ? 'Approved' : newStatus === 'rejected' ? 'Rejected' : 'Updated';
+
+    await sendEmail(
+      ownerEmail,
+      `[Approval] ${farmhouseName} — ${statusLabel} | Reroute`,
+      approvalStatusEmail(farmhouseName, ownerName, newStatus, after.rejectionReason)
+    );
+
+    functions.logger.info('Approval status email sent:', { farmhouseId, newStatus, ownerEmail });
+  });
+
+// ─── notifyBankDetailsUpdate ──────────────────────────────────────────────────
+export const notifyBankDetailsUpdate = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+  }
+
+  const { farmhouseId, farmhouseName } = data;
+  if (!farmhouseId) {
+    throw new functions.https.HttpsError('invalid-argument', 'farmhouseId is required');
+  }
+
+  // Verify caller is the owner of the farmhouse
+  const farmDoc = await db.collection('farmhouses').doc(farmhouseId).get();
+  if (!farmDoc.exists) {
+    throw new functions.https.HttpsError('not-found', 'Farmhouse not found');
+  }
+  if (farmDoc.data()?.ownerId !== context.auth.uid) {
+    throw new functions.https.HttpsError('permission-denied', 'Not authorized');
+  }
+
+  await sendEmail(
+    BANK_UPDATE_EMAIL,
+    `[Bank Update] Bank Details Changed — ${farmhouseName || farmhouseId}`,
+    bankDetailsUpdateEmail(farmhouseName || 'Unknown Property', farmhouseId, context.auth.uid)
+  );
+
+  functions.logger.info('Bank details update email sent:', { farmhouseId, to: BANK_UPDATE_EMAIL });
+  return { success: true };
+});
