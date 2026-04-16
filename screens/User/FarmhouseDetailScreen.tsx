@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
   Dimensions, Linking, Share, TextInput, FlatList, RefreshControl
@@ -414,9 +414,9 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     setSelectedDates({ start: dateString, end: dateString });
   };
 
-  const getMarkedDates = () => {
+  const markedDates = useMemo(() => {
     const marked: any = {};
-    
+
     // Mark unavailable dates
     unavailableDates.forEach(date => {
       marked[date] = {
@@ -447,12 +447,12 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
       while (current <= end) {
         const dateString = current.toISOString().split('T')[0];
-        
+
         // Only mark if not already marked as unavailable
         if (!marked[dateString]) {
           const isStart = dateString === selectedDates.start;
           const isEnd = dateString === selectedDates.end;
-          
+
           marked[dateString] = {
             selected: true,
             color: '#D4AF37',
@@ -465,7 +465,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
       }
     }
     return marked;
-  };
+  }, [selectedDates, unavailableDates, isDark]);
   
   const calculateNights = () => {
     if (!selectedDates.start || !selectedDates.end || selectedDates.start === selectedDates.end) return 0;
@@ -565,7 +565,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     );
   };
 
-  const renderReview = ({ item }: { item: Review }) => (
+  const renderReview = useCallback(({ item }: { item: Review }) => (
     <View style={[styles.reviewCardHorizontal, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
       <View style={styles.reviewHeader}>
         <View style={[styles.reviewAvatar, { backgroundColor: colors.buttonBackground }]}>
@@ -587,7 +587,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
         {item.comment}
       </Text>
     </View>
-  );
+  ), [colors, isDark]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
@@ -809,7 +809,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
             </View>
 
             <Calendar
-              markedDates={getMarkedDates()}
+              markedDates={markedDates}
               onDayPress={handleDateSelect}
               minDate={getMinimumDate()}
               maxDate={getMaximumDate()}
@@ -863,6 +863,10 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.reviewsListContainer}
+                initialNumToRender={3}
+                maxToRenderPerBatch={3}
+                windowSize={3}
+                removeClippedSubviews={true}
               />
             )}
           </View>
