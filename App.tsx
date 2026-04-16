@@ -426,16 +426,6 @@ export default function App() {
   const [showApp, setShowApp] = React.useState(false);
   const [appReady, setAppReady] = React.useState(false);
 
-  // On web: set a dark desktop background on the <body> so the centered
-  // app "floats" on a neutral backdrop. No-op on native.
-  React.useEffect(() => {
-    if (Platform.OS === 'web' && typeof document !== 'undefined') {
-      document.body.style.backgroundColor = '#1a1a1a';
-      document.body.style.display = 'flex';
-      document.body.style.justifyContent = 'center';
-    }
-  }, []);
-
   // Load fonts in background - non-blocking
   const [fontsLoaded] = useFonts({
     // Inter fonts for general UI
@@ -508,7 +498,6 @@ export default function App() {
 
   // Show app only after splash completes
   return (
-    <View style={Platform.OS === 'web' ? styles.webContainer : styles.nativeContainer}>
     <SafeAreaProvider>
       <ErrorBoundary>
         <AuthProvider>
@@ -528,26 +517,11 @@ export default function App() {
         </AuthProvider>
       </ErrorBoundary>
     </SafeAreaProvider>
-    </View>
   );
 }
 
 // Styles
 const styles = StyleSheet.create({
-  // On web, center the app at phone width so it doesn't stretch on desktop
-  webContainer: {
-    flex: 1,
-    width: '100%',
-    maxWidth: 480,
-    alignSelf: 'center',
-    // @ts-ignore — web-only CSS properties
-    boxShadow: '0 0 60px rgba(0,0,0,0.4)',
-    overflow: 'hidden',
-    height: '100%',
-  },
-  nativeContainer: {
-    flex: 1,
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
