@@ -13,9 +13,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Google from 'expo-auth-session/providers/google';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
-import Constants from 'expo-constants';
 import { GoogleAuthProvider, signInWithCredential, signInWithPopup } from 'firebase/auth';
-import { Platform } from 'react-native';
+import { Platform, NativeModules } from 'react-native';
 import { auth } from '../firebaseConfig';
 import { useDialog } from '../components/CustomDialog';
 
@@ -30,14 +29,15 @@ const LIGHT_GREY = '#666666';
 
 const WEB_CLIENT_ID = '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com';
 
-// Expo Go doesn't bundle native modules — use web-based OAuth there instead.
-const isExpoGo = Constants.executionEnvironment === 'storeClient';
+// Check if the native GoogleSignin module is actually linked.
+// This is more reliable than Constants.executionEnvironment which can
+// return wrong values in dev builds.
+const hasNativeGoogleSignin = Platform.OS !== 'web' && !!NativeModules.RNGoogleSignin;
 
-// Use Expo auth proxy in Expo Go so redirect_uri is https://auth.expo.io
-// instead of exp://192.168.x.x:8081 (which Google blocks)
-const redirectUri = isExpoGo
-  ? AuthSession.makeRedirectUri({ useProxy: true })
-  : AuthSession.makeRedirectUri();
+// Use Expo auth proxy as fallback when native module is not available
+const redirectUri = hasNativeGoogleSignin
+  ? AuthSession.makeRedirectUri()
+  : AuthSession.makeRedirectUri({ useProxy: true });
 
 export default function LoginWithRoleScreen({ navigation }: any) {
   const { showDialog } = useDialog();
@@ -55,7 +55,7 @@ export default function LoginWithRoleScreen({ navigation }: any) {
 
   // Configure and clear cached native Google account on mount (native builds only)
   useEffect(() => {
-    if (Platform.OS !== 'web' && !isExpoGo) {
+    if (Platform.OS !== 'web' && hasNativeGoogleSignin) {
       const { GoogleSignin } = require('@react-native-google-signin/google-signin');
       GoogleSignin.configure({ webClientId: WEB_CLIENT_ID });
       GoogleSignin.signOut().catch(() => {});
@@ -64,7 +64,7 @@ export default function LoginWithRoleScreen({ navigation }: any) {
 
   // Handle expo-auth-session response (Expo Go / web fallback path)
   useEffect(() => {
-    if (Platform.OS === 'web' || !isExpoGo || !response) return;
+    if (Platform.OS === 'web' || hasNativeGoogleSignin || !response) return;
 
     if (response.type === 'success') {
       const { accessToken, idToken } = response.authentication ?? {};
@@ -121,7 +121,7 @@ export default function LoginWithRoleScreen({ navigation }: any) {
         }
         setLoading(false);
       }
-    } else if (isExpoGo) {
+    } else if (!hasNativeGoogleSignin) {
       // Expo Go: route through Expo auth proxy so redirect_uri is
       // https://auth.expo.io (accepted by Google) not exp://192.168.x.x
       await promptAsync({ useProxy: true });
