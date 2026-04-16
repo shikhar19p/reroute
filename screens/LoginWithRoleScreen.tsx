@@ -6,93 +6,145 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StatusBar,
-  SafeAreaView,
   Dimensions,
   Image,
 } from 'react-native';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Google from 'expo-auth-session/providers/google';
+import * as AuthSession from 'expo-auth-session';
+import * as WebBrowser from 'expo-web-browser';
+import Constants from 'expo-constants';
+import { GoogleAuthProvider, signInWithCredential, signInWithPopup } from 'firebase/auth';
+import { Platform } from 'react-native';
 import { auth } from '../firebaseConfig';
 import { useDialog } from '../components/CustomDialog';
-import Constants from 'expo-constants';
+
+// Required so expo-auth-session can close the browser after redirect
+WebBrowser.maybeCompleteAuthSession();
 
 const { width } = Dimensions.get('window');
 
-// Define the primary color for accents (the gold/ochre color in the design)
 const PRIMARY_COLOR = '#C5A565';
 const TEXT_COLOR = '#333333';
 const LIGHT_GREY = '#666666';
+
+const WEB_CLIENT_ID = '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com';
+
+// Expo Go doesn't bundle native modules — use web-based OAuth there instead.
+const isExpoGo = Constants.executionEnvironment === 'storeClient';
+
+// Use Expo auth proxy in Expo Go so redirect_uri is https://auth.expo.io
+// instead of exp://192.168.x.x:8081 (which Google blocks)
+const redirectUri = isExpoGo
+  ? AuthSession.makeRedirectUri({ useProxy: true })
+  : AuthSession.makeRedirectUri();
 
 export default function LoginWithRoleScreen({ navigation }: any) {
   const { showDialog } = useDialog();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Configure Google Sign-In
-    const webClientId = Constants.expoConfig?.extra?.googleWebClientId ||
-      '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com';
+  // expo-auth-session hook — must be called unconditionally (React rules).
+  // useProxy routes through https://auth.expo.io so Google accepts the redirect_uri
+  const [, response, promptAsync] = Google.useAuthRequest({
+    webClientId: WEB_CLIENT_ID,
+    androidClientId: WEB_CLIENT_ID,
+    selectAccount: true,
+    redirectUri,
+  });
 
-    GoogleSignin.configure({
-      webClientId,
-    });
+  // Configure and clear cached native Google account on mount (native builds only)
+  useEffect(() => {
+    if (Platform.OS !== 'web' && !isExpoGo) {
+      const { GoogleSignin } = require('@react-native-google-signin/google-signin');
+      GoogleSignin.configure({ webClientId: WEB_CLIENT_ID });
+      GoogleSignin.signOut().catch(() => {});
+    }
   }, []);
+
+  // Handle expo-auth-session response (Expo Go / web fallback path)
+  useEffect(() => {
+    if (Platform.OS === 'web' || !isExpoGo || !response) return;
+
+    if (response.type === 'success') {
+      const { accessToken, idToken } = response.authentication ?? {};
+      if (!accessToken && !idToken) {
+        setError('No credentials received from Google');
+        setLoading(false);
+        return;
+      }
+      const credential = GoogleAuthProvider.credential(idToken ?? null, accessToken ?? null);
+      signInWithCredential(auth, credential)
+        .then(() => {
+          console.log('✅ Firebase sign-in successful (Expo Go)');
+          setLoading(false);
+        })
+        .catch((err) => {
+          setError(err.message || 'Firebase sign-in failed');
+          setLoading(false);
+        });
+    } else if (response.type === 'error') {
+      setError(response.error?.message ?? 'Google Sign-In failed');
+      setLoading(false);
+    } else if (response.type === 'dismiss' || response.type === 'cancel') {
+      setLoading(false);
+    }
+  }, [response]);
 
   useEffect(() => {
     if (error) {
-      showDialog({
-        title: 'Login Error',
-        message: error,
-        type: 'error'
-      });
+      const isCancellation = error.toLowerCase().includes('cancel');
+      if (!isCancellation) {
+        showDialog({ title: 'Sign in failed', message: 'Please try again.', type: 'error' });
+      }
     }
   }, [error, showDialog]);
 
   const handleGoogleSignIn = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+    setLoading(true);
+    setError(null);
 
-      console.log('🔐 Starting Google Sign-In...');
-
-      // Clear any existing session
+    if (Platform.OS === 'web') {
+      // Web: Firebase popup sign-in — no native modules needed
       try {
-        await GoogleSignin.signOut();
-        console.log('📤 Signed out to get fresh token');
-      } catch (e) {
-        // Ignore if not signed in
+        const provider = new GoogleAuthProvider();
+        await signInWithPopup(auth, provider);
+        setLoading(false);
+      } catch (err: any) {
+        if (
+          err.code === 'auth/popup-closed-by-user' ||
+          err.code === 'auth/cancelled-popup-request'
+        ) {
+          setError('Sign-in cancelled');
+        } else {
+          setError(err.message || 'Authentication failed');
+        }
+        setLoading(false);
       }
-
-      await GoogleSignin.hasPlayServices();
-      const response = await GoogleSignin.signIn();
-
-      const idToken = response.idToken || response.data?.idToken;
-
-      if (!idToken) {
-        throw new Error('No ID token received');
+    } else if (isExpoGo) {
+      // Expo Go: route through Expo auth proxy so redirect_uri is
+      // https://auth.expo.io (accepted by Google) not exp://192.168.x.x
+      await promptAsync({ useProxy: true });
+    } else {
+      // Native real build: @react-native-google-signin
+      try {
+        const { GoogleSignin } = require('@react-native-google-signin/google-signin');
+        GoogleSignin.configure({ webClientId: WEB_CLIENT_ID });
+        await GoogleSignin.hasPlayServices();
+        const result = await GoogleSignin.signIn();
+        const idToken = result.idToken || result.data?.idToken;
+        if (!idToken) throw new Error('No ID token received');
+        const credential = GoogleAuthProvider.credential(idToken);
+        await signInWithCredential(auth, credential);
+        setLoading(false);
+      } catch (err: any) {
+        if (err.code === '-5' || err.code === '12501') {
+          setError('Google Sign-In cancelled');
+        } else {
+          setError(err.message || 'Authentication failed');
+        }
+        setLoading(false);
       }
-
-      console.log('✅ Google Sign-In successful');
-      const credential = GoogleAuthProvider.credential(idToken);
-      const userCredential = await signInWithCredential(auth, credential);
-
-      console.log('✅ Firebase sign-in successful, user:', userCredential.user.uid);
-
-      setLoading(false);
-
-      // Navigate to role selection screen (already authenticated)
-      // The AuthContext will handle the user state
-      console.log('🚀 Navigating to role selection...');
-    } catch (err: any) {
-      console.error('❌ Google Sign-In Error:', err);
-      if (err.code === 'auth/invalid-credential') {
-        setError('Invalid credentials. Please try again.');
-      } else if (err.code === '-5' || err.code === '12501') {
-        setError('Google Sign-In cancelled');
-      } else {
-        setError(err.message || 'Authentication failed');
-      }
-      setLoading(false);
     }
   };
 
@@ -130,12 +182,8 @@ export default function LoginWithRoleScreen({ navigation }: any) {
             <ActivityIndicator color={PRIMARY_COLOR} size="small" />
           ) : (
             <View style={styles.buttonContent}>
-              {/* Google Logo Placeholder */}
               <Text style={styles.googleIconPlaceholder}>G</Text>
-
               <Text style={styles.googleButtonText}>Sign in with Google</Text>
-
-              {/* Arrow Icon Placeholder */}
               <Text style={styles.arrowIconPlaceholder}>→</Text>
             </View>
           )}
@@ -174,8 +222,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: width * 0.08,
     paddingTop: 20,
   },
-
-  // --- Icon Styles ---
   iconContainer: {
     width: 90,
     height: 90,
@@ -191,15 +237,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
-    overflow: 'hidden', // Important for clipping the image to circular shape
+    overflow: 'hidden',
   },
   iconImage: {
     width: 86,
     height: 86,
     borderRadius: 43,
   },
-
-  // --- Title Styles ---
   title: {
     fontSize: 32,
     fontWeight: '700',
@@ -216,8 +260,6 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     lineHeight: 24,
   },
-
-  // --- Google Button Styles ---
   googleButton: {
     width: '100%',
     maxWidth: 320,
@@ -255,8 +297,6 @@ const styles = StyleSheet.create({
     color: PRIMARY_COLOR,
     fontWeight: 'bold',
   },
-
-  // --- Info Text ---
   infoText: {
     fontSize: 15,
     color: LIGHT_GREY,
@@ -265,8 +305,6 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     lineHeight: 22,
   },
-
-  // --- Back Button Styles (Footer) ---
   backButton: {
     position: 'absolute',
     bottom: 40,
