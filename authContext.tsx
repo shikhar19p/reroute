@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
+const isExpoGo = Constants.executionEnvironment === 'storeClient';
 import { auth, db } from './firebaseConfig';
 import { saveSession, loadSession, clearSession, UserSession } from './sessionManager';
 
@@ -126,13 +128,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('🚪 Logging out...');
 
-      // Sign out from Google first
-      try {
-        await GoogleSignin.signOut();
-        console.log('✅ Signed out from Google');
-      } catch (err) {
-        // Ignore if GoogleSignin not configured yet
-        console.log('⚠️ Google sign-out skipped (not configured)');
+      // Sign out from Google first (native builds only)
+      if (Platform.OS !== 'web' && !isExpoGo) {
+        try {
+          const { GoogleSignin } = require('@react-native-google-signin/google-signin');
+          await GoogleSignin.signOut();
+          console.log('✅ Signed out from Google');
+        } catch (err) {
+          console.log('⚠️ Google sign-out skipped (not configured)');
+        }
       }
 
       // Sign out from Firebase
