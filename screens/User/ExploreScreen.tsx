@@ -114,35 +114,33 @@ export default function ExploreScreen({ navigation }: any) {
   });
   const [farmhouseRatings, setFarmhouseRatings] = useState<Record<string, number>>({});
 
-  // Fetch average ratings for all farmhouses
+  // Fetch average ratings for all farmhouses — parallel fetches via Promise.all
   useEffect(() => {
+    if (farmhouses.length === 0) return;
+
     const fetchRatings = async () => {
-      const ratingsMap: Record<string, number> = {};
-      
-      for (const farmhouse of farmhouses) {
-        try {
-          const reviewsRef = collection(db, 'farmhouses', farmhouse.id, 'reviews');
-          const reviewsSnapshot = await getDocs(reviewsRef);
-          
-          if (!reviewsSnapshot.empty) {
-            let totalRating = 0;
-            reviewsSnapshot.forEach(doc => {
-              const review = doc.data();
-              totalRating += review.rating || 0;
-            });
-            ratingsMap[farmhouse.id] = totalRating / reviewsSnapshot.size;
+      const results = await Promise.all(
+        farmhouses.map(async (farmhouse) => {
+          try {
+            const reviewsRef = collection(db, 'farmhouses', farmhouse.id, 'reviews');
+            const reviewsSnapshot = await getDocs(reviewsRef);
+            if (!reviewsSnapshot.empty) {
+              let total = 0;
+              reviewsSnapshot.forEach(doc => { total += doc.data().rating || 0; });
+              return [farmhouse.id, total / reviewsSnapshot.size] as [string, number];
+            }
+          } catch (error) {
+            console.error(`Error fetching ratings for ${farmhouse.id}:`, error);
           }
-        } catch (error) {
-          console.error(`Error fetching ratings for ${farmhouse.id}:`, error);
-        }
-      }
-      
+          return null;
+        })
+      );
+      const ratingsMap: Record<string, number> = {};
+      results.forEach(r => { if (r) ratingsMap[r[0]] = r[1]; });
       setFarmhouseRatings(ratingsMap);
     };
 
-    if (farmhouses.length > 0) {
-      fetchRatings();
-    }
+    fetchRatings();
   }, [farmhouses]);
 
   const toggleWishlist = async (farmhouse: FarmhouseType) => {

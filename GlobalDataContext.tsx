@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import { 
   collection, 
   query, 
@@ -538,45 +538,38 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
 
   // ==================== REFRESH FUNCTIONS ====================
 
-  const refreshMyBookings = useCallback(async () => {
+  const refreshMyBookings = useCallback(() => {
     setState(prev => ({ ...prev, myBookingsRefreshing: true }));
-    await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshTriggers(prev => ({ ...prev, myBookings: prev.myBookings + 1 }));
   }, []);
 
-  const refreshAvailableFarmhouses = useCallback(async () => {
+  const refreshAvailableFarmhouses = useCallback(() => {
     setState(prev => ({ ...prev, availableFarmhousesRefreshing: true }));
-    await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshTriggers(prev => ({ ...prev, availableFarmhouses: prev.availableFarmhouses + 1 }));
   }, []);
 
-  const refreshMyFarmhouses = useCallback(async () => {
+  const refreshMyFarmhouses = useCallback(() => {
     setState(prev => ({ ...prev, myFarmhousesRefreshing: true }));
-    await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshTriggers(prev => ({ ...prev, myFarmhouses: prev.myFarmhouses + 1 }));
   }, []);
 
-  const refreshAllBookings = useCallback(async () => {
+  const refreshAllBookings = useCallback(() => {
     setState(prev => ({ ...prev, allBookingsRefreshing: true }));
-    await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshTriggers(prev => ({ ...prev, allBookings: prev.allBookings + 1 }));
   }, []);
 
-  const refreshReviews = useCallback(async (farmhouseId?: string) => {
+  const refreshReviews = useCallback((_farmhouseId?: string) => {
     setState(prev => ({ ...prev, reviewsRefreshing: true }));
-    await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshTriggers(prev => ({ ...prev, reviews: prev.reviews + 1 }));
   }, []);
 
-  const refreshCoupons = useCallback(async () => {
+  const refreshCoupons = useCallback(() => {
     setState(prev => ({ ...prev, couponsRefreshing: true }));
-    await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshTriggers(prev => ({ ...prev, coupons: prev.coupons + 1 }));
   }, []);
 
-  const refreshWishlist = useCallback(async () => {
+  const refreshWishlist = useCallback(() => {
     setState(prev => ({ ...prev, wishlistRefreshing: true }));
-    await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshTriggers(prev => ({ ...prev, wishlist: prev.wishlist + 1 }));
   }, []);
 
@@ -682,13 +675,14 @@ export function useGlobalData() {
 
 export function useMyBookings() {
   const { myBookings, myBookingsLoading, myBookingsError, myBookingsRefreshing, refreshMyBookings, getCategorizedBookings } = useGlobalData();
+  const categorized = useMemo(() => getCategorizedBookings(), [getCategorizedBookings]);
   return {
     data: myBookings,
     loading: myBookingsLoading,
     error: myBookingsError,
     refreshing: myBookingsRefreshing,
     refresh: refreshMyBookings,
-    categorized: getCategorizedBookings(),
+    categorized,
   };
 }
 
