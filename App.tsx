@@ -12,6 +12,15 @@ import {
 } from '@expo-google-fonts/inter';
 import * as Font from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
+import { Platform, NativeModules } from 'react-native';
+
+// Configure Google Sign-In at startup (native builds only)
+if (Platform.OS !== 'web' && !!NativeModules.RNGoogleSignin) {
+  const { GoogleSignin } = require('@react-native-google-signin/google-signin');
+  GoogleSignin.configure({
+    webClientId: '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com',
+  });
+}
 
 // Prevent native splash from auto-hiding
 SplashScreen.preventAutoHideAsync().catch(() => {
