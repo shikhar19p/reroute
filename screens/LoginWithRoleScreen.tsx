@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Google from 'expo-auth-session/providers/google';
+import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import Constants from 'expo-constants';
 import { GoogleAuthProvider, signInWithCredential, signInWithPopup } from 'firebase/auth';
@@ -32,19 +33,24 @@ const WEB_CLIENT_ID = '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.google
 // Expo Go doesn't bundle native modules — use web-based OAuth there instead.
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
 
+// Use Expo auth proxy in Expo Go so redirect_uri is https://auth.expo.io
+// instead of exp://192.168.x.x:8081 (which Google blocks)
+const redirectUri = isExpoGo
+  ? AuthSession.makeRedirectUri({ useProxy: true })
+  : AuthSession.makeRedirectUri();
+
 export default function LoginWithRoleScreen({ navigation }: any) {
   const { showDialog } = useDialog();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // expo-auth-session hook — must be called unconditionally (React rules).
-  // Only used when running in Expo Go; ignored otherwise.
-  // androidClientId must be provided on Android to avoid a render-time throw,
-  // even though native builds use @react-native-google-signin instead.
+  // useProxy routes through https://auth.expo.io so Google accepts the redirect_uri
   const [, response, promptAsync] = Google.useAuthRequest({
     webClientId: WEB_CLIENT_ID,
     androidClientId: WEB_CLIENT_ID,
     selectAccount: true,
+    redirectUri,
   });
 
   // Configure and clear cached native Google account on mount (native builds only)
@@ -116,9 +122,9 @@ export default function LoginWithRoleScreen({ navigation }: any) {
         setLoading(false);
       }
     } else if (isExpoGo) {
-      // Expo Go: web-based OAuth via expo-auth-session
-      // Result is handled in the useEffect above
-      await promptAsync();
+      // Expo Go: route through Expo auth proxy so redirect_uri is
+      // https://auth.expo.io (accepted by Google) not exp://192.168.x.x
+      await promptAsync({ useProxy: true });
     } else {
       // Native real build: @react-native-google-signin
       try {
