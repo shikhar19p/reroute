@@ -1,9 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { Platform } from 'react-native';
-import Constants from 'expo-constants';
-const isExpoGo = Constants.executionEnvironment === 'storeClient';
+import { Platform, NativeModules } from 'react-native';
 import { auth, db } from './firebaseConfig';
 import { saveSession, loadSession, clearSession, UserSession } from './sessionManager';
 
@@ -128,8 +126,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('🚪 Logging out...');
 
-      // Sign out from Google first (native builds only)
-      if (Platform.OS !== 'web' && !isExpoGo) {
+      // Sign out from Google first (native builds only — when module is linked)
+      const hasNativeGoogleSignin = Platform.OS !== 'web' && !!NativeModules.RNGoogleSignin;
+      if (hasNativeGoogleSignin) {
         try {
           const { GoogleSignin } = require('@react-native-google-signin/google-signin');
           await GoogleSignin.signOut();
