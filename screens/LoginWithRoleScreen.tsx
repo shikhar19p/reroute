@@ -95,7 +95,7 @@ export default function LoginWithRoleScreen({ navigation }: any) {
     if (error) {
       const isCancellation = error.toLowerCase().includes('cancel');
       if (!isCancellation) {
-        showDialog({ title: 'Sign in failed', message: 'Please try again.', type: 'error' });
+        showDialog({ title: 'Sign in failed', message: error ?? 'Unknown error', type: 'error' });
       }
     }
   }, [error, showDialog]);
@@ -138,10 +138,13 @@ export default function LoginWithRoleScreen({ navigation }: any) {
         await signInWithCredential(auth, credential);
         setLoading(false);
       } catch (err: any) {
+        console.error('❌ SIGN IN ERROR — code:', err.code, 'message:', err.message, 'full:', JSON.stringify(err));
         if (err.code === '-5' || err.code === '12501') {
-          setError('Google Sign-In cancelled');
+          setError('Cancelled');
+        } else if (err.code === 10 || err.code === '10') {
+          setError('DEVELOPER_ERROR (code 10) — SHA mismatch. Check google-services.json');
         } else {
-          setError(err.message || 'Authentication failed');
+          setError(`Error code ${err.code}: ${err.message || 'Authentication failed'}`);
         }
         setLoading(false);
       }
