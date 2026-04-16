@@ -1,0 +1,78 @@
+{
+  "project_info": {
+    "project_number": "272634614965",
+    "project_id": "rustique-6b7c4",
+    "storage_bucket": "rustique-6b7c4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:272634614965:android:80805798607c9e71019afc",
+        "android_client_info": {
+          "package_name": "com.rerouteaventures.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "272634614965-9uite7d708q9iv8qlkkppfos1e2v95p3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rerouteaventures.app",
+            "certificate_hash": "bd8c85865e3399a0329257c4e4b138a6a5f82e74"
+          }
+        },
+        {
+          "client_id": "272634614965-cmncj4de54i6oougb31cbrmfo15j9rjl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rerouteaventures.app",
+            "certificate_hash": "2599692b9e2aabce6840c15bc7e2635210011685"
+          }
+        },
+        {
+          "client_id": "272634614965-rvtougefbkkbqvjq2ifqtnu8qupmldhb.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rerouteaventures.app",
+            "certificate_hash": "825b920b00eba5ee38c1f22316c701bcf885b4cb"
+          }
+        },
+        {
+          "client_id": "272634614965-uafa8dumhajgnnrid8u3rvjhkkcii05e.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rerouteaventures.app",
+            "certificate_hash": "eb6ab050f6013395a6f7e1cf4f728f9ea426d5b9"
+          }
+        },
+        {
+          "client_id": "272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBaiOHi0DRWzDB-PcYU5y7Q_VegsFdf6eU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "272634614965-64lm03jaaj2vk3sbu351u7cr3iebmqrm.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.farmhousebooking.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
