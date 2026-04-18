@@ -3,8 +3,6 @@
  * Replaces console.log with structured logging that can be disabled in production
  */
 
-import * as Sentry from '@sentry/react-native';
-
 type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 interface LogConfig {
@@ -12,7 +10,6 @@ interface LogConfig {
   enableInfo: boolean;
   enableWarn: boolean;
   enableError: boolean;
-  enableSentry: boolean;
 }
 
 const config: LogConfig = {
@@ -20,7 +17,6 @@ const config: LogConfig = {
   enableInfo: true,
   enableWarn: true,
   enableError: true,
-  enableSentry: !__DEV__,
 };
 
 class Logger {
@@ -71,13 +67,6 @@ class Logger {
     if (config.enableWarn) {
       const sanitized = this.sanitizeArgs(args);
       console.warn(this.formatMessage('warn', message), ...sanitized);
-      
-      if (config.enableSentry) {
-        Sentry.captureMessage(message, {
-          level: 'warning',
-          extra: { args: sanitized },
-        });
-      }
     }
   }
 
@@ -85,12 +74,6 @@ class Logger {
     if (config.enableError) {
       const sanitized = this.sanitizeArgs(args);
       console.error(this.formatMessage('error', message), error, ...sanitized);
-      
-      if (config.enableSentry && error) {
-        Sentry.captureException(error, {
-          extra: { message, args: sanitized },
-        });
-      }
     }
   }
 

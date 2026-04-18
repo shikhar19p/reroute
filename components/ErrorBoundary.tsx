@@ -1,7 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import * as Sentry from '@sentry/react-native';
 
 interface Props {
   children: ReactNode;
@@ -39,15 +37,6 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Log error to Sentry
-    Sentry.captureException(error, {
-      contexts: {
-        react: {
-          componentStack: errorInfo.componentStack,
-        },
-      },
-    });
-
     // Update state with error details
     this.setState({
       error,
@@ -80,7 +69,7 @@ class ErrorBoundary extends Component<Props, State> {
         <View style={styles.container}>
           <View style={styles.content}>
             <View style={styles.iconContainer}>
-              <MaterialCommunityIcons name="alert-circle" size={64} color="#F44336" />
+              <Text style={styles.errorIcon}>⚠️</Text>
             </View>
 
             <Text style={styles.title}>Oops! Something went wrong</Text>
@@ -99,7 +88,6 @@ class ErrorBoundary extends Component<Props, State> {
             )}
 
             <TouchableOpacity style={styles.button} onPress={this.handleReset}>
-              <MaterialCommunityIcons name="refresh" size={20} color="white" />
               <Text style={styles.buttonText}>Try Again</Text>
             </TouchableOpacity>
 
@@ -132,6 +120,9 @@ const styles = StyleSheet.create({
   },
   iconContainer: {
     marginBottom: 24,
+  },
+  errorIcon: {
+    fontSize: 64,
   },
   title: {
     fontSize: 24,
@@ -173,9 +164,7 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
   },
   button: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
     backgroundColor: '#4CAF50',
     paddingHorizontal: 32,
     paddingVertical: 14,

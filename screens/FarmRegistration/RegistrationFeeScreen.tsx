@@ -67,7 +67,7 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
       );
 
       await saveFarmRegistration(farm);
-      await clearDraft();
+      if (typeof clearDraft === 'function') await clearDraft();
 
       showDialog({
         title: 'Success!',
