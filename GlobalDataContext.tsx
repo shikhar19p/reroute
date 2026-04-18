@@ -1,10 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
-import { 
-  collection, 
-  query, 
-  where, 
-  orderBy, 
-  onSnapshot
+import { Platform } from 'react-native';
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  enableNetwork,
+  disableNetwork,
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import { useAuth } from './authContext';
@@ -301,7 +304,41 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
 
 export function GlobalDataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  
+
+  // On web: defer Firebase listeners until after first idle frame to unblock LCP.
+  // On native: start immediately (no paint blocking concern).
+  const [ready, setReady] = useState(Platform.OS !== 'web');
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    let id: any;
+    if (typeof requestIdleCallback !== 'undefined') {
+      id = requestIdleCallback(() => setReady(true), { timeout: 1500 });
+    } else {
+      id = setTimeout(() => setReady(true), 100);
+    }
+    return () => {
+      if (typeof cancelIdleCallback !== 'undefined') cancelIdleCallback(id);
+      else clearTimeout(id);
+    };
+  }, []);
+
+  // bfcache fix: Firebase WebSocket connections block back/forward cache.
+  // Suspend network on pagehide, resume on pageshow.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const onHide = () => { disableNetwork(db).catch(() => {}); };
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) enableNetwork(db).catch(() => {});
+    };
+    window.addEventListener('pagehide', onHide);
+    window.addEventListener('pageshow', onShow as any);
+    return () => {
+      window.removeEventListener('pagehide', onHide);
+      window.removeEventListener('pageshow', onShow as any);
+    };
+  }, []);
+
   const [state, setState] = useState<DataState>({
     myBookings: [],
     availableFarmhouses: [],
@@ -345,6 +382,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
 
   // ==================== MY BOOKINGS ====================
   useEffect(() => {
+    if (!ready) return;
     if (!user?.uid) {
       setState(prev => ({ ...prev, myBookings: [], myBookingsLoading: false }));
       return;
@@ -386,10 +424,11 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     );
 
     return () => unsubscribe();
-  }, [user?.uid, refreshTriggers.myBookings]);
+  }, [ready, user?.uid, refreshTriggers.myBookings]);
 
   // ==================== AVAILABLE FARMHOUSES ====================
   useEffect(() => {
+    if (!ready) return;
     setState(prev => ({
       ...prev,
       availableFarmhousesLoading: true,
@@ -443,10 +482,11 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     );
 
     return () => unsubscribe();
-  }, [refreshTriggers.availableFarmhouses]);
+  }, [ready, refreshTriggers.availableFarmhouses]);
 
   // ==================== MY FARMHOUSES (OWNER) ====================
   useEffect(() => {
+    if (!ready) return;
     if (!user?.uid || user.role !== 'owner') {
       setState(prev => ({ ...prev, myFarmhouses: [], myFarmhousesLoading: false }));
       return;
@@ -495,10 +535,11 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     );
 
     return () => unsubscribe();
-  }, [user?.uid, user?.role, refreshTriggers.myFarmhouses]);
+  }, [ready, user?.uid, user?.role, refreshTriggers.myFarmhouses]);
 
   // ==================== COUPONS ====================
   useEffect(() => {
+    if (!ready) return;
     setState(prev => ({ ...prev, couponsLoading: true, couponsError: null }));
 
     const q = query(
@@ -534,7 +575,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     );
 
     return () => unsubscribe();
-  }, [refreshTriggers.coupons]);
+  }, [ready, refreshTriggers.coupons]);
 
   // ==================== REFRESH FUNCTIONS ====================
 

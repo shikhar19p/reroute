@@ -8,12 +8,30 @@ config.watchFolders = [__dirname];
 // Ignore problematic directories that cause watch errors on Windows
 config.resolver.blacklistRE = /node_modules\/\.expo-modules-core.*\.cxx|android\/\.cxx|ios\/build/;
 
+// Enable minification for web when EXPO_WEB_MINIFY=true
+// Run: EXPO_WEB_MINIFY=true npx expo start --web
+if (process.env.EXPO_WEB_MINIFY === 'true') {
+  config.transformer = {
+    ...config.transformer,
+    minifierConfig: {
+      compress: {
+        drop_console: true,
+        passes: 2,
+      },
+      mangle: true,
+    },
+  };
+}
+
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   // Exclude the problematic GoogleSigninButton import
   if (moduleName === '../spec/SignInButtonNativeComponent') {
-    return {
-      type: 'empty',
-    };
+    return { type: 'empty' };
+  }
+
+  // react-native-webview is native-only; return empty module for web
+  if (platform === 'web' && moduleName === 'react-native-webview') {
+    return { type: 'empty' };
   }
 
   return context.resolveRequest(context, moduleName, platform);

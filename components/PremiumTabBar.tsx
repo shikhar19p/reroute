@@ -49,9 +49,7 @@ export default function PremiumTabBar({ state, descriptors, navigation }: Bottom
             const isFocused = state.index === index;
 
             const onPress = () => {
-              if (Platform.OS !== 'web') {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
               const event = navigation.emit({
                 type: 'tabPress',
@@ -65,9 +63,7 @@ export default function PremiumTabBar({ state, descriptors, navigation }: Bottom
             };
 
             const onLongPress = () => {
-              if (Platform.OS !== 'web') {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-              }
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               navigation.emit({
                 type: 'tabLongPress',
                 target: route.key,
@@ -100,7 +96,6 @@ export default function PremiumTabBar({ state, descriptors, navigation }: Bottom
                     styles.tabLabel,
                     {
                       color: isFocused ? colors.primary : colors.textSecondary,
-                      fontWeight: isFocused ? '600' : '400',
                     }
                   ]}
                 >

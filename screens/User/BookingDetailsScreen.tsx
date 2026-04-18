@@ -435,7 +435,9 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
               <Text style={[styles.dateText, { color: colors.text }]}>{formatDate(booking.checkInDate)}</Text>
               <View style={styles.timeRow}>
                 <Clock size={14} color={colors.placeholder} />
-                <Text style={[styles.timeText, { color: colors.placeholder }]}>2:00 PM onwards</Text>
+                <Text style={[styles.timeText, { color: colors.placeholder }]}>
+                  {booking.bookingType === 'dayuse' ? '9:00 AM' : '12:00 PM'}
+                </Text>
               </View>
             </View>
 
@@ -448,7 +450,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
               <Text style={[styles.dateText, { color: colors.text }]}>{formatDate(booking.checkOutDate)}</Text>
               <View style={styles.timeRow}>
                 <Clock size={14} color={colors.placeholder} />
-                <Text style={[styles.timeText, { color: colors.placeholder }]}>11:00 AM</Text>
+                <Text style={[styles.timeText, { color: colors.placeholder }]}>6:00 PM</Text>
               </View>
             </View>
           </View>
