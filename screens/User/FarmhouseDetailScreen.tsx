@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
   Dimensions, Linking, Share, TextInput, FlatList, RefreshControl
@@ -45,6 +46,37 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loadingReviews, setLoadingReviews] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [draftBanner, setDraftBanner] = useState<{ checkIn: string; checkOut: string; guestCount: number } | null>(null);
+  const DRAFT_KEY = `booking_draft_${initialFarmhouse.id}`;
+
+  // Load draft booking on mount
+  useEffect(() => {
+    AsyncStorage.getItem(DRAFT_KEY).then(raw => {
+      if (!raw) return;
+      try {
+        const draft = JSON.parse(raw);
+        const age = Date.now() - (draft.savedAt || 0);
+        if (age < 24 * 60 * 60 * 1000 && draft.checkIn && draft.checkOut) {
+          setDraftBanner({ checkIn: draft.checkIn, checkOut: draft.checkOut, guestCount: draft.guestCount });
+        } else {
+          AsyncStorage.removeItem(DRAFT_KEY);
+        }
+      } catch { AsyncStorage.removeItem(DRAFT_KEY); }
+    });
+  }, [DRAFT_KEY]);
+
+  // Save draft whenever dates are selected
+  useEffect(() => {
+    if (selectedDates.start && selectedDates.end) {
+      AsyncStorage.setItem(DRAFT_KEY, JSON.stringify({
+        farmhouseId: initialFarmhouse.id,
+        checkIn: selectedDates.start,
+        checkOut: selectedDates.end,
+        guestCount,
+        savedAt: Date.now(),
+      }));
+    }
+  }, [selectedDates, guestCount, DRAFT_KEY, initialFarmhouse.id]);
 
   // Real-time farmhouse updates
   useEffect(() => {
@@ -348,13 +380,30 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
   const handleDateSelect = (day: DateData) => {
     const dateString = day.dateString;
-    
+
     // Check if clicked date is unavailable
     if (isDateBooked(dateString)) {
       showDialog({
         title: 'Unavailable',
         message: 'This date is already booked or blocked.',
         type: 'warning'
+      });
+      return;
+    }
+
+    // Post-2pm warning for same-day check-in
+    const now = new Date();
+    const todayString = now.toISOString().split('T')[0];
+    const isPast2pm = now.getHours() >= 14;
+    if (dateString === todayString && isPast2pm && !selectedDates.start) {
+      showDialog({
+        title: 'Late Check-In',
+        message: 'Check-in is at 2:00 PM. It\'s past 2 PM, so your available hours today will be reduced. Do you still want to check in today?',
+        type: 'warning',
+        buttons: [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Proceed', onPress: () => setSelectedDates({ start: dateString, end: dateString }) }
+        ]
       });
       return;
     }
@@ -515,6 +564,8 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
       return;
     }
 
+    // Clear draft when proceeding to payment
+    AsyncStorage.removeItem(DRAFT_KEY);
     navigation.navigate('BookingConfirmation', {
       farmhouseId: farmhouse.id,
       farmhouseName: farmhouse.name,
@@ -592,7 +643,28 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
-      
+
+      {/* Draft booking resume banner */}
+      {draftBanner && (
+        <View style={{ backgroundColor: '#FEF3C7', padding: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontWeight: '600', fontSize: 13, color: '#92400E' }}>Resume previous booking?</Text>
+            <Text style={{ fontSize: 12, color: '#92400E' }}>{draftBanner.checkIn} → {draftBanner.checkOut} · {draftBanner.guestCount} guests</Text>
+          </View>
+          <TouchableOpacity onPress={() => {
+            setSelectedDates({ start: draftBanner.checkIn, end: draftBanner.checkOut });
+            setGuestCount(draftBanner.guestCount);
+            setGuestInputValue(String(draftBanner.guestCount));
+            setDraftBanner(null);
+          }} style={{ backgroundColor: '#D97706', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginLeft: 8 }}>
+            <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>Resume</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => { AsyncStorage.removeItem(DRAFT_KEY); setDraftBanner(null); }} style={{ padding: 6, marginLeft: 4 }}>
+            <Text style={{ color: '#92400E', fontSize: 16 }}>×</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <ScrollView
         style={styles.mainScroll}
         contentContainerStyle={{ paddingBottom: 120 }}
