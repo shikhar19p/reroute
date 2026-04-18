@@ -11,17 +11,21 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Trash2, Plus, X, Camera, ImageIcon } from 'lucide-react-native';
+import { Trash2, Plus, X, Camera, ImageIcon, Calendar } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { Farmhouse } from '../../services/farmhouseService';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db, storage } from '../../firebaseConfig';
 import * as ImagePicker from 'expo-image-picker';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useDialog } from '../../components/CustomDialog';
+// Bank detail encryption/decryption is handled server-side via Cloud Functions
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 type RootStackParamList = {
   MyFarmhouses: undefined;
@@ -31,14 +35,78 @@ type RootStackParamList = {
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditFarmhouse'>;
 
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DAY_NAMES = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+
+const amenitiesGroups = [
+  {
+    title: 'Essentials',
+    items: [
+      { key: 'wifi', label: 'WiFi' },
+      { key: 'ac', label: 'Air Conditioning' },
+      { key: 'parking', label: 'Parking' },
+      { key: 'kitchen', label: 'Kitchen' },
+      { key: 'tv', label: 'TV' },
+      { key: 'geyser', label: 'Geyser (Hot Water)' },
+    ],
+  },
+  {
+    title: 'Outdoors',
+    items: [
+      { key: 'pool', label: 'Swimming Pool' },
+      { key: 'bonfire', label: 'Bonfire' },
+      { key: 'bbq', label: 'BBQ / Grill' },
+      { key: 'outdoorSeating', label: 'Outdoor Seating' },
+      { key: 'hotTub', label: 'Hot Tub / Jacuzzi' },
+    ],
+  },
+  {
+    title: 'Entertainment',
+    items: [
+      { key: 'djMusicSystem', label: 'DJ / Music System' },
+      { key: 'projector', label: 'Projector' },
+    ],
+  },
+  {
+    title: 'Food & Services',
+    items: [
+      { key: 'restaurant', label: 'Restaurant' },
+      { key: 'foodPrepOnDemand', label: 'Food Prep on Demand' },
+      { key: 'decorService', label: 'Decor Service' },
+    ],
+  },
+  {
+    title: 'Games & Sports',
+    items: [
+      { key: 'chess', label: 'Chess' },
+      { key: 'carrom', label: 'Carom Board' },
+      { key: 'volleyball', label: 'Volleyball' },
+      { key: 'badminton', label: 'Badminton Court' },
+      { key: 'tableTennis', label: 'Table Tennis' },
+      { key: 'cricket', label: 'Cricket Ground' },
+    ],
+  },
+];
+
 export default function EditFarmhouseScreen({ route, navigation }: Props) {
   const { farmhouse } = route.params;
   const { colors, isDark } = useTheme();
   const { showDialog } = useDialog();
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [datePickerIndex, setDatePickerIndex] = useState<number | null>(null);
+  const [viewDate, setViewDate] = useState(new Date());
 
   const rawData = farmhouse as any;
+
+  // Helper to read a boolean/truthy amenity from raw firestore data
+  const getAmenityBool = (key: string): boolean => {
+    const val = rawData.amenities?.[key];
+    if (typeof val === 'boolean') return val;
+    if (typeof val === 'number') return val > 0;
+    return false;
+  };
 
   const [formData, setFormData] = useState({
     name: farmhouse.name || '',
@@ -53,25 +121,76 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
     weeklyNight: farmhouse.weeklyNight.toString(),
     weekendDay: farmhouse.weekendDay.toString(),
     weekendNight: farmhouse.weekendNight.toString(),
-    customPricing: farmhouse.customPricing || [],
-    tv: farmhouse.amenities?.tv?.toString() || '0',
-    geyser: farmhouse.amenities?.geyser?.toString() || '0',
-    bonfire: farmhouse.amenities?.bonfire?.toString() || '0',
-    chess: farmhouse.amenities?.chess?.toString() || '0',
-    carroms: farmhouse.amenities?.carroms?.toString() || '0',
-    volleyball: farmhouse.amenities?.volleyball?.toString() || '0',
-    pool: farmhouse.amenities?.pool || false,
-    additionalAmenities: rawData.amenities?.additionalAmenities || '',
-    unmarriedNotAllowed: !farmhouse.rules?.unmarriedCouples,
-    petsNotAllowed: !farmhouse.rules?.pets,
-    quietHours: farmhouse.rules?.quietHours || false,
-    additionalRules: rawData.rules?.additionalRules || '',
+    customPricing: (farmhouse.customPricing || []).map((cp: any) => ({
+      label: cp.label || '',
+      price: cp.price || 0,
+    })),
+    // Amenities — all boolean
+    wifi: getAmenityBool('wifi'),
+    ac: getAmenityBool('ac'),
+    parking: getAmenityBool('parking'),
+    kitchen: getAmenityBool('kitchen'),
+    tv: getAmenityBool('tv'),
+    geyser: getAmenityBool('geyser'),
+    pool: getAmenityBool('pool'),
+    bonfire: getAmenityBool('bonfire'),
+    bbq: getAmenityBool('bbq'),
+    outdoorSeating: getAmenityBool('outdoorSeating'),
+    hotTub: getAmenityBool('hotTub'),
+    djMusicSystem: getAmenityBool('djMusicSystem'),
+    projector: getAmenityBool('projector'),
+    restaurant: getAmenityBool('restaurant'),
+    foodPrepOnDemand: getAmenityBool('foodPrepOnDemand'),
+    decorService: getAmenityBool('decorService'),
+    chess: getAmenityBool('chess'),
+    carrom: getAmenityBool('carrom') || getAmenityBool('carroms'),
+    volleyball: getAmenityBool('volleyball'),
+    badminton: getAmenityBool('badminton'),
+    tableTennis: getAmenityBool('tableTennis'),
+    cricket: getAmenityBool('cricket'),
+    additionalAmenities: rawData.amenities?.additionalAmenities || rawData.amenities?.customAmenities || '',
+    // Rules
+    petsNotAllowed: farmhouse.rules?.pets === false,
+    additionalRules: rawData.rules?.additionalRules || rawData.rules?.customRules || '',
+    // Bank Details — populated after CF decryption call below
     accountHolderName: rawData.kyc?.bankDetails?.accountHolderName || '',
-    accountNumber: rawData.kyc?.bankDetails?.accountNumber || '',
-    ifscCode: rawData.kyc?.bankDetails?.ifscCode || '',
+    accountNumber: '',
+    ifscCode: '',
     branchName: rawData.kyc?.bankDetails?.branchName || '',
     photos: farmhouse.photos || [],
   });
+
+  // Fetch decrypted bank details from server on mount
+  const [bankDetailsLoading, setBankDetailsLoading] = React.useState(true);
+  const originalBankDetails = React.useRef({
+    accountHolderName: rawData.kyc?.bankDetails?.accountHolderName || '',
+    accountNumber: '',
+    ifscCode: '',
+    branchName: rawData.kyc?.bankDetails?.branchName || '',
+  });
+
+  React.useEffect(() => {
+    const getBankDetailsFn = httpsCallable(getFunctions(), 'getBankDetails');
+    getBankDetailsFn({ farmhouseId: farmhouse.id })
+      .then((result: any) => {
+        const bd = result.data?.bankDetails;
+        if (bd) {
+          const accountNumber = bd.accountNumber || '';
+          const ifscCode = bd.ifscCode || '';
+          setFormData(prev => ({ ...prev, accountNumber, ifscCode }));
+          originalBankDetails.current = {
+            accountHolderName: bd.accountHolderName || rawData.kyc?.bankDetails?.accountHolderName || '',
+            accountNumber,
+            ifscCode,
+            branchName: bd.branchName || rawData.kyc?.bankDetails?.branchName || '',
+          };
+        }
+      })
+      .catch((err) => {
+        console.error('Could not load bank details:', err);
+      })
+      .finally(() => setBankDetailsLoading(false));
+  }, [farmhouse.id]);
 
   const updateField = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -91,18 +210,71 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
   };
 
   const removeCustomPrice = (index: number) => {
-    updateField('customPricing', formData.customPricing.filter((_, i) => i !== index));
+    updateField('customPricing', formData.customPricing.filter((_: any, i: number) => i !== index));
+  };
+
+  const openDatePicker = (index: number) => {
+    setViewDate(new Date());
+    setDatePickerIndex(index);
+  };
+
+  const handleDateSelect = (day: number) => {
+    const selected = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
+    const formatted = `${day} ${MONTH_SHORT[selected.getMonth()]} ${selected.getFullYear()}`;
+    if (datePickerIndex !== null) {
+      updateCustomPrice(datePickerIndex, 'label', formatted);
+    }
+    setDatePickerIndex(null);
+  };
+
+  const renderCalendar = () => {
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDay = new Date(year, month, 1).getDay();
+    const cells: (number | null)[] = [];
+    for (let i = 0; i < firstDay; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+    while (cells.length % 7 !== 0) cells.push(null);
+    const rows: (number | null)[][] = [];
+    for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
+
+    return (
+      <View>
+        <View style={styles.calHeader}>
+          <TouchableOpacity onPress={() => setViewDate(new Date(year, month - 1, 1))} style={styles.calNav}>
+            <Text style={styles.calNavText}>‹</Text>
+          </TouchableOpacity>
+          <Text style={styles.calMonthText}>{MONTHS[month]} {year}</Text>
+          <TouchableOpacity onPress={() => setViewDate(new Date(year, month + 1, 1))} style={styles.calNav}>
+            <Text style={styles.calNavText}>›</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.calDayNames}>
+          {DAY_NAMES.map(d => <Text key={d} style={styles.calDayName}>{d}</Text>)}
+        </View>
+        {rows.map((row, ri) => (
+          <View key={ri} style={styles.calRow}>
+            {row.map((day, ci) => (
+              day ? (
+                <TouchableOpacity key={ci} style={styles.calDay} onPress={() => handleDateSelect(day)}>
+                  <Text style={styles.calDayText}>{day}</Text>
+                </TouchableOpacity>
+              ) : (
+                <View key={ci} style={styles.calDay} />
+              )
+            ))}
+          </View>
+        ))}
+      </View>
+    );
   };
 
   const pickImageFromLibrary = async () => {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        showDialog({
-          title: 'Permission required',
-          message: 'Please allow photo library access to pick images.',
-          type: 'warning'
-        });
+        showDialog({ title: 'Permission required', message: 'Please allow photo library access.', type: 'warning' });
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -110,11 +282,9 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
         allowsMultipleSelection: true,
         quality: 0.8,
       });
-
       if (!result.canceled && result.assets) {
         setUploadingImage(true);
         const newUrls: string[] = [];
-
         for (const asset of result.assets) {
           const response = await fetch(asset.uri);
           const blob = await response.blob();
@@ -124,17 +294,11 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
           const url = await getDownloadURL(storageRef);
           newUrls.push(url);
         }
-
         updateField('photos', [...formData.photos, ...newUrls]);
         setUploadingImage(false);
       }
     } catch (error) {
-      console.error('Error picking image:', error);
-      showDialog({
-        title: 'Error',
-        message: 'Failed to upload images',
-        type: 'error'
-      });
+      showDialog({ title: 'Error', message: 'Failed to upload images', type: 'error' });
       setUploadingImage(false);
     }
   };
@@ -143,17 +307,10 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
     try {
       const perm = await ImagePicker.requestCameraPermissionsAsync();
       if (!perm.granted) {
-        showDialog({
-          title: 'Permission required',
-          message: 'Please allow camera access to take photos.',
-          type: 'warning'
-        });
+        showDialog({ title: 'Permission required', message: 'Please allow camera access.', type: 'warning' });
         return;
       }
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'],
-        quality: 0.8,
-      });
+      const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
       if (!result.canceled && result.assets?.length) {
         setUploadingImage(true);
         const newUrls: string[] = [];
@@ -170,17 +327,12 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
         setUploadingImage(false);
       }
     } catch (error) {
-      console.error('Error taking photo:', error);
-      showDialog({
-        title: 'Error',
-        message: 'Failed to capture image',
-        type: 'error'
-      });
+      showDialog({ title: 'Error', message: 'Failed to capture image', type: 'error' });
       setUploadingImage(false);
     }
   };
 
-  const choosePhotoSource = async () => {
+  const choosePhotoSource = () => {
     showDialog({
       title: 'Add Photo',
       message: 'Choose a source to upload your photo',
@@ -189,14 +341,14 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
         { text: 'Camera', style: 'default', icon: Camera, onPress: takePhotoWithCamera },
         { text: 'Gallery', style: 'default', icon: ImageIcon, onPress: pickImageFromLibrary },
         { text: 'Cancel', style: 'cancel', icon: X },
-      ]
+      ],
     });
   };
 
-  const deleteImage = async (index: number) => {
+  const deleteImage = (index: number) => {
     showDialog({
       title: 'Delete Image',
-      message: 'Are you sure you want to delete this image?',
+      message: 'This image will be removed.',
       type: 'confirm',
       buttons: [
         { text: 'Cancel', style: 'cancel' },
@@ -204,56 +356,36 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
           text: 'Delete',
           style: 'destructive',
           onPress: () => {
-            const newPhotos = formData.photos.filter((_, i) => i !== index);
-            updateField('photos', newPhotos);
+            updateField('photos', formData.photos.filter((_: any, i: number) => i !== index));
           },
         },
-      ]
+      ],
     });
   };
 
   const validateForm = () => {
     if (!formData.name.trim()) {
-      showDialog({
-        title: 'Validation Error',
-        message: 'Farmhouse name is required',
-        type: 'error'
-      });
+      showDialog({ title: 'Validation Error', message: 'Farmhouse name is required', type: 'error' });
       return false;
     }
     if (!formData.description.trim()) {
-      showDialog({
-        title: 'Validation Error',
-        message: 'Description is required',
-        type: 'error'
-      });
+      showDialog({ title: 'Validation Error', message: 'Description is required', type: 'error' });
       return false;
     }
     if (!formData.city.trim() || !formData.area.trim()) {
-      showDialog({
-        title: 'Validation Error',
-        message: 'Location details are required',
-        type: 'error'
-      });
-      return false;
-    }
-    if (parseInt(formData.bedrooms) <= 0) {
-      showDialog({
-        title: 'Validation Error',
-        message: 'Number of bedrooms must be greater than 0',
-        type: 'error'
-      });
-      return false;
-    }
-    if (parseInt(formData.capacity) <= 0) {
-      showDialog({
-        title: 'Validation Error',
-        message: 'Capacity must be greater than 0',
-        type: 'error'
-      });
+      showDialog({ title: 'Validation Error', message: 'Location details are required', type: 'error' });
       return false;
     }
     return true;
+  };
+
+  const isBankDetailsChanged = () => {
+    return (
+      formData.accountHolderName.trim() !== originalBankDetails.current.accountHolderName ||
+      formData.accountNumber.trim() !== originalBankDetails.current.accountNumber ||
+      formData.ifscCode.trim().toUpperCase() !== originalBankDetails.current.ifscCode.toUpperCase() ||
+      formData.branchName.trim() !== originalBankDetails.current.branchName
+    );
   };
 
   const handleSave = async () => {
@@ -264,7 +396,28 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
 
       const farmhouseRef = doc(db, 'farmhouses', farmhouse.id);
 
-      const updateData = {
+      const accountNumberTrimmed = formData.accountNumber.trim();
+      const ifscCodeTrimmed = formData.ifscCode.trim().toUpperCase();
+
+      let encryptedAccountNumber = rawData.kyc?.bankDetails?.accountNumber || '';
+      let encryptedIFSC = rawData.kyc?.bankDetails?.ifscCode || '';
+
+      if (accountNumberTrimmed && ifscCodeTrimmed) {
+        const encryptBankDetailsFn = httpsCallable<
+          { accountNumber: string; ifscCode: string },
+          { encryptedAccountNumber: string; encryptedIFSC: string }
+        >(getFunctions(), 'encryptBankDetails');
+        const encResult = await encryptBankDetailsFn({
+          accountNumber: accountNumberTrimmed,
+          ifscCode: ifscCodeTrimmed,
+        });
+        encryptedAccountNumber = encResult.data.encryptedAccountNumber;
+        encryptedIFSC = encResult.data.encryptedIFSC;
+      }
+
+      const bankChanged = isBankDetailsChanged();
+
+      const updateData: Record<string, any> = {
         'basicDetails.name': formData.name.trim(),
         'basicDetails.description': formData.description.trim(),
         'basicDetails.city': formData.city.trim(),
@@ -277,55 +430,97 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
         'pricing.weeklyNight': formData.weeklyNight,
         'pricing.weekendDay': formData.weekendDay,
         'pricing.weekendNight': formData.weekendNight,
-        'pricing.customPricing': formData.customPricing.map(cp => ({ name: cp.label, price: cp.price })),
-        'amenities.tv': parseInt(formData.tv),
-        'amenities.geyser': parseInt(formData.geyser),
-        'amenities.bonfire': parseInt(formData.bonfire),
-        'amenities.chess': parseInt(formData.chess),
-        'amenities.carroms': parseInt(formData.carroms),
-        'amenities.volleyball': parseInt(formData.volleyball),
+        'pricing.customPricing': formData.customPricing.map((cp: any) => ({ name: cp.label, price: cp.price })),
+        // Amenities
+        'amenities.wifi': formData.wifi,
+        'amenities.ac': formData.ac,
+        'amenities.parking': formData.parking,
+        'amenities.kitchen': formData.kitchen,
+        'amenities.tv': formData.tv ? 1 : 0,
+        'amenities.geyser': formData.geyser ? 1 : 0,
         'amenities.pool': formData.pool,
+        'amenities.bonfire': formData.bonfire ? 1 : 0,
+        'amenities.bbq': formData.bbq,
+        'amenities.outdoorSeating': formData.outdoorSeating,
+        'amenities.hotTub': formData.hotTub,
+        'amenities.djMusicSystem': formData.djMusicSystem,
+        'amenities.projector': formData.projector,
+        'amenities.restaurant': formData.restaurant,
+        'amenities.foodPrepOnDemand': formData.foodPrepOnDemand,
+        'amenities.decorService': formData.decorService,
+        'amenities.chess': formData.chess ? 1 : 0,
+        'amenities.carroms': formData.carrom ? 1 : 0,
+        'amenities.volleyball': formData.volleyball ? 1 : 0,
+        'amenities.badminton': formData.badminton,
+        'amenities.tableTennis': formData.tableTennis,
+        'amenities.cricket': formData.cricket,
         'amenities.additionalAmenities': formData.additionalAmenities.trim(),
-        'rules.unmarriedNotAllowed': formData.unmarriedNotAllowed,
+        // Rules
         'rules.petsNotAllowed': formData.petsNotAllowed,
-        'rules.quietHours': formData.quietHours,
         'rules.additionalRules': formData.additionalRules.trim(),
+        // Bank Details
         'kyc.bankDetails.accountHolderName': formData.accountHolderName.trim(),
-        'kyc.bankDetails.accountNumber': formData.accountNumber.trim(),
-        'kyc.bankDetails.ifscCode': formData.ifscCode.trim().toUpperCase(),
+        'kyc.bankDetails.accountNumber': encryptedAccountNumber,
+        'kyc.bankDetails.ifscCode': encryptedIFSC,
         'kyc.bankDetails.branchName': formData.branchName.trim(),
+        'kyc.bankDetails.encrypted': true,
         photoUrls: formData.photos,
         updatedAt: new Date().toISOString(),
       };
 
       await updateDoc(farmhouseRef, updateData);
 
+      // Notify admin if bank details changed
+      if (bankChanged) {
+        try {
+          const functions = getFunctions();
+          const notifyBankUpdate = httpsCallable(functions, 'notifyBankDetailsUpdate');
+          await notifyBankUpdate({
+            farmhouseId: farmhouse.id,
+            farmhouseName: formData.name.trim(),
+          });
+        } catch (emailErr) {
+          console.warn('Bank details notification failed (non-fatal):', emailErr);
+        }
+      }
+
       showDialog({
         title: 'Success',
         message: 'Farmhouse details updated successfully',
         type: 'success',
-        buttons: [
-          { text: 'OK', style: 'default', onPress: () => navigation.goBack() }
-        ]
+        buttons: [{ text: 'OK', style: 'default', onPress: () => navigation.goBack() }],
       });
     } catch (error) {
       console.error('Error updating farmhouse:', error);
-      showDialog({
-        title: 'Error',
-        message: 'Failed to update farmhouse. Please try again.',
-        type: 'error'
-      });
+      showDialog({ title: 'Error', message: 'Failed to update farmhouse. Please try again.', type: 'error' });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right', 'bottom']}>
+      {/* Date Picker Modal */}
+      <Modal
+        visible={datePickerIndex !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDatePickerIndex(null)}
       >
+        <Pressable style={styles.modalOverlay} onPress={() => setDatePickerIndex(null)}>
+          <Pressable style={styles.calendarModal} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.calendarModalHeader}>
+              <Text style={styles.calendarModalTitle}>Select Date</Text>
+              <TouchableOpacity onPress={() => setDatePickerIndex(null)}>
+                <X size={20} color="#374151" />
+              </TouchableOpacity>
+            </View>
+            {renderCalendar()}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -334,22 +529,17 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
         >
           <View style={styles.headerSection}>
             <Text style={[styles.headerTitle, { color: colors.text }]}>Edit Farmhouse</Text>
-            <Text style={[styles.headerSubtitle, { color: colors.placeholder }]}>
-              Update your farmhouse details
-            </Text>
+            <Text style={[styles.headerSubtitle, { color: colors.placeholder }]}>Update your farmhouse details</Text>
           </View>
 
           {/* Images Section */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Farmhouse Images</Text>
             <View style={styles.imagesGrid}>
-              {formData.photos.map((photo, index) => (
+              {formData.photos.map((photo: string, index: number) => (
                 <View key={index} style={styles.imageContainer}>
                   <Image source={{ uri: photo }} style={styles.uploadedImage} />
-                  <TouchableOpacity
-                    style={styles.deleteImageButton}
-                    onPress={() => deleteImage(index)}
-                  >
+                  <TouchableOpacity style={styles.deleteImageButton} onPress={() => deleteImage(index)}>
                     <X size={16} color="#fff" />
                   </TouchableOpacity>
                 </View>
@@ -373,7 +563,7 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
             </View>
           </View>
 
-          {/* Basic Details Section */}
+          {/* Basic Details */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Basic Details</Text>
 
@@ -412,7 +602,6 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
                   placeholderTextColor={colors.placeholder}
                 />
               </View>
-
               <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
                 <Text style={[styles.label, { color: colors.text }]}>Area *</Text>
                 <TextInput
@@ -460,7 +649,6 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
                   keyboardType="number-pad"
                 />
               </View>
-
               <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
                 <Text style={[styles.label, { color: colors.text }]}>Capacity *</Text>
                 <TextInput
@@ -475,7 +663,7 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
             </View>
           </View>
 
-          {/* Pricing Section */}
+          {/* Pricing */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Pricing</Text>
 
@@ -492,7 +680,6 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
                   keyboardType="number-pad"
                 />
               </View>
-
               <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
                 <Text style={[styles.label, { color: colors.text }]}>Night Stay *</Text>
                 <TextInput
@@ -519,7 +706,6 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
                   keyboardType="number-pad"
                 />
               </View>
-
               <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
                 <Text style={[styles.label, { color: colors.text }]}>Night Stay *</Text>
                 <TextInput
@@ -533,7 +719,7 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
               </View>
             </View>
 
-            {/* Custom Pricing */}
+            {/* Special / Custom Pricing */}
             <View style={styles.customPricingHeader}>
               <Text style={[styles.priceCategory, { color: colors.text }]}>Special Occasions</Text>
               <TouchableOpacity
@@ -545,16 +731,20 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
               </TouchableOpacity>
             </View>
 
-            {formData.customPricing.map((custom, index) => (
+            {formData.customPricing.map((custom: any, index: number) => (
               <View key={index} style={[styles.customPriceItem, { borderColor: colors.border }]}>
                 <View style={styles.customPriceInputs}>
-                  <TextInput
-                    style={[styles.customPriceNameInput, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
-                    value={custom.label}
-                    onChangeText={(text) => updateCustomPrice(index, 'label', text)}
-                    placeholder="Occasion name"
-                    placeholderTextColor={colors.placeholder}
-                  />
+                  {/* Tap to open date picker */}
+                  <TouchableOpacity
+                    style={[styles.dateTouchable, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+                    onPress={() => openDatePicker(index)}
+                    activeOpacity={0.7}
+                  >
+                    <Calendar size={14} color={custom.label ? colors.text : colors.placeholder} />
+                    <Text style={[styles.dateTouchableText, { color: custom.label ? colors.text : colors.placeholder }]}>
+                      {custom.label || 'Select date'}
+                    </Text>
+                  </TouchableOpacity>
                   <TextInput
                     style={[styles.customPricePriceInput, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
                     value={custom.price.toString()}
@@ -574,105 +764,34 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
             ))}
           </View>
 
-          {/* Amenities Section */}
+          {/* Amenities */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Amenities</Text>
 
-            <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                <Text style={[styles.label, { color: colors.text }]}>TVs</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
-                  value={formData.tv}
-                  onChangeText={(text) => updateField('tv', text.replace(/[^0-9]/g, ''))}
-                  placeholder="0"
-                  placeholderTextColor={colors.placeholder}
-                  keyboardType="number-pad"
-                />
+            {amenitiesGroups.map((group) => (
+              <View key={group.title} style={styles.amenityGroup}>
+                <Text style={[styles.amenityGroupTitle, { color: colors.placeholder }]}>{group.title}</Text>
+                {group.items.map((item) => (
+                  <View key={item.key} style={[styles.switchRow, { borderColor: colors.border }]}>
+                    <Text style={[styles.switchLabel, { color: colors.text }]}>{item.label}</Text>
+                    <Switch
+                      value={(formData as any)[item.key] || false}
+                      onValueChange={(value) => updateField(item.key, value)}
+                      trackColor={{ false: colors.border, true: colors.buttonBackground }}
+                      thumbColor="#fff"
+                    />
+                  </View>
+                ))}
               </View>
+            ))}
 
-              <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                <Text style={[styles.label, { color: colors.text }]}>Geysers</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
-                  value={formData.geyser}
-                  onChangeText={(text) => updateField('geyser', text.replace(/[^0-9]/g, ''))}
-                  placeholder="0"
-                  placeholderTextColor={colors.placeholder}
-                  keyboardType="number-pad"
-                />
-              </View>
-            </View>
-
-            <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                <Text style={[styles.label, { color: colors.text }]}>Bonfire</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
-                  value={formData.bonfire}
-                  onChangeText={(text) => updateField('bonfire', text.replace(/[^0-9]/g, ''))}
-                  placeholder="0"
-                  placeholderTextColor={colors.placeholder}
-                  keyboardType="number-pad"
-                />
-              </View>
-
-              <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                <Text style={[styles.label, { color: colors.text }]}>Chess</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
-                  value={formData.chess}
-                  onChangeText={(text) => updateField('chess', text.replace(/[^0-9]/g, ''))}
-                  placeholder="0"
-                  placeholderTextColor={colors.placeholder}
-                  keyboardType="number-pad"
-                />
-              </View>
-            </View>
-
-            <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                <Text style={[styles.label, { color: colors.text }]}>Carroms</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
-                  value={formData.carroms}
-                  onChangeText={(text) => updateField('carroms', text.replace(/[^0-9]/g, ''))}
-                  placeholder="0"
-                  placeholderTextColor={colors.placeholder}
-                  keyboardType="number-pad"
-                />
-              </View>
-
-              <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                <Text style={[styles.label, { color: colors.text }]}>Volleyball</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
-                  value={formData.volleyball}
-                  onChangeText={(text) => updateField('volleyball', text.replace(/[^0-9]/g, ''))}
-                  placeholder="0"
-                  placeholderTextColor={colors.placeholder}
-                  keyboardType="number-pad"
-                />
-              </View>
-            </View>
-
-            <View style={[styles.switchRow, { borderColor: colors.border }]}>
-              <Text style={[styles.switchLabel, { color: colors.text }]}>Swimming Pool</Text>
-              <Switch
-                value={formData.pool}
-                onValueChange={(value) => updateField('pool', value)}
-                trackColor={{ false: colors.border, true: colors.buttonBackground }}
-                thumbColor="#fff"
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
+            <View style={[styles.inputGroup, { marginTop: 8 }]}>
               <Text style={[styles.label, { color: colors.text }]}>Additional Amenities</Text>
               <TextInput
                 style={[styles.textArea, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
                 value={formData.additionalAmenities}
                 onChangeText={(text) => updateField('additionalAmenities', text)}
-                placeholder="List any other amenities available (WiFi, parking, etc.)"
+                placeholder="List any other amenities (e.g., game room, swing set...)"
                 placeholderTextColor={colors.placeholder}
                 multiline
                 numberOfLines={3}
@@ -680,26 +799,12 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
             </View>
           </View>
 
-          {/* Rules Section */}
+          {/* House Rules */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>House Rules</Text>
 
             <View style={[styles.switchRow, { borderColor: colors.border }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.switchLabel, { color: colors.text }]}>Unmarried Couples Not Allowed</Text>
-              </View>
-              <Switch
-                value={formData.unmarriedNotAllowed}
-                onValueChange={(value) => updateField('unmarriedNotAllowed', value)}
-                trackColor={{ false: colors.border, true: colors.buttonBackground }}
-                thumbColor="#fff"
-              />
-            </View>
-
-            <View style={[styles.switchRow, { borderColor: colors.border }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.switchLabel, { color: colors.text }]}>Pets Not Allowed</Text>
-              </View>
+              <Text style={[styles.switchLabel, { color: colors.text }]}>Pets Not Allowed</Text>
               <Switch
                 value={formData.petsNotAllowed}
                 onValueChange={(value) => updateField('petsNotAllowed', value)}
@@ -708,25 +813,13 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
               />
             </View>
 
-            <View style={[styles.switchRow, { borderColor: colors.border }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.switchLabel, { color: colors.text }]}>Quiet Hours</Text>
-              </View>
-              <Switch
-                value={formData.quietHours}
-                onValueChange={(value) => updateField('quietHours', value)}
-                trackColor={{ false: colors.border, true: colors.buttonBackground }}
-                thumbColor="#fff"
-              />
-            </View>
-
-            <View style={styles.inputGroup}>
+            <View style={[styles.inputGroup, { marginTop: 8 }]}>
               <Text style={[styles.label, { color: colors.text }]}>Additional Rules</Text>
               <TextInput
                 style={[styles.textArea, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
                 value={formData.additionalRules}
                 onChangeText={(text) => updateField('additionalRules', text)}
-                placeholder="List any other house rules (noise restrictions, smoking policy, etc.)"
+                placeholder="List any other house rules..."
                 placeholderTextColor={colors.placeholder}
                 multiline
                 numberOfLines={3}
@@ -734,9 +827,12 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
             </View>
           </View>
 
-          {/* Account Details Section */}
+          {/* Bank Account Details */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Bank Account Details</Text>
+            <Text style={[styles.bankNote, { color: colors.placeholder }]}>
+              These details are used for payouts. Changes will be notified to admin for verification.
+            </Text>
 
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: colors.text }]}>Account Holder Name</Text>
@@ -754,7 +850,7 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
               <TextInput
                 style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
                 value={formData.accountNumber}
-                onChangeText={(text) => updateField('accountNumber', text)}
+                onChangeText={(text) => updateField('accountNumber', text.replace(/[^0-9]/g, ''))}
                 placeholder="Enter account number"
                 placeholderTextColor={colors.placeholder}
                 keyboardType="number-pad"
@@ -768,13 +864,12 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
                   style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
                   value={formData.ifscCode}
                   onChangeText={(text) => updateField('ifscCode', text.toUpperCase())}
-                  placeholder="IFSC Code"
+                  placeholder="e.g., SBIN0001234"
                   placeholderTextColor={colors.placeholder}
                   autoCapitalize="characters"
                   maxLength={11}
                 />
               </View>
-
               <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
                 <Text style={[styles.label, { color: colors.text }]}>Branch Name</Text>
                 <TextInput
@@ -788,10 +883,8 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
             </View>
           </View>
 
-          <View style={{ height: 100 }} />
         </ScrollView>
 
-        {/* Save Button */}
         <View style={[styles.footer, { backgroundColor: colors.cardBackground, borderTopColor: colors.border }]}>
           <TouchableOpacity
             style={[styles.saveButton, { backgroundColor: colors.buttonBackground, opacity: loading ? 0.6 : 1 }]}
@@ -813,7 +906,7 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollView: { flex: 1 },
-  scrollContent: { paddingHorizontal: 20, paddingBottom: 20 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 16 },
   headerSection: { paddingVertical: 20 },
   headerTitle: { fontSize: 28, fontWeight: 'bold', marginBottom: 4 },
   headerSubtitle: { fontSize: 14 },
@@ -830,11 +923,15 @@ const styles = StyleSheet.create({
   addButtonText: { fontSize: 14, fontWeight: '600' },
   customPriceItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 },
   customPriceInputs: { flex: 1, flexDirection: 'row', gap: 8 },
-  customPriceNameInput: { flex: 2, borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14 },
+  dateTouchable: { flex: 2, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },
+  dateTouchableText: { fontSize: 14, flex: 1 },
   customPricePriceInput: { flex: 1, borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14 },
   removeButton: { padding: 10, borderRadius: 8 },
-  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 16, borderBottomWidth: 1 },
+  amenityGroup: { marginBottom: 8 },
+  amenityGroupTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4, marginTop: 12 },
+  switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1 },
   switchLabel: { fontSize: 16, fontWeight: '500' },
+  bankNote: { fontSize: 13, marginBottom: 16, lineHeight: 18 },
   footer: { paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1 },
   saveButton: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   saveButtonText: { fontSize: 16, fontWeight: '600' },
@@ -844,4 +941,18 @@ const styles = StyleSheet.create({
   deleteImageButton: { position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 12, padding: 4 },
   addImageButton: { width: 100, height: 100, borderWidth: 2, borderStyle: 'dashed', borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
   addImageText: { fontSize: 12, marginTop: 4 },
+  // Calendar
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  calendarModal: { backgroundColor: '#fff', borderRadius: 16, padding: 20, width: '90%', maxWidth: 360 },
+  calendarModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  calendarModalTitle: { fontSize: 18, fontWeight: '700', color: '#1F2937' },
+  calHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  calNav: { padding: 8 },
+  calNavText: { fontSize: 22, color: '#4CAF50', fontWeight: '700' },
+  calMonthText: { fontSize: 16, fontWeight: '700', color: '#1F2937' },
+  calDayNames: { flexDirection: 'row', marginBottom: 8 },
+  calDayName: { flex: 1, textAlign: 'center', fontSize: 12, color: '#9CA3AF', fontWeight: '600' },
+  calRow: { flexDirection: 'row', marginBottom: 4 },
+  calDay: { flex: 1, aspectRatio: 1, justifyContent: 'center', alignItems: 'center', borderRadius: 20 },
+  calDayText: { fontSize: 14, color: '#374151' },
 });

@@ -8,17 +8,20 @@ import {
   StatusBar,
   Image,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback } from 'react';
-import { LogOut } from 'lucide-react-native';
+import { LogOut, MapPin, Home, ChevronRight } from 'lucide-react-native';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
 import { getFarmhousesByOwner, Farmhouse } from '../../services/farmhouseService';
 import { getResponsivePadding, isSmallDevice } from '../../utils/responsive';
 import { useDialog } from '../../components/CustomDialog';
+import { useFarmRegistration } from '../../context/FarmRegistrationContext';
+import { getStatusColor, getStatusText } from '../../utils/statusColors';
 
 type RootStackParamList = {
   MyFarmhouses: undefined;
@@ -32,8 +35,10 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
   const { user, logout } = useAuth();
   const { colors, isDark } = useTheme();
   const { showDialog } = useDialog();
+  const { hasDraft, loadDraft, clearDraft } = useFarmRegistration();
   const [farmhouses, setFarmhouses] = useState<Farmhouse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     loadFarmhouses();
@@ -62,30 +67,19 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
       });
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return '#10b981';
-      case 'pending':
-        return '#f59e0b';
-      case 'rejected':
-        return '#ef4444';
-      default:
-        return colors.placeholder;
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    return status.charAt(0).toUpperCase() + status.slice(1);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadFarmhouses();
   };
 
   const handleLogout = () => {
     showDialog({
       title: 'Logout',
-      message: 'Are you sure you want to logout?',
+      message: "You'll need to sign in again to continue.",
       type: 'confirm',
       buttons: [
         { text: 'Cancel', style: 'cancel' },
@@ -128,9 +122,12 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
           </View>
         </View>
 
-        <Text style={[styles.farmLocation, { color: colors.placeholder }]} numberOfLines={1}>
-          📍 {item.location}
-        </Text>
+        <View style={styles.locationRow}>
+          <MapPin size={12} color={colors.placeholder} />
+          <Text style={[styles.farmLocation, { color: colors.placeholder }]} numberOfLines={1}>
+            {item.location}
+          </Text>
+        </View>
 
         <View style={styles.farmDetails}>
           <View style={styles.detailItem}>
@@ -148,7 +145,7 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
-      <Text style={styles.emptyIcon}>🏡</Text>
+      <Home size={52} color={colors.placeholder} style={{ marginBottom: 16 }} />
       <Text style={[styles.emptyTitle, { color: colors.text }]}>No Farmhouses Yet</Text>
       <Text style={[styles.emptyText, { color: colors.placeholder }]}>
         Start by adding your first farmhouse property
@@ -173,20 +170,25 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right', 'bottom']}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} />
 
       <View style={styles.header}>
-        <View style={{ flex: 1 }}>
+        <View style={styles.headerRow}>
           <Text style={[styles.headerTitle, { color: colors.text }]}>My Farmhouses</Text>
+          <TouchableOpacity
+            style={[styles.logoutButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+            onPress={handleLogout}
+          >
+            <LogOut size={20} color="#EF4444" />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.headerRow}>
           <Text style={[styles.headerSubtitle, { color: colors.placeholder }]}>
             {farmhouses.length} {farmhouses.length === 1 ? 'property' : 'properties'}
           </Text>
-        </View>
-
-        <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
           {farmhouses.length > 0 && (
-            <>
+            <View style={styles.actionButtons}>
               <TouchableOpacity
                 style={[styles.smallPillButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
                 onPress={() => navigation.navigate('OwnerBookings' as never)}
@@ -199,16 +201,56 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
               >
                 <Text style={[styles.addIcon, { color: colors.buttonText }]}>+</Text>
               </TouchableOpacity>
-            </>
+            </View>
           )}
-          <TouchableOpacity
-            style={[styles.logoutButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
-            onPress={handleLogout}
-          >
-            <LogOut size={20} color="#EF4444" />
-          </TouchableOpacity>
         </View>
       </View>
+
+      {/* Draft Resume Banner */}
+      {hasDraft && (
+        <TouchableOpacity
+          style={[styles.draftBanner, { backgroundColor: colors.surfaceOverlay, borderColor: colors.border }]}
+          onPress={async () => {
+            showDialog({
+              title: 'Resume Draft?',
+              message: 'You have a saved draft of your farmhouse registration. Would you like to continue where you left off?',
+              type: 'info',
+              buttons: [
+                {
+                  text: 'Delete Draft',
+                  style: 'destructive',
+                  onPress: async () => {
+                    await clearDraft();
+                  }
+                },
+                {
+                  text: 'Resume',
+                  style: 'default',
+                  onPress: async () => {
+                    await loadDraft();
+                    navigation.navigate('FarmBasicDetails' as never);
+                  }
+                }
+              ]
+            });
+          }}
+        >
+          <View style={styles.draftContent}>
+            <View style={[styles.draftIconBadge, { backgroundColor: colors.primary + '20' }]}>
+              <Text style={[styles.draftIconText, { color: colors.primary }]}>Draft</Text>
+            </View>
+            <View style={styles.draftTextContainer}>
+              <Text style={[styles.draftTitle, { color: colors.text }]}>
+                Continue Registration
+              </Text>
+              <Text style={[styles.draftSubtitle, { color: colors.placeholder }]}>
+                You have an incomplete farmhouse registration
+              </Text>
+            </View>
+          </View>
+          <ChevronRight size={18} color={colors.placeholder} />
+        </TouchableOpacity>
+      )}
 
       {farmhouses.length === 0 ? (
         renderEmptyState()
@@ -219,6 +261,14 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[colors.buttonBackground]}
+              tintColor={colors.buttonBackground}
+            />
+          }
         />
       )}
     </SafeAreaView>
@@ -235,12 +285,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   header: {
+    paddingHorizontal: getResponsivePadding(20),
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: getResponsivePadding(20),
-    paddingVertical: 16,
-    minHeight: 80, // Ensure minimum height
+    marginBottom: 6,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: isSmallDevice() ? 24 : 28,
@@ -281,9 +339,49 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexShrink: 0,
   },
+  draftBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: getResponsivePadding(20),
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+  },
+  draftContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  draftTextContainer: {
+    flex: 1,
+  },
+  draftTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  draftSubtitle: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  draftArrow: {
+    fontSize: 24,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
   listContent: {
     padding: 20,
     paddingTop: 8,
+    paddingBottom: 20,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 12,
+    flexShrink: 1,
   },
   farmCard: {
     borderRadius: 12,
@@ -322,8 +420,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   farmLocation: {
-    fontSize: 14,
-    marginBottom: 12,
+    fontSize: 13,
+    flex: 1,
   },
   farmDetails: {
     flexDirection: 'row',
@@ -346,9 +444,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 40,
   },
-  emptyIcon: {
-    fontSize: 80,
-    marginBottom: 16,
+  draftIconBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  draftIconText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   emptyTitle: {
     fontSize: 24,
@@ -358,7 +462,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: 16,
   },
   addButton: {
     paddingHorizontal: 32,
