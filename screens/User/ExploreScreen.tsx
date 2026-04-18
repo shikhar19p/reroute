@@ -1,10 +1,11 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
-  View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, StatusBar,
-  Modal, TextInput, FlatList, Share, ActivityIndicator
+  View, Text, TouchableOpacity, StyleSheet, StatusBar,
+  Modal, TextInput, FlatList, Share, ActivityIndicator, RefreshControl
 } from 'react-native';
+import AnimatedImage from '../../components/AnimatedImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Heart, Search, SlidersHorizontal, ArrowUpDown, Bell, Share2 } from 'lucide-react-native';
+import { Heart, Search, SlidersHorizontal, ArrowUpDown, Bell, Share2, Star, MapPin, X } from 'lucide-react-native';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
@@ -39,23 +40,21 @@ const FarmhouseCard = React.memo(({
     onPress={onPress}
   >
     <View style={styles.imageContainer}>
-      <Image
-        source={{ uri: item.photos?.[0] || 'https://via.placeholder.com/400x300' }}
+      <AnimatedImage
+        uri={item.photos?.[0] || ''}
         style={styles.propertyImage}
+        resizeMode="cover"
       />
-
+      <View style={[styles.propertyTypeBadge, { backgroundColor: item.propertyType === 'resort' ? '#7C3AED22' : '#16A34A22' }]}>
+        <Text style={[styles.propertyTypeBadgeText, { color: item.propertyType === 'resort' ? '#7C3AED' : '#16A34A' }]}>
+          {item.propertyType === 'resort' ? 'Resort' : 'Farmhouse'}
+        </Text>
+      </View>
       <View style={styles.imageActions}>
-        <TouchableOpacity
-          onPress={onShare}
-          style={styles.actionButton}
-        >
+        <TouchableOpacity onPress={onShare} style={styles.actionButton}>
           <Share2 size={18} color="#666" />
         </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={onToggleWishlist}
-          style={styles.actionButton}
-        >
+        <TouchableOpacity onPress={onToggleWishlist} style={styles.actionButton}>
           <Heart
             size={18}
             color={isInWishlist ? "#EF4444" : "#666"}
@@ -71,15 +70,18 @@ const FarmhouseCard = React.memo(({
           {item.name}
         </Text>
         <View style={styles.ratingContainer}>
-          <Text style={styles.star}>★</Text>
+          <Star size={13} color="#F59E0B" fill="#F59E0B" />
           <Text style={[styles.rating, { color: colors.text }]}>
             {farmhouseRating ? farmhouseRating.toFixed(1) : 'New'}
           </Text>
         </View>
       </View>
-      <Text style={[styles.distance, { color: colors.placeholder }]} numberOfLines={1}>
-        {item.location}
-      </Text>
+      <View style={styles.locationChip}>
+        <MapPin size={11} color={colors.placeholder} />
+        <Text style={[styles.distance, { color: colors.placeholder }]} numberOfLines={1}>
+          {item.location}
+        </Text>
+      </View>
       <View style={styles.priceCapacityRow}>
         <Text style={[styles.price, { color: colors.buttonBackground }]}>
           ₹{item.weekendNight}/night
@@ -100,7 +102,7 @@ export default function ExploreScreen({ navigation }: any) {
   const { showDialog } = useDialog();
 
   // Use the GlobalDataContext hook instead of local state
-  const { data: farmhouses, loading, error } = useAvailableFarmhouses();
+  const { data: farmhouses, loading, error, refreshing, refresh } = useAvailableFarmhouses();
 
   const [searchText, setSearchText] = useState('');
   const [sortBy, setSortBy] = useState('name');
@@ -111,8 +113,10 @@ export default function ExploreScreen({ navigation }: any) {
     minPrice: '',
     maxPrice: '',
     minCapacity: '',
+    propertyType: '' as '' | 'farmhouse' | 'resort',
   });
   const [farmhouseRatings, setFarmhouseRatings] = useState<Record<string, number>>({});
+  const [displayLimit, setDisplayLimit] = useState(5);
 
   // Fetch average ratings for all farmhouses — parallel fetches via Promise.all
   useEffect(() => {
@@ -210,6 +214,10 @@ export default function ExploreScreen({ navigation }: any) {
       result = result.filter(f => f.capacity >= parseInt(filters.minCapacity));
     }
 
+    if (filters.propertyType) {
+      result = result.filter(f => (f.propertyType || 'farmhouse') === filters.propertyType);
+    }
+
     switch (sortBy) {
       case 'price-low':
         result.sort((a, b) => a.weeklyNight - b.weeklyNight);
@@ -281,8 +289,13 @@ export default function ExploreScreen({ navigation }: any) {
             placeholder="Search by name or area..."
             placeholderTextColor={colors.placeholder}
             value={searchText}
-            onChangeText={setSearchText}
+            onChangeText={(t) => { setSearchText(t); setDisplayLimit(5); }}
           />
+          {searchText.length > 0 && (
+            <TouchableOpacity onPress={() => { setSearchText(''); setDisplayLimit(5); }}>
+              <X size={16} color={colors.placeholder} />
+            </TouchableOpacity>
+          )}
         </View>
         <TouchableOpacity
           style={[styles.iconButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
@@ -305,18 +318,33 @@ export default function ExploreScreen({ navigation }: any) {
         </View>
       ) : (
         <FlatList
-          data={filteredAndSortedFarmhouses}
+          data={filteredAndSortedFarmhouses.slice(0, displayLimit)}
           renderItem={renderFarmhouse}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           onScroll={scrollHandler.onScroll}
           scrollEventThrottle={scrollHandler.scrollEventThrottle}
-          maxToRenderPerBatch={10}
+          maxToRenderPerBatch={5}
           windowSize={5}
           removeClippedSubviews={true}
           updateCellsBatchingPeriod={50}
           initialNumToRender={5}
+          onEndReached={() => setDisplayLimit(prev => prev + 5)}
+          onEndReachedThreshold={0.3}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing ?? false}
+              onRefresh={refresh}
+              colors={[colors.buttonBackground]}
+              tintColor={colors.buttonBackground}
+            />
+          }
+          ListFooterComponent={
+            displayLimit < filteredAndSortedFarmhouses.length
+              ? <ActivityIndicator size="small" color={colors.buttonBackground} style={{ marginVertical: 16 }} />
+              : null
+          }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Text style={[styles.emptyText, { color: colors.placeholder }]}>
@@ -353,6 +381,7 @@ export default function ExploreScreen({ navigation }: any) {
                 ]}
                 onPress={() => {
                   setSortBy(option.value);
+                  setDisplayLimit(5);
                   setShowSortModal(false);
                 }}
               >
@@ -505,7 +534,10 @@ const styles = StyleSheet.create({
   ratingContainer: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   star: { color: '#FCD34D', fontSize: 14 },
   rating: { fontSize: 14, fontWeight: '500' },
-  distance: { fontSize: 14, marginBottom: 8 },
+  distance: { fontSize: 13, marginLeft: 3 },
+  locationChip: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  propertyTypeBadge: { position: 'absolute', top: 10, left: 10, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  propertyTypeBadgeText: { fontSize: 11, fontWeight: '600' },
   priceCapacityRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   price: { fontSize: 16, fontWeight: '600' },
   capacity: { fontSize: 14 },
