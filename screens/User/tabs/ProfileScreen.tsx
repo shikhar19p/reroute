@@ -258,11 +258,15 @@ export default function ProfileScreen({ navigation }: any) {
             />
           </View>
 
-          <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
-            <Text style={[styles.menuText, { color: '#F44336' }]}>Logout</Text>
-            <Text style={[styles.menuArrow, { color: '#F44336' }]}>›</Text>
-          </TouchableOpacity>
         </View>
+
+        {/* Prominent logout button */}
+        <TouchableOpacity
+          style={{ margin: 20, marginTop: 8, backgroundColor: '#FEE2E2', borderWidth: 1.5, borderColor: '#F44336', borderRadius: 12, paddingVertical: 14, alignItems: 'center' }}
+          onPress={handleLogout}
+        >
+          <Text style={{ color: '#F44336', fontSize: 16, fontWeight: '700' }}>Log Out</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
