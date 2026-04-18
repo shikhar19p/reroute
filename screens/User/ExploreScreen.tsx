@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, StatusBar,
-  Modal, TextInput, FlatList, Share, ActivityIndicator, RefreshControl
+  Modal, TextInput, FlatList, ScrollView, Share, ActivityIndicator, RefreshControl
 } from 'react-native';
 import AnimatedImage from '../../components/AnimatedImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
