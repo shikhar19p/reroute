@@ -58,6 +58,12 @@ export interface PremiumTheme {
       xs: number; sm: number; md: number;
       lg: number; xl: number; xxl: number;
     };
+    fontFamily: {
+      regular: string;
+      medium: string;
+      semiBold: string;
+      bold: string;
+    };
   };
 }
 
@@ -111,6 +117,12 @@ export const premiumLightTheme: PremiumTheme = {
   typography: {
     fontSize: {
       xs: 11, sm: 13, md: 15, lg: 17, xl: 22, xxl: 28,
+    },
+    fontFamily: {
+      regular: 'Inter_400Regular',
+      medium: 'Inter_500Medium',
+      semiBold: 'Inter_600SemiBold',
+      bold: 'Inter_700Bold',
     },
   },
 };

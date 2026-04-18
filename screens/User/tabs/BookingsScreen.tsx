@@ -10,7 +10,6 @@ import { useScrollHandler } from '../../../context/TabBarVisibilityContext';
 import { Booking } from '../../../services/bookingService';
 import { cancelBookingWithRefund, calculateRefundAmount } from '../../../services/cancellationService';
 import { parseError } from '../../../utils/errorHandler';
-import { REFUND_POLICY } from '../../../config/refundPolicy';
 import { useFocusEffect } from '@react-navigation/native';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
@@ -59,7 +58,7 @@ const BookingCard = React.memo(({
         </View>
         <View style={[styles.paymentBadge, { backgroundColor: item.paymentStatus === 'paid' ? '#E8F5E9' : '#FFF3E0' }]}>
           <Text style={[styles.paymentText, { color: item.paymentStatus === 'paid' ? '#4CAF50' : '#FF9800' }]}>
-            {item.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
+            {item.paymentStatus === 'paid' ? '✓ Paid' : 'Pending'}
           </Text>
         </View>
       </View>

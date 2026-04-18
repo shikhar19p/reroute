@@ -208,7 +208,7 @@ export default function ProfileScreen({ navigation }: any) {
               value={notificationsEnabled}
               onValueChange={setNotificationsEnabled}
               trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor="#FFFFFF"
+              thumbColor={notificationsEnabled ? '#FFFFFF' : '#F5F5F5'}
             />
           </View>
 
@@ -218,7 +218,7 @@ export default function ProfileScreen({ navigation }: any) {
               value={isDark}
               onValueChange={toggleTheme}
               trackColor={{ false: colors.border, true: colors.primary }}
-              thumbColor="#FFFFFF"
+              thumbColor={isDark ? '#FFFFFF' : '#F5F5F5'}
             />
           </View>
 

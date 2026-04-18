@@ -105,7 +105,7 @@ export default function AmenitiesGamesScreen({ navigation }: AmenitiesGamesScree
                     value={(farm.amenities as any)[item.key] || false}
                     onValueChange={(value) => handleToggle(['amenities', item.key], value)}
                     trackColor={{ false: '#E5E7EB', true: '#4CAF50' }}
-                    thumbColor="#FFFFFF"
+                    thumbColor={(farm.amenities as any)[item.key] ? '#FFFFFF' : '#F5F5F5'}
                   />
                 </View>
               ))}
@@ -135,7 +135,7 @@ export default function AmenitiesGamesScreen({ navigation }: AmenitiesGamesScree
                 value={farm.rules.petsNotAllowed}
                 onValueChange={(value) => handleToggle(['rules', 'petsNotAllowed'], value)}
                 trackColor={{ false: '#E5E7EB', true: '#EF4444' }}
-                thumbColor="#FFFFFF"
+                thumbColor={farm.rules.petsNotAllowed ? '#FFFFFF' : '#F5F5F5'}
               />
             </View>
 

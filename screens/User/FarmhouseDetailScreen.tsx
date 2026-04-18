@@ -1,20 +1,21 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
-  View, Text, Image, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
-  Dimensions, Linking, Share, TextInput, FlatList, RefreshControl
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
+  Linking, Share, TextInput, FlatList, RefreshControl, useWindowDimensions, Modal,
 } from 'react-native';
+import LocationMapView from '../../components/LocationMapView';
+import AnimatedImage from '../../components/AnimatedImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Heart, MapPin, Users, Home, Star, Clock, Share2, Phone } from 'lucide-react-native';
+import { ArrowLeft, Heart, MapPin, Users, Home, Star, Clock, Share2, Phone, Mail, X, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
 import { useScrollHandler } from '../../context/TabBarVisibilityContext';
 import { useDialog } from '../../components/CustomDialog';
 import { RootStackScreenProps, Farmhouse } from '../../types/navigation';
-import { collection, query, where, onSnapshot, orderBy as firestoreOrderBy, limit, doc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy as firestoreOrderBy, limit, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
-
-const { width } = Dimensions.get('window');
+import { useAuth } from '../../authContext';
 
 interface Review {
   id: string;
@@ -30,10 +31,17 @@ type Props = RootStackScreenProps<'FarmhouseDetail'>;
 
 export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   const initialFarmhouse = route.params.farmhouse;
+  const { width, height: screenHeight } = useWindowDimensions();
   const { colors, isDark } = useTheme();
+  const { user } = useAuth();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const scrollHandler = useScrollHandler();
   const { showDialog } = useDialog();
+
+  const [userPhone, setUserPhone] = useState<string>('');
+  const [showPhoneModal, setShowPhoneModal] = useState(false);
+  const [phoneInput, setPhoneInput] = useState('');
+  const [savingPhone, setSavingPhone] = useState(false);
 
   // Use state for farmhouse to enable real-time updates
   const [farmhouse, setFarmhouse] = useState<Farmhouse>(initialFarmhouse);
@@ -45,6 +53,37 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loadingReviews, setLoadingReviews] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Fullscreen image viewer
+  const [fullscreenVisible, setFullscreenVisible] = useState(false);
+  const [fullscreenIndex, setFullscreenIndex] = useState(0);
+  const fullscreenListRef = useRef<FlatList>(null);
+  const imageListRef = useRef<FlatList>(null);
+  const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 50 });
+  const onGalleryViewableItemsChanged = useRef(({ viewableItems }: any) => {
+    if (viewableItems.length > 0) setCurrentImageIndex(viewableItems[0].index);
+  });
+  const onFullscreenViewableItemsChanged = useRef(({ viewableItems }: any) => {
+    if (viewableItems.length > 0) setFullscreenIndex(viewableItems[0].index);
+  });
+
+  useEffect(() => {
+    if (fullscreenVisible && fullscreenIndex > 0) {
+      setTimeout(() => {
+        fullscreenListRef.current?.scrollToIndex({ index: fullscreenIndex, animated: false });
+      }, 50);
+    }
+  }, [fullscreenVisible]);
+
+  useEffect(() => {
+    if (!user) return;
+    getDoc(doc(db, 'users', user.uid)).then(snap => {
+      if (snap.exists()) {
+        const phone = snap.data()?.phone || '';
+        setUserPhone(phone);
+      }
+    }).catch(() => {});
+  }, [user]);
 
   // Real-time farmhouse updates
   useEffect(() => {
@@ -237,15 +276,30 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   // ========== END PRICING HELPER FUNCTIONS ==========
 
   const amenitiesList = useMemo(() => {
-    const amenities = farmhouse.amenities;
+    const a = farmhouse.amenities as any;
     const list: string[] = [];
-    if (amenities.tv > 0) list.push(`${amenities.tv} TV${amenities.tv > 1 ? 's' : ''}`);
-    if (amenities.geyser > 0) list.push(`${amenities.geyser} Geyser${amenities.geyser > 1 ? 's' : ''}`);
-    if (amenities.bonfire > 0) list.push('Bonfire');
-    if (amenities.chess > 0) list.push('Chess');
-    if (amenities.carroms > 0) list.push('Carroms');
-    if (amenities.volleyball > 0) list.push('Volleyball');
-    if (amenities.pool) list.push('Swimming Pool');
+    if (a.wifi) list.push('WiFi');
+    if (a.ac) list.push('Air Conditioning');
+    if (a.parking) list.push('Parking');
+    if (a.kitchen) list.push('Kitchen');
+    if (a.tv > 0 || a.tv === true) list.push('TV');
+    if (a.geyser > 0 || a.geyser === true) list.push('Geyser');
+    if (a.pool) list.push('Swimming Pool');
+    if (a.bonfire > 0 || a.bonfire === true) list.push('Bonfire');
+    if (a.bbq) list.push('BBQ / Grill');
+    if (a.outdoorSeating) list.push('Outdoor Seating');
+    if (a.hotTub) list.push('Hot Tub / Jacuzzi');
+    if (a.djMusicSystem) list.push('DJ / Music System');
+    if (a.projector) list.push('Projector');
+    if (a.restaurant) list.push('Restaurant');
+    if (a.foodPrepOnDemand) list.push('Food Prep on Demand');
+    if (a.decorService) list.push('Decor Service');
+    if (a.chess > 0 || a.chess === true) list.push('Chess');
+    if (a.carroms > 0 || a.carroms === true) list.push('Carom Board');
+    if (a.volleyball > 0 || a.volleyball === true) list.push('Volleyball');
+    if (a.badminton) list.push('Badminton Court');
+    if (a.tableTennis) list.push('Table Tennis');
+    if (a.cricket) list.push('Cricket Ground');
     return list;
   }, [farmhouse.amenities]);
 
@@ -269,9 +323,6 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     }
     return list;
   }, [farmhouse.rules]);
-
-  const contactPhone1 = farmhouse.contactPhone1 || farmhouse.basicDetails?.contactPhone1;
-  const contactPhone2 = farmhouse.contactPhone2 || farmhouse.basicDetails?.contactPhone2;
 
   const updateGuestCount = (value: string) => {
     const numValue = parseInt(value) || 0;
@@ -300,15 +351,15 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   const handleShare = async () => {
     try {
       const ratingText = averageRating > 0 ? `${averageRating.toFixed(1)}/5` : 'New Property';
-      const shareMessage = `🏡 ${farmhouse.name}\n\n` +
-        `📍 Location: ${farmhouse.location}\n` +
-        `⭐ Rating: ${ratingText} (${reviews.length} ${reviews.length === 1 ? 'review' : 'reviews'})\n` +
-        `👥 Capacity: Up to ${farmhouse.capacity} guests\n` +
-        `🛏️ ${farmhouse.bedrooms} Bedrooms\n\n` +
-        `💰 Pricing:\n` +
-        `   Weekday: ₹${farmhouse.weeklyNight}/night\n` +
-        `   Weekend: ₹${farmhouse.weekendNight}/night\n\n` +
-        `📱 Book now on ReRoute App!\n` +
+      const shareMessage = `${farmhouse.name}\n\n` +
+        `Location: ${farmhouse.location}\n` +
+        `Rating: ${ratingText} (${reviews.length} ${reviews.length === 1 ? 'review' : 'reviews'})\n` +
+        `Capacity: Up to ${farmhouse.capacity} guests\n` +
+        `${farmhouse.bedrooms} Bedrooms\n\n` +
+        `Pricing:\n` +
+        `   Weekday: Rs. ${farmhouse.weeklyNight}/night\n` +
+        `   Weekend: Rs. ${farmhouse.weekendNight}/night\n\n` +
+        `Book now on ReRoute App!\n` +
         `Download: https://play.google.com/store/apps/details?id=com.reroute.app`;
 
       await Share.share({
@@ -322,10 +373,6 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
         type: 'error'
       });
     }
-  };
-
-  const handleCall = (phoneNumber: string) => {
-    Linking.openURL(`tel:${phoneNumber}`);
   };
 
   const getMinimumDate = () => {
@@ -505,16 +552,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     return total;
   };
 
-  const handleBooking = () => {
-    if (!selectedDates.start || !selectedDates.end) {
-      showDialog({
-        title: 'Select Dates',
-        message: 'Please select your desired dates on the calendar.',
-        type: 'warning'
-      });
-      return;
-    }
-
+  const proceedToBooking = () => {
     navigation.navigate('BookingConfirmation', {
       farmhouseId: farmhouse.id,
       farmhouseName: farmhouse.name,
@@ -529,6 +567,43 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
       capacity: farmhouse.capacity,
       rooms: rooms,
     });
+  };
+
+  const handleBooking = () => {
+    if (!selectedDates.start || !selectedDates.end) {
+      showDialog({
+        title: 'Select Dates',
+        message: 'Please select your desired dates on the calendar.',
+        type: 'warning'
+      });
+      return;
+    }
+    if (!userPhone || userPhone.trim() === '' || userPhone === 'Not provided') {
+      setPhoneInput('');
+      setShowPhoneModal(true);
+      return;
+    }
+    proceedToBooking();
+  };
+
+  const savePhoneAndProceed = async () => {
+    const trimmed = phoneInput.trim();
+    if (!trimmed || trimmed.length < 10) {
+      showDialog({ title: 'Invalid Number', message: 'Enter a valid 10-digit phone number.', type: 'warning' });
+      return;
+    }
+    if (!user) return;
+    setSavingPhone(true);
+    try {
+      await updateDoc(doc(db, 'users', user.uid), { phone: trimmed });
+      setUserPhone(trimmed);
+      setShowPhoneModal(false);
+      proceedToBooking();
+    } catch {
+      showDialog({ title: 'Error', message: 'Could not save phone number. Try again.', type: 'error' });
+    } finally {
+      setSavingPhone(false);
+    }
   };
 
   const openGoogleMaps = () => {
@@ -609,14 +684,22 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
         }
       >
         <View style={styles.imageSection}>
-          <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={(event) => {
-              const index = Math.floor(event.nativeEvent.contentOffset.x / width);
-              setCurrentImageIndex(index);
-            }}>
-            {images.map((img, index) => (
-              <Image key={index} source={{ uri: img }} style={styles.image} />
-            ))}
-          </ScrollView>
+          <FlatList
+            ref={imageListRef}
+            data={images}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(_, i) => String(i)}
+            getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
+            onViewableItemsChanged={onGalleryViewableItemsChanged.current}
+            viewabilityConfig={viewabilityConfig.current}
+            renderItem={({ item, index }) => (
+              <TouchableOpacity activeOpacity={0.95} onPress={() => { setFullscreenIndex(index); setFullscreenVisible(true); }}>
+                <AnimatedImage uri={item} style={[styles.image, { width }]} resizeMode="cover" />
+              </TouchableOpacity>
+            )}
+          />
           <View style={styles.imageCounter}>
             <Text style={styles.imageCounterText}>{currentImageIndex + 1} / {images.length || 1}</Text>
           </View>
@@ -638,6 +721,22 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
         <View style={styles.content}>
           <View style={styles.header}>
             <Text style={[styles.title, { color: colors.text }]}>{farmhouse.name}</Text>
+            <View style={{
+              alignSelf: 'flex-start',
+              paddingHorizontal: 10,
+              paddingVertical: 4,
+              borderRadius: 6,
+              marginBottom: 8,
+              backgroundColor: farmhouse.propertyType === 'resort' ? '#F3E8FF' : '#ECFDF5',
+            }}>
+              <Text style={{
+                fontSize: 12,
+                fontWeight: '700',
+                color: farmhouse.propertyType === 'resort' ? '#7C3AED' : '#16A34A',
+              }}>
+                {farmhouse.propertyType === 'resort' ? 'Resort' : 'Farmhouse'}
+              </Text>
+            </View>
             <View style={styles.ratingRow}>
               <Star size={16} color="#FCD34D" fill="#FCD34D" />
               <Text style={[styles.rating, { color: colors.text }]}>
@@ -648,37 +747,6 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
               </Text>
             </View>
           </View>
-
-          {/* Owner Contact Information Card */}
-          {(contactPhone1 || contactPhone2) && (
-            <View style={[styles.ownerCard, { backgroundColor: colors.cardBackground, borderColor: colors.buttonBackground }]}>
-              <View style={styles.contactMethodsContainer}>
-                {contactPhone1 && (
-                  <TouchableOpacity 
-                    style={[styles.contactMethodButton, { backgroundColor: colors.buttonBackground }]} 
-                    onPress={() => handleCall(contactPhone1)}
-                  >
-                    <Phone size={18} color={colors.buttonText} />
-                    <Text style={[styles.contactMethodText, { color: colors.buttonText }]}>{contactPhone1}</Text>
-                  </TouchableOpacity>
-                )}
-                
-                {contactPhone2 && (
-                  <TouchableOpacity 
-                    style={[styles.contactMethodButton, { backgroundColor: colors.buttonBackground }]} 
-                    onPress={() => handleCall(contactPhone2)}
-                  >
-                    <Phone size={18} color={colors.buttonText} />
-                    <Text style={[styles.contactMethodText, { color: colors.buttonText }]}>{contactPhone2}</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              <Text style={[styles.contactNote, { color: colors.placeholder }]}>
-                💡 Contact the owner directly for inquiries or special requests
-              </Text>
-            </View>
-          )}
 
           <View style={styles.quickInfo}>
             <View style={[styles.infoCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
@@ -691,35 +759,32 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
               <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Rooms</Text>
               <Text style={[styles.infoValue, { color: colors.text }]}>{rooms}</Text>
             </View>
-            <TouchableOpacity
-              style={[styles.infoCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
-              onPress={openGoogleMaps}
-              activeOpacity={0.7}
-            >
-              <MapPin size={20} color={colors.buttonBackground} />
-              <Text style={[styles.infoValue, { color: colors.text }]}>Location</Text>
-            </TouchableOpacity>
           </View>
           
           <View style={[styles.timingCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-             <View style={styles.timingRow}>
-               <Clock size={18} color={colors.buttonBackground} />
-               <View style={styles.timingInfo}>
-                 <Text style={[styles.timingLabel, { color: colors.placeholder }]}>Check-in</Text>
-                 <Text style={[styles.timingValue, { color: colors.text }]}>2:00 PM</Text>
-               </View>
-             </View>
-             <View style={[styles.timingDivider, { backgroundColor: colors.border }]} />
-             <View style={styles.timingRow}>
-               <Clock size={18} color={colors.buttonBackground} />
-               <View style={styles.timingInfo}>
-                 <Text style={[styles.timingLabel, { color: colors.placeholder }]}>Check-out</Text>
-                 <Text style={[styles.timingValue, { color: colors.text }]}>12:00 PM</Text>
-                 <Text style={[styles.timingNote, { color: colors.placeholder }]}>
-                   (6:00 PM same day for day-use)
-                 </Text>
-               </View>
-             </View>
+            <Text style={[styles.timingTypeLabel, { color: colors.placeholder }]}>Day Use</Text>
+            <View style={styles.timingRow}>
+              <Clock size={16} color={colors.buttonBackground} />
+              <Text style={[styles.timingLabel, { color: colors.placeholder }]}>Check-in</Text>
+              <Text style={[styles.timingValue, { color: colors.text }]}>9:00 AM</Text>
+            </View>
+            <View style={styles.timingRow}>
+              <Clock size={16} color={colors.buttonBackground} />
+              <Text style={[styles.timingLabel, { color: colors.placeholder }]}>Check-out</Text>
+              <Text style={[styles.timingValue, { color: colors.text }]}>6:00 PM</Text>
+            </View>
+            <View style={[styles.timingDivider, { backgroundColor: colors.border }]} />
+            <Text style={[styles.timingTypeLabel, { color: colors.placeholder }]}>Overnight Stay</Text>
+            <View style={styles.timingRow}>
+              <Clock size={16} color={colors.buttonBackground} />
+              <Text style={[styles.timingLabel, { color: colors.placeholder }]}>Check-in</Text>
+              <Text style={[styles.timingValue, { color: colors.text }]}>12:00 PM</Text>
+            </View>
+            <View style={styles.timingRow}>
+              <Clock size={16} color={colors.buttonBackground} />
+              <Text style={[styles.timingLabel, { color: colors.placeholder }]}>Check-out</Text>
+              <Text style={[styles.timingValue, { color: colors.text }]}>6:00 PM</Text>
+            </View>
            </View>
 
           <View style={styles.section}>
@@ -741,6 +806,15 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
                 </View>
               ))}
             </View>
+          </View>
+
+          {/* Where you'll be */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Where you'll be</Text>
+            <LocationMapView
+              location={[farmhouse.area, farmhouse.city].filter(Boolean).join(', ') || farmhouse.location}
+              mapLink={farmhouse.mapLink}
+            />
           </View>
 
           <View style={[styles.pricingCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
@@ -871,6 +945,29 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
             )}
           </View>
 
+          {/* Contact Us */}
+          <View style={[styles.contactSection, { borderColor: colors.border }]}>
+            <Text style={[styles.contactLabel, { color: colors.placeholder }]}>Need help? Reach us directly</Text>
+            <View style={styles.contactRow}>
+              <TouchableOpacity
+                style={[styles.contactBtn, { backgroundColor: colors.buttonBackground }]}
+                onPress={() => Linking.openURL('tel:+918280353535')}
+                activeOpacity={0.8}
+              >
+                <Phone size={16} color={colors.buttonText} />
+                <Text style={[styles.contactBtnText, { color: colors.buttonText }]}>+91 82803 53535</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.contactBtn, { backgroundColor: colors.cardBackground, borderWidth: 1, borderColor: colors.buttonBackground }]}
+                onPress={() => Linking.openURL('mailto:rustiquebyranareddy@gmail.com')}
+                activeOpacity={0.8}
+              >
+                <Mail size={16} color={colors.buttonBackground} />
+                <Text style={[styles.contactBtnText, { color: colors.buttonBackground }]}>Email Us</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
           <View style={{ height: 120 }} />
         </View>
       </ScrollView>
@@ -886,6 +983,72 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
           <Text style={[styles.bookButtonText, { color: colors.buttonText }]}>Book Now</Text>
         </TouchableOpacity>
       </View>
+
+      <Modal visible={showPhoneModal} transparent animationType="slide" onRequestClose={() => setShowPhoneModal(false)}>
+        <View style={styles.phoneModalOverlay}>
+          <View style={[styles.phoneModalCard, { backgroundColor: colors.cardBackground }]}>
+            <Text style={[styles.phoneModalTitle, { color: colors.text }]}>Contact Number Required</Text>
+            <Text style={[styles.phoneModalSubtitle, { color: colors.placeholder }]}>
+              We need your phone number to confirm your booking.
+            </Text>
+            <TextInput
+              style={[styles.phoneInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+              placeholder="Enter your phone number"
+              placeholderTextColor={colors.placeholder}
+              value={phoneInput}
+              onChangeText={setPhoneInput}
+              keyboardType="phone-pad"
+              maxLength={15}
+            />
+            <TouchableOpacity
+              style={[styles.phoneModalBtn, { backgroundColor: colors.buttonBackground, opacity: savingPhone ? 0.7 : 1 }]}
+              onPress={savePhoneAndProceed}
+              disabled={savingPhone}
+            >
+              <Text style={[styles.phoneModalBtnText, { color: colors.buttonText }]}>
+                {savingPhone ? 'Saving...' : 'Save & Continue'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.phoneModalBtn, { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border, marginTop: 8 }]}
+              onPress={() => { setShowPhoneModal(false); navigation.navigate('EditProfile' as any); }}
+            >
+              <Text style={[styles.phoneModalBtnText, { color: colors.text }]}>Edit Profile Instead</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={{ alignItems: 'center', marginTop: 12 }} onPress={() => setShowPhoneModal(false)}>
+              <Text style={{ color: colors.placeholder, fontSize: 14 }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={fullscreenVisible} transparent animationType="fade" onRequestClose={() => setFullscreenVisible(false)}>
+        <View style={styles.fullscreenContainer}>
+          <FlatList
+            ref={fullscreenListRef}
+            data={images}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(_, i) => String(i)}
+            getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
+            initialScrollIndex={fullscreenIndex}
+            onViewableItemsChanged={onFullscreenViewableItemsChanged.current}
+            viewabilityConfig={viewabilityConfig.current}
+            renderItem={({ item }) => (
+              <View style={{ width, height: screenHeight, justifyContent: 'center', alignItems: 'center' }}>
+                <AnimatedImage uri={item} style={{ width, height: screenHeight * 0.75 }} resizeMode="contain" />
+              </View>
+            )}
+          />
+          <View style={styles.fullscreenCounter}>
+            <Text style={styles.imageCounterText}>{fullscreenIndex + 1} / {images.length}</Text>
+          </View>
+          <TouchableOpacity style={styles.fullscreenClose} onPress={() => setFullscreenVisible(false)}>
+            <X size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -893,8 +1056,11 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   mainScroll: { flex: 1 },
-  imageSection: { position: 'relative', height: 300 },
-  image: { width, height: 300 },
+  imageSection: { position: 'relative', height: 300, overflow: 'hidden' },
+  fullscreenContainer: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
+  fullscreenClose: { position: 'absolute', top: 50, right: 20, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20, padding: 8 },
+  fullscreenCounter: { position: 'absolute', bottom: 40, alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 15 },
+  image: { height: 300 },
   imageCounter: { position: 'absolute', bottom: 15, right: 15, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 15 },
   imageCounterText: { color: '#fff', fontSize: 12, fontWeight: '500' },
   topActions: { position: 'absolute', top: 16, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16 },
@@ -906,22 +1072,30 @@ const styles = StyleSheet.create({
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   rating: { fontSize: 16, fontWeight: '600' },
   reviews: { fontSize: 14 },
-  ownerCard: { marginTop: 20, padding: 20, borderRadius: 16, borderWidth: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.15, shadowRadius: 6, elevation: 5 },
-  contactMethodsContainer: { gap: 10, marginBottom: 12 },
-  contactMethodButton: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 14, borderRadius: 12 },
-  contactMethodText: { fontSize: 15, fontWeight: '600', flex: 1 },
-  contactNote: { fontSize: 12, fontStyle: 'italic', marginTop: 8, textAlign: 'center' },
+  contactSection: { marginTop: 28, paddingTop: 20, borderTopWidth: 1 },
+  contactLabel: { fontSize: 12, textAlign: 'center', marginBottom: 12, letterSpacing: 0.3 },
+  contactRow: { flexDirection: 'row', gap: 10 },
+  contactBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 10 },
+  contactBtnText: { fontSize: 13, fontWeight: '600' },
   quickInfo: { flexDirection: 'row', gap: 12, marginTop: 20 },
   infoCard: { flex: 1, padding: 16, borderRadius: 12, alignItems: 'center', gap: 8, borderWidth: 1 },
   infoLabel: { fontSize: 12 },
   infoValue: { fontSize: 16, fontWeight: '600' },
-  timingCard: { marginTop: 16, padding: 16, borderRadius: 12, borderWidth: 1 },
-  timingRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  timingCard: { marginTop: 16, padding: 16, borderRadius: 12, borderWidth: 1, gap: 8 },
+  timingRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   timingInfo: { flex: 1 },
-  timingLabel: { fontSize: 12, marginBottom: 4 },
-  timingValue: { fontSize: 16, fontWeight: '600' },
+  timingTypeLabel: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
+  timingLabel: { fontSize: 13, flex: 1 },
+  timingValue: { fontSize: 14, fontWeight: '600' },
   timingNote: { fontSize: 11, marginTop: 2, fontStyle: 'italic' },
-  timingDivider: { height: 1, marginVertical: 12 },
+  timingDivider: { height: 1, marginVertical: 8 },
+  phoneModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  phoneModalCard: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 24, paddingBottom: 40 },
+  phoneModalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
+  phoneModalSubtitle: { fontSize: 14, marginBottom: 20, lineHeight: 20 },
+  phoneInput: { height: 50, borderRadius: 10, paddingHorizontal: 14, fontSize: 16, borderWidth: 1, marginBottom: 16 },
+  phoneModalBtn: { height: 50, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  phoneModalBtnText: { fontSize: 16, fontWeight: '600' },
   section: { marginTop: 24 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 12 },

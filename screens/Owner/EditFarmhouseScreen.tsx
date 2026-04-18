@@ -778,7 +778,7 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
                       value={(formData as any)[item.key] || false}
                       onValueChange={(value) => updateField(item.key, value)}
                       trackColor={{ false: colors.border, true: colors.buttonBackground }}
-                      thumbColor="#fff"
+                      thumbColor={(formData as any)[item.key] ? '#FFFFFF' : '#F5F5F5'}
                     />
                   </View>
                 ))}
@@ -809,7 +809,7 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
                 value={formData.petsNotAllowed}
                 onValueChange={(value) => updateField('petsNotAllowed', value)}
                 trackColor={{ false: colors.border, true: colors.buttonBackground }}
-                thumbColor="#fff"
+                thumbColor={formData.petsNotAllowed ? '#FFFFFF' : '#F5F5F5'}
               />
             </View>
 
