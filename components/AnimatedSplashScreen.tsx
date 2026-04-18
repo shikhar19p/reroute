@@ -6,6 +6,7 @@ import {
   Dimensions,
   Easing,
   Image,
+  Platform,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 
@@ -57,13 +58,13 @@ export default function AnimatedSplashScreen({
         toValue: ZOOM_SCALE,
         duration: 800,
         easing: Easing.in(Easing.cubic),
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }),
       Animated.timing(containerOpacity, {
         toValue: 0,
         duration: 800,
         easing: Easing.in(Easing.ease),
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }),
       Animated.timing(blurIntensity, {
         toValue: 50,
@@ -100,13 +101,13 @@ export default function AnimatedSplashScreen({
         toValue: 1,
         duration: 1000,
         easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }),
       Animated.spring(logoScale, {
         toValue: 1,
         tension: 30,
         friction: 7,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }),
     ]).start();
 
@@ -116,7 +117,7 @@ export default function AnimatedSplashScreen({
       duration: 1500,
       delay: 300,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== 'web',
     }).start();
 
     // Subtle continuous pulse for premium feel
@@ -127,13 +128,13 @@ export default function AnimatedSplashScreen({
             toValue: 1.03,
             duration: 2000,
             easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
+            useNativeDriver: Platform.OS !== 'web',
           }),
           Animated.timing(logoPulse, {
             toValue: 1,
             duration: 2000,
             easing: Easing.inOut(Easing.ease),
-            useNativeDriver: true,
+            useNativeDriver: Platform.OS !== 'web',
           }),
         ])
       );
@@ -163,13 +164,13 @@ export default function AnimatedSplashScreen({
               toValue: 1,
               duration: 400,
               easing: Easing.inOut(Easing.ease),
-              useNativeDriver: true,
+              useNativeDriver: Platform.OS !== 'web',
             }),
             Animated.timing(dotAnim1, {
               toValue: 0,
               duration: 400,
               easing: Easing.inOut(Easing.ease),
-              useNativeDriver: true,
+              useNativeDriver: Platform.OS !== 'web',
             }),
           ]),
           Animated.sequence([
@@ -177,13 +178,13 @@ export default function AnimatedSplashScreen({
               toValue: 1,
               duration: 400,
               easing: Easing.inOut(Easing.ease),
-              useNativeDriver: true,
+              useNativeDriver: Platform.OS !== 'web',
             }),
             Animated.timing(dotAnim2, {
               toValue: 0,
               duration: 400,
               easing: Easing.inOut(Easing.ease),
-              useNativeDriver: true,
+              useNativeDriver: Platform.OS !== 'web',
             }),
           ]),
           Animated.sequence([
@@ -191,13 +192,13 @@ export default function AnimatedSplashScreen({
               toValue: 1,
               duration: 400,
               easing: Easing.inOut(Easing.ease),
-              useNativeDriver: true,
+              useNativeDriver: Platform.OS !== 'web',
             }),
             Animated.timing(dotAnim3, {
               toValue: 0,
               duration: 400,
               easing: Easing.inOut(Easing.ease),
-              useNativeDriver: true,
+              useNativeDriver: Platform.OS !== 'web',
             }),
           ]),
         ])
@@ -214,9 +215,9 @@ export default function AnimatedSplashScreen({
         {
           opacity: containerOpacity,
           transform: [{ scale: containerScale }],
+          pointerEvents: isExiting ? 'none' : 'auto',
         },
       ]}
-      pointerEvents={isExiting ? 'none' : 'auto'}
     >
       {/* Decorative circles - varied sizes, positions, and opacities */}
       {/* Top area circles */}

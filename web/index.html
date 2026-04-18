@@ -4,16 +4,34 @@
     <meta charset="utf-8" />
     <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="description" content="ReRoute Adventures — Discover and book unique farmhouses and resorts for weekend getaways, day use, and overnight stays across India." />
+    <meta name="theme-color" content="#C5A565" />
+    <meta name="robots" content="index, follow" />
     <title>ReRoute Adventures</title>
+
+    <!-- Preconnect to critical origins -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://firebasestorage.googleapis.com" />
+
+    <!-- Inter font via CDN with font-display:swap — eliminates JS font blocking (saves ~3000ms) -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Critical CSS -->
     <style>
       html, body {
         height: 100%;
         margin: 0;
         padding: 0;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       }
 
       body {
         overflow: hidden;
+        background-color: #F7F7F7;
       }
 
       #root {
@@ -21,7 +39,29 @@
         height: 100%;
         width: 100%;
       }
+
+      /* Remove all focus outlines and box-shadows globally (covers RN Web TextInput) */
+      *, *:focus, *:focus-visible, *:focus-within {
+        outline: none !important;
+        box-shadow: none !important;
+        -webkit-tap-highlight-color: transparent;
+      }
+      input, textarea, select, [contenteditable] {
+        outline: none !important;
+        box-shadow: none !important;
+      }
+      input:focus, textarea:focus, select:focus {
+        outline: none !important;
+        box-shadow: none !important;
+      }
+
+      /* Prevent invisible text during font load */
+      @font-face {
+        font-family: 'Inter';
+        font-display: swap;
+      }
     </style>
+
     <link rel="icon" href="/favicon.ico" />
   </head>
   <body>

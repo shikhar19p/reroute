@@ -1,18 +1,20 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet, StatusBar,
-  Modal, TextInput, FlatList, Share, ActivityIndicator, RefreshControl
+  Modal, TextInput, FlatList, Share, ActivityIndicator, RefreshControl,
+  useWindowDimensions,
 } from 'react-native';
 import AnimatedImage from '../../components/AnimatedImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Heart, Search, SlidersHorizontal, ArrowUpDown, Bell, Share2, Star, MapPin } from 'lucide-react-native';
+import { Heart, Search, SlidersHorizontal, ArrowUpDown, Bell, Share2, Star, MapPin, LogOut, Calendar, CheckCircle, AlertCircle, Clock } from 'lucide-react-native';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
 import { useScrollHandler } from '../../context/TabBarVisibilityContext';
 import { useDialog } from '../../components/CustomDialog';
 import { Farmhouse as FarmhouseType } from '../../types/navigation';
-import { useAvailableFarmhouses } from '../../GlobalDataContext';
+import { useAvailableFarmhouses, useMyBookings } from '../../GlobalDataContext';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getResponsivePadding, getResponsiveGap, isSmallDevice } from '../../utils/responsive';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
@@ -102,15 +104,40 @@ const FarmhouseCard = React.memo(({
   </TouchableOpacity>
 ));
 
+const CONTENT_MAX_WIDTH = 1440;
+const GRID_BREAKPOINTS = { md: 768, lg: 1200, xl: 1440 };
+
 export default function ExploreScreen({ navigation }: any) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { colors, isDark } = useTheme();
+  const { width: windowWidth } = useWindowDimensions();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const scrollHandler = useScrollHandler();
   const { showDialog } = useDialog();
 
   // Use the GlobalDataContext hook instead of local state
   const { data: farmhouses, loading, error, refreshing, refresh } = useAvailableFarmhouses();
+  const { data: myBookings } = useMyBookings();
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
+  const [clearedBefore, setClearedBefore] = useState(0);
+
+  useEffect(() => {
+    AsyncStorage.getItem('notifications_cleared_at').then(val => {
+      if (val) setClearedBefore(parseInt(val, 10));
+    }).catch(() => {});
+  }, []);
+
+  // Responsive grid layout
+  const numColumns = useMemo(() => {
+    if (windowWidth > GRID_BREAKPOINTS.xl) return 4;
+    if (windowWidth >= GRID_BREAKPOINTS.xl) return 3;
+    if (windowWidth >= GRID_BREAKPOINTS.md) return 2;
+    return 1;
+  }, [windowWidth]);
+
+  const isLargeScreen = windowWidth > GRID_BREAKPOINTS.lg;
+  const hPad = isLargeScreen ? 32 : 16;
+  const cardGap = numColumns > 1 ? 16 : 0;
 
   const [searchText, setSearchText] = useState('');
   const [sortBy, setSortBy] = useState('name');
@@ -125,38 +152,33 @@ export default function ExploreScreen({ navigation }: any) {
   });
   const [farmhouseRatings, setFarmhouseRatings] = useState<Record<string, number>>({});
 
-  // Fetch average ratings for all farmhouses
+  // Fetch average ratings for all farmhouses — parallel fetches via Promise.all
   useEffect(() => {
+    if (farmhouses.length === 0) return;
+
     const fetchRatings = async () => {
-      const ratingsMap: Record<string, number> = {};
-      
-      for (const farmhouse of farmhouses) {
-        try {
-          const reviewsRef = collection(db, 'farmhouses', farmhouse.id, 'reviews');
-          const reviewsSnapshot = await getDocs(reviewsRef);
-          
-          if (!reviewsSnapshot.empty) {
-            let totalRating = 0;
-            reviewsSnapshot.forEach(doc => {
-              const review = doc.data();
-              totalRating += review.rating || 0;
-            });
-            ratingsMap[farmhouse.id] = totalRating / reviewsSnapshot.size;
-          }
-        } catch (error: any) {
-          // Silently handle permission errors - app continues to function without ratings
-          if (!error?.message?.includes('Missing or insufficient permissions')) {
+      const results = await Promise.all(
+        farmhouses.map(async (farmhouse) => {
+          try {
+            const reviewsRef = collection(db, 'farmhouses', farmhouse.id, 'reviews');
+            const reviewsSnapshot = await getDocs(reviewsRef);
+            if (!reviewsSnapshot.empty) {
+              let total = 0;
+              reviewsSnapshot.forEach(doc => { total += doc.data().rating || 0; });
+              return [farmhouse.id, total / reviewsSnapshot.size] as [string, number];
+            }
+          } catch (error) {
             console.error(`Error fetching ratings for ${farmhouse.id}:`, error);
           }
-        }
-      }
-      
+          return null;
+        })
+      );
+      const ratingsMap: Record<string, number> = {};
+      results.forEach(r => { if (r) ratingsMap[r[0]] = r[1]; });
       setFarmhouseRatings(ratingsMap);
     };
 
-    if (farmhouses.length > 0) {
-      fetchRatings();
-    }
+    fetchRatings();
   }, [farmhouses]);
 
   const toggleWishlist = async (farmhouse: FarmhouseType) => {
@@ -172,12 +194,12 @@ export default function ExploreScreen({ navigation }: any) {
       const actualRating = farmhouseRatings[farmhouse.id];
       const ratingText = actualRating ? actualRating.toFixed(1) : 'New';
       
-      const shareMessage = `🏡 ${farmhouse.name}\n\n` +
-        `📍 Location: ${farmhouse.location}\n` +
-        `⭐ Rating: ${ratingText}${actualRating ? '/5' : ''}\n` +
-        `👥 Capacity: Up to ${farmhouse.capacity} guests\n\n` +
-        `💰 Starting from ₹${farmhouse.weeklyNight}/night\n\n` +
-        `📱 Book now on ReRoute Adventures!\n` +
+      const shareMessage = `${farmhouse.name}\n\n` +
+        `Location: ${farmhouse.location}\n` +
+        `Rating: ${ratingText}${actualRating ? '/5' : ''}\n` +
+        `Capacity: Up to ${farmhouse.capacity} guests\n\n` +
+        `Starting from Rs. ${farmhouse.weeklyNight}/night\n\n` +
+        `Book now on ReRoute App!\n` +
         `Download: https://play.google.com/store/apps/details?id=com.reroute.app`;
 
       await Share.share({
@@ -194,8 +216,53 @@ export default function ExploreScreen({ navigation }: any) {
   };
 
   const handleNotifications = () => {
-    navigation.navigate('Bookings');
+    setShowNotificationsModal(true);
   };
+
+  const handleLogout = () => {
+    showDialog({
+      title: 'Logout',
+      message: "You'll need to sign in again to continue.",
+      type: 'warning',
+      buttons: [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Logout', style: 'destructive', onPress: logout },
+      ],
+    });
+  };
+
+  const clearNotifications = () => {
+    const now = Date.now();
+    setClearedBefore(now);
+    AsyncStorage.setItem('notifications_cleared_at', String(now)).catch(() => {});
+    setShowNotificationsModal(false);
+  };
+
+  const notificationItems = useMemo(() => {
+    return [...myBookings]
+      .sort((a, b) => {
+        const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
+        const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
+        return tB - tA;
+      })
+      .filter(b => {
+        const t = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
+        return t > clearedBefore;
+      })
+      .slice(0, 20)
+      .map(b => {
+        const statusLabel =
+          b.status === 'confirmed' ? 'Booking Confirmed' :
+          b.status === 'cancelled' ? 'Booking Cancelled' :
+          b.status === 'completed' ? 'Stay Completed' : 'Booking Pending';
+        const statusColor =
+          b.status === 'confirmed' ? '#10B981' :
+          b.status === 'cancelled' ? '#EF4444' :
+          b.status === 'completed' ? '#3B82F6' : '#F59E0B';
+        const icon = b.status === 'cancelled' ? 'alert' : b.status === 'confirmed' || b.status === 'completed' ? 'check' : 'clock';
+        return { ...b, statusLabel, statusColor, icon };
+      });
+  }, [myBookings, clearedBefore]);
 
   const filteredAndSortedFarmhouses = useMemo(() => {
     let result = [...farmhouses];
@@ -281,79 +348,146 @@ export default function ExploreScreen({ navigation }: any) {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.background} />
 
-      <View style={styles.header}>
-        <View style={styles.userInfo}>
-          <Text style={[styles.greeting, { color: colors.placeholder }]}>Welcome back,</Text>
-          <Text style={[styles.userName, { color: colors.text }]}>
-            {user?.displayName || 'User'}!
-          </Text>
-        </View>
-        <TouchableOpacity onPress={handleNotifications} style={styles.notificationButton}>
-          <Bell size={22} color={colors.text} />
-        </TouchableOpacity>
-      </View>
+      {/* Centered max-width wrapper for large screens */}
+      <View style={[styles.innerContainer, isLargeScreen && styles.innerContainerLarge]}>
 
-      <View style={styles.searchFilterRow}>
-        <View style={[styles.searchBar, { backgroundColor: isDark ? colors.cardBackground : '#F3F4F6', borderColor: colors.border }]}>
-          <Search size={20} color={colors.placeholder} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.text }]}
-            placeholder="Search by name or area..."
-            placeholderTextColor={colors.placeholder}
-            value={searchText}
-            onChangeText={setSearchText}
-          />
+        <View style={[styles.header, { paddingHorizontal: hPad }]}>
+          <View style={styles.userInfo}>
+            <Text style={[styles.greeting, { color: colors.placeholder }]}>Welcome back,</Text>
+            <Text style={[styles.userName, { color: colors.text }]}>
+              {user?.displayName || 'User'}!
+            </Text>
+          </View>
+          <View style={styles.headerActions}>
+            <TouchableOpacity onPress={handleNotifications} style={styles.notificationButton}>
+              {notificationItems.length > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>{notificationItems.length > 9 ? '9+' : notificationItems.length}</Text>
+                </View>
+              )}
+              <Bell size={22} color={colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleLogout} style={styles.notificationButton}>
+              <LogOut size={22} color={colors.text} />
+            </TouchableOpacity>
+          </View>
         </View>
-        <TouchableOpacity
-          style={[styles.iconButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
-          onPress={() => setShowSortModal(true)}
-        >
-          <ArrowUpDown size={20} color={colors.text} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.iconButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
-          onPress={() => setShowFilterModal(true)}
-        >
-          <SlidersHorizontal size={20} color={colors.text} />
-        </TouchableOpacity>
-      </View>
 
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.buttonBackground} />
-          <Text style={[styles.loadingText, { color: colors.placeholder }]}>Loading farmhouses...</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredAndSortedFarmhouses}
-          renderItem={renderFarmhouse}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          onScroll={scrollHandler.onScroll}
-          scrollEventThrottle={scrollHandler.scrollEventThrottle}
-          maxToRenderPerBatch={10}
-          windowSize={5}
-          removeClippedSubviews={true}
-          updateCellsBatchingPeriod={50}
-          initialNumToRender={5}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={refresh}
-              colors={[colors.buttonBackground]}
-              tintColor={colors.buttonBackground}
+        <View style={[styles.searchFilterRow, { paddingHorizontal: hPad }]}>
+          <View style={[styles.searchBar, { backgroundColor: isDark ? colors.cardBackground : '#F3F4F6', borderColor: colors.border }]}>
+            <Search size={20} color={colors.placeholder} />
+            <TextInput
+              style={[styles.searchInput, { color: colors.text }]}
+              placeholder="Search by name or area..."
+              placeholderTextColor={colors.placeholder}
+              value={searchText}
+              onChangeText={setSearchText}
             />
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={[styles.emptyText, { color: colors.placeholder }]}>
-                No farmhouses found
-              </Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.iconButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+            onPress={() => setShowSortModal(true)}
+          >
+            <ArrowUpDown size={20} color={colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.iconButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+            onPress={() => setShowFilterModal(true)}
+          >
+            <SlidersHorizontal size={20} color={colors.text} />
+          </TouchableOpacity>
+        </View>
+
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.buttonBackground} />
+            <Text style={[styles.loadingText, { color: colors.placeholder }]}>Loading farmhouses...</Text>
+          </View>
+        ) : (
+          <FlatList
+            key={`farmhouse-list-${numColumns}`}
+            data={filteredAndSortedFarmhouses}
+            renderItem={renderFarmhouse}
+            keyExtractor={(item) => item.id}
+            numColumns={numColumns}
+            columnWrapperStyle={numColumns > 1 ? { gap: cardGap, paddingHorizontal: hPad } : undefined}
+            contentContainerStyle={[
+              styles.listContent,
+              numColumns === 1 && { paddingHorizontal: hPad },
+            ]}
+            showsVerticalScrollIndicator={false}
+            onScroll={scrollHandler.onScroll}
+            scrollEventThrottle={scrollHandler.scrollEventThrottle}
+            maxToRenderPerBatch={10}
+            windowSize={21}
+            removeClippedSubviews={false}
+            updateCellsBatchingPeriod={50}
+            initialNumToRender={numColumns * 6}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={refresh}
+                colors={[colors.buttonBackground]}
+                tintColor={colors.buttonBackground}
+              />
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={[styles.emptyText, { color: colors.placeholder }]}>
+                  No farmhouses found
+                </Text>
+              </View>
+            }
+          />
+        )}
+
+      </View>{/* end innerContainer */}
+
+      {/* Notifications Modal */}
+      <Modal visible={showNotificationsModal} transparent animationType="slide">
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowNotificationsModal(false)}>
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+            <View style={[styles.modalContent, { backgroundColor: colors.cardBackground, paddingBottom: 24 }]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <Text style={[styles.modalTitle, { color: colors.text, marginBottom: 0 }]}>Notifications</Text>
+                {notificationItems.length > 0 && (
+                  <TouchableOpacity onPress={clearNotifications}>
+                    <Text style={{ color: '#EF4444', fontSize: 14, fontWeight: '600' }}>Clear All</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              {notificationItems.length === 0 ? (
+                <Text style={{ color: colors.placeholder, textAlign: 'center', paddingVertical: 20 }}>No notifications yet</Text>
+              ) : (
+                <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+                  {notificationItems.map((item) => (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[styles.notifItem, { borderColor: colors.border }]}
+                      onPress={() => { setShowNotificationsModal(false); navigation.navigate('BookingDetails', { bookingId: item.id }); }}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.notifIcon, { backgroundColor: item.statusColor + '22' }]}>
+                        {item.icon === 'check' ? <CheckCircle size={18} color={item.statusColor} /> :
+                         item.icon === 'alert' ? <AlertCircle size={18} color={item.statusColor} /> :
+                         <Clock size={18} color={item.statusColor} />}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[{ fontSize: 13, fontWeight: '700', color: item.statusColor }]}>{item.statusLabel}</Text>
+                        <Text style={[{ fontSize: 14, fontWeight: '500', color: colors.text }]} numberOfLines={1}>{item.farmhouseName}</Text>
+                        <Text style={[{ fontSize: 12, color: colors.placeholder }]}>{item.checkInDate}{item.checkOutDate && item.checkOutDate !== item.checkInDate ? ` → ${item.checkOutDate}` : ''}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              )}
+              <TouchableOpacity style={[styles.closeButton, { backgroundColor: colors.border, marginTop: 12 }]} onPress={() => setShowNotificationsModal(false)}>
+                <Text style={[styles.closeButtonText, { color: colors.text }]}>Close</Text>
+              </TouchableOpacity>
             </View>
-          }
-        />
-      )}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Sort Modal */}
       <Modal visible={showSortModal} transparent animationType="slide">
@@ -505,23 +639,32 @@ export default function ExploreScreen({ navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  innerContainer: { flex: 1 },
+  innerContainerLarge: {
+    maxWidth: CONTENT_MAX_WIDTH,
+    alignSelf: 'center',
+    width: '100%',
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: getResponsivePadding(24),
-    paddingVertical: 16
+    paddingVertical: 16,
   },
   userInfo: { flex: 1 },
   greeting: { fontSize: 14 },
   userName: { fontSize: 18, fontWeight: '600' },
-  notificationButton: { padding: 8 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  notificationButton: { padding: 8, position: 'relative' },
+  notificationBadge: { position: 'absolute', top: 4, right: 4, backgroundColor: '#EF4444', borderRadius: 8, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
+  notificationBadgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
+  notifItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1 },
+  notifIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   searchFilterRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: getResponsiveGap(10),
-    paddingHorizontal: getResponsivePadding(16),
-    paddingBottom: 16
+    paddingBottom: 16,
   },
   searchBar: {
     flex: 1,
@@ -544,8 +687,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0, // Prevent shrinking
   },
-  listContent: { paddingHorizontal: 16, paddingBottom: 100 },
-  propertyCard: { borderRadius: 16, overflow: 'hidden', marginBottom: 24, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
+  listContent: { paddingBottom: 100 },
+  propertyCard: { flex: 1, borderRadius: 16, overflow: 'hidden', marginBottom: 24, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   imageContainer: { position: 'relative' },
   propertyImage: { width: '100%', aspectRatio: 16 / 10 },
   imageActions: { position: 'absolute', top: 12, right: 12, flexDirection: 'row', gap: 8 },
@@ -554,8 +697,10 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 },
   propertyTitle: { flex: 1, fontSize: 16, fontWeight: '600', marginRight: 8 },
   ratingContainer: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  star: { color: '#FCD34D', fontSize: 14 }, // unused - kept for style reference
+  star: { color: '#FCD34D', fontSize: 14 },
   rating: { fontSize: 14, fontWeight: '500' },
+  propertyTypeBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginBottom: 6 },
+  propertyTypeBadgeText: { fontSize: 11, fontWeight: '700' },
   locationChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginBottom: 10 },
   locationText: { fontSize: 12, flex: 1 },
   priceCapacityRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -569,8 +714,8 @@ const styles = StyleSheet.create({
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
   loadingText: { marginTop: 12, fontSize: 16 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  modalContent: { borderRadius: 20, padding: 20, marginHorizontal: 8, marginBottom: 8 },
-  filterModalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, borderBottomLeftRadius: 20, borderBottomRightRadius: 20, padding: 20, maxHeight: '85%', marginHorizontal: 8, marginBottom: 8 },
+  modalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
+  filterModalContent: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, maxHeight: '85%' },
   filterScrollView: { flexGrow: 0, flexShrink: 1 },
   modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 20 },
   modalOption: { padding: 15, borderRadius: 8, marginBottom: 10 },
@@ -578,9 +723,9 @@ const styles = StyleSheet.create({
   closeButton: { padding: 15, borderRadius: 8, alignItems: 'center', marginTop: 10 },
   closeButtonText: { fontSize: 16, fontWeight: '600' },
   filterLabel: { fontSize: 14, fontWeight: '600', marginTop: 15, marginBottom: 8 },
-  filterInput: { height: 48, borderRadius: 12, paddingHorizontal: 14, fontSize: 14, borderWidth: 1 },
-  priceRow: { flexDirection: 'row', gap: 12 },
-  filterInputHalf: { flex: 1, height: 48, borderRadius: 12, paddingHorizontal: 14, fontSize: 14, borderWidth: 1, minWidth: 0 },
+  filterInput: { height: 45, borderRadius: 8, paddingHorizontal: 12, fontSize: 14, borderWidth: 1 },
+  priceRow: { flexDirection: 'row', gap: 10 },
+  filterInputHalf: { flex: 1, height: 45, borderRadius: 8, paddingHorizontal: 12, fontSize: 14, borderWidth: 1 },
   filterButtons: { flexDirection: 'row', gap: 10, marginTop: 20, marginBottom: 10 },
   clearButton: { flex: 1, padding: 15, borderRadius: 8, alignItems: 'center' },
   applyButton: { flex: 1, padding: 15, borderRadius: 8, alignItems: 'center' },
@@ -588,6 +733,4 @@ const styles = StyleSheet.create({
   typeFilterRow: { flexDirection: 'row', gap: 10 },
   typeFilterChip: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, alignItems: 'center' },
   typeFilterText: { fontSize: 14 },
-  propertyTypeBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginBottom: 6 },
-  propertyTypeBadgeText: { fontSize: 11, fontWeight: '700' },
 });
