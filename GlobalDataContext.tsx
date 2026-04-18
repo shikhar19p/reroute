@@ -8,6 +8,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import { useAuth } from './authContext';
+import { cleanupAbandonedBookings } from './services/bookingService';
 import { Farmhouse } from './types/navigation';
 
 // ==================== TYPES ====================
@@ -211,6 +212,22 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
         carroms: data.amenities?.carroms || 0,
         volleyball: data.amenities?.volleyball || 0,
         pool: data.amenities?.pool || false,
+        wifi: data.amenities?.wifi || false,
+        ac: data.amenities?.ac || false,
+        parking: data.amenities?.parking || false,
+        kitchen: data.amenities?.kitchen || false,
+        bbq: data.amenities?.bbq || false,
+        outdoorSeating: data.amenities?.outdoorSeating || false,
+        hotTub: data.amenities?.hotTub || false,
+        djMusicSystem: data.amenities?.djMusicSystem || false,
+        projector: data.amenities?.projector || false,
+        restaurant: data.amenities?.restaurant || false,
+        foodPrepOnDemand: data.amenities?.foodPrepOnDemand || false,
+        decorService: data.amenities?.decorService || false,
+        badminton: data.amenities?.badminton || false,
+        tableTennis: data.amenities?.tableTennis || false,
+        cricket: data.amenities?.cricket || false,
+        additionalAmenities: data.amenities?.additionalAmenities || data.amenities?.customAmenities || '',
       },
       
       rules: {
@@ -219,6 +236,7 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
         quietHours: data.rules?.quietHours || false,
       },
       
+      propertyType: data.propertyType || 'farmhouse',
       ownerId: data.ownerId || '',
       status: data.status || 'pending',
       rating: 0,
@@ -535,6 +553,20 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
 
     return () => unsubscribe();
   }, [refreshTriggers.coupons]);
+
+  // ==================== CLEANUP ABANDONED BOOKINGS ====================
+  useEffect(() => {
+    if (!user?.uid) return;
+    const runCleanup = async () => {
+      try {
+        const cleaned = await cleanupAbandonedBookings(user.uid, 30);
+        if (cleaned > 0) console.log(`🧹 Cleaned up ${cleaned} abandoned booking(s)`);
+      } catch (e) { /* silent */ }
+    };
+    runCleanup();
+    const id = setInterval(runCleanup, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [user?.uid]);
 
   // ==================== REFRESH FUNCTIONS ====================
 
