@@ -1,15 +1,17 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
+import { Platform } from 'react-native';
 import {
   collection,
   query,
   where,
   orderBy,
-  onSnapshot
+  onSnapshot,
+  enableNetwork,
+  disableNetwork,
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import { useAuth } from './authContext';
 import { Farmhouse } from './types/navigation';
-import { cleanupAbandonedBookings } from './services/bookingService';
 
 // ==================== TYPES ====================
 
@@ -148,7 +150,9 @@ const createDefaultFarmhouse = (id: string): Farmhouse => {
       pool: false,
     },
     rules: {
+      unmarriedCouples: false,
       pets: false,
+      quietHours: false,
     },
     ownerId: '',
     status: 'pending',
@@ -210,26 +214,12 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
         carroms: data.amenities?.carroms || 0,
         volleyball: data.amenities?.volleyball || 0,
         pool: data.amenities?.pool || false,
-        wifi: data.amenities?.wifi || false,
-        ac: data.amenities?.ac || false,
-        parking: data.amenities?.parking || false,
-        kitchen: data.amenities?.kitchen || false,
-        bbq: data.amenities?.bbq || false,
-        outdoorSeating: data.amenities?.outdoorSeating || false,
-        hotTub: data.amenities?.hotTub || false,
-        djMusicSystem: data.amenities?.djMusicSystem || false,
-        projector: data.amenities?.projector || false,
-        restaurant: data.amenities?.restaurant || false,
-        foodPrepOnDemand: data.amenities?.foodPrepOnDemand || false,
-        decorService: data.amenities?.decorService || false,
-        badminton: data.amenities?.badminton || false,
-        tableTennis: data.amenities?.tableTennis || false,
-        cricket: data.amenities?.cricket || false,
-        additionalAmenities: data.amenities?.additionalAmenities || data.amenities?.customAmenities || '',
       },
-
+      
       rules: {
+        unmarriedCouples: !data.rules?.unmarriedNotAllowed,
         pets: !data.rules?.petsNotAllowed,
+        quietHours: data.rules?.quietHours || false,
       },
       
       ownerId: data.ownerId || '',
@@ -245,12 +235,11 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
       
       contactPhone1: data.basicDetails?.contactPhone1,
       contactPhone2: data.basicDetails?.contactPhone2,
-
-      propertyType: data.propertyType || 'farmhouse',
+      
       basicDetails: data.basicDetails,
       sourceType: 'new',
     };
-  }
+  } 
   
   // Old structure (flat fields)
   return {
@@ -288,7 +277,9 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
     },
     
     rules: data.rules || {
+      unmarriedCouples: false,
       pets: false,
+      quietHours: false,
     },
     
     ownerId: data.ownerId || '',
@@ -304,8 +295,7 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
     
     contactPhone1: data.contactPhone1,
     contactPhone2: data.contactPhone2,
-
-    propertyType: data.propertyType || 'farmhouse',
+    
     sourceType: 'old',
   };
 };
@@ -314,7 +304,41 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
 
 export function GlobalDataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
-  
+
+  // On web: defer Firebase listeners until after first idle frame to unblock LCP.
+  // On native: start immediately (no paint blocking concern).
+  const [ready, setReady] = useState(Platform.OS !== 'web');
+
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    let id: any;
+    if (typeof requestIdleCallback !== 'undefined') {
+      id = requestIdleCallback(() => setReady(true), { timeout: 1500 });
+    } else {
+      id = setTimeout(() => setReady(true), 100);
+    }
+    return () => {
+      if (typeof cancelIdleCallback !== 'undefined') cancelIdleCallback(id);
+      else clearTimeout(id);
+    };
+  }, []);
+
+  // bfcache fix: Firebase WebSocket connections block back/forward cache.
+  // Suspend network on pagehide, resume on pageshow.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const onHide = () => { disableNetwork(db).catch(() => {}); };
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) enableNetwork(db).catch(() => {});
+    };
+    window.addEventListener('pagehide', onHide);
+    window.addEventListener('pageshow', onShow as any);
+    return () => {
+      window.removeEventListener('pagehide', onHide);
+      window.removeEventListener('pageshow', onShow as any);
+    };
+  }, []);
+
   const [state, setState] = useState<DataState>({
     myBookings: [],
     availableFarmhouses: [],
@@ -356,38 +380,9 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     wishlist: 0,
   });
 
-  // ==================== CLEANUP ABANDONED BOOKINGS ====================
-  // Run when user logs in to clean up any pending bookings older than 2 minutes
-  useEffect(() => {
-    if (!user?.uid) {
-      return;
-    }
-
-    const runCleanup = async () => {
-      try {
-        console.log('🧹 Running cleanup for abandoned bookings...');
-        const cleanedCount = await cleanupAbandonedBookings(user.uid, 30); // 30 minutes
-        if (cleanedCount > 0) {
-          console.log(`✅ Cleanup completed: ${cleanedCount} booking(s) cleaned up`);
-        }
-      } catch (error) {
-        console.error('❌ Cleanup failed:', error);
-      }
-    };
-
-    // Run cleanup when user logs in
-    runCleanup();
-
-    // Also run cleanup periodically every 5 minutes
-    const intervalId = setInterval(() => {
-      runCleanup();
-    }, 5 * 60 * 1000); // 5 minutes
-
-    return () => clearInterval(intervalId);
-  }, [user?.uid]); // Run when user changes
-
   // ==================== MY BOOKINGS ====================
   useEffect(() => {
+    if (!ready) return;
     if (!user?.uid) {
       setState(prev => ({ ...prev, myBookings: [], myBookingsLoading: false }));
       return;
@@ -429,10 +424,11 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     );
 
     return () => unsubscribe();
-  }, [user?.uid, refreshTriggers.myBookings]);
+  }, [ready, user?.uid, refreshTriggers.myBookings]);
 
   // ==================== AVAILABLE FARMHOUSES ====================
   useEffect(() => {
+    if (!ready) return;
     setState(prev => ({
       ...prev,
       availableFarmhousesLoading: true,
@@ -486,10 +482,11 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     );
 
     return () => unsubscribe();
-  }, [refreshTriggers.availableFarmhouses]);
+  }, [ready, refreshTriggers.availableFarmhouses]);
 
   // ==================== MY FARMHOUSES (OWNER) ====================
   useEffect(() => {
+    if (!ready) return;
     if (!user?.uid || user.role !== 'owner') {
       setState(prev => ({ ...prev, myFarmhouses: [], myFarmhousesLoading: false }));
       return;
@@ -538,10 +535,11 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     );
 
     return () => unsubscribe();
-  }, [user?.uid, user?.role, refreshTriggers.myFarmhouses]);
+  }, [ready, user?.uid, user?.role, refreshTriggers.myFarmhouses]);
 
   // ==================== COUPONS ====================
   useEffect(() => {
+    if (!ready) return;
     setState(prev => ({ ...prev, couponsLoading: true, couponsError: null }));
 
     const q = query(
@@ -577,49 +575,42 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     );
 
     return () => unsubscribe();
-  }, [refreshTriggers.coupons]);
+  }, [ready, refreshTriggers.coupons]);
 
   // ==================== REFRESH FUNCTIONS ====================
 
-  const refreshMyBookings = useCallback(async () => {
+  const refreshMyBookings = useCallback(() => {
     setState(prev => ({ ...prev, myBookingsRefreshing: true }));
-    await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshTriggers(prev => ({ ...prev, myBookings: prev.myBookings + 1 }));
   }, []);
 
-  const refreshAvailableFarmhouses = useCallback(async () => {
+  const refreshAvailableFarmhouses = useCallback(() => {
     setState(prev => ({ ...prev, availableFarmhousesRefreshing: true }));
-    await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshTriggers(prev => ({ ...prev, availableFarmhouses: prev.availableFarmhouses + 1 }));
   }, []);
 
-  const refreshMyFarmhouses = useCallback(async () => {
+  const refreshMyFarmhouses = useCallback(() => {
     setState(prev => ({ ...prev, myFarmhousesRefreshing: true }));
-    await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshTriggers(prev => ({ ...prev, myFarmhouses: prev.myFarmhouses + 1 }));
   }, []);
 
-  const refreshAllBookings = useCallback(async () => {
+  const refreshAllBookings = useCallback(() => {
     setState(prev => ({ ...prev, allBookingsRefreshing: true }));
-    await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshTriggers(prev => ({ ...prev, allBookings: prev.allBookings + 1 }));
   }, []);
 
-  const refreshReviews = useCallback(async (farmhouseId?: string) => {
+  const refreshReviews = useCallback((_farmhouseId?: string) => {
     setState(prev => ({ ...prev, reviewsRefreshing: true }));
-    await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshTriggers(prev => ({ ...prev, reviews: prev.reviews + 1 }));
   }, []);
 
-  const refreshCoupons = useCallback(async () => {
+  const refreshCoupons = useCallback(() => {
     setState(prev => ({ ...prev, couponsRefreshing: true }));
-    await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshTriggers(prev => ({ ...prev, coupons: prev.coupons + 1 }));
   }, []);
 
-  const refreshWishlist = useCallback(async () => {
+  const refreshWishlist = useCallback(() => {
     setState(prev => ({ ...prev, wishlistRefreshing: true }));
-    await new Promise(resolve => setTimeout(resolve, 500));
     setRefreshTriggers(prev => ({ ...prev, wishlist: prev.wishlist + 1 }));
   }, []);
 
@@ -725,13 +716,14 @@ export function useGlobalData() {
 
 export function useMyBookings() {
   const { myBookings, myBookingsLoading, myBookingsError, myBookingsRefreshing, refreshMyBookings, getCategorizedBookings } = useGlobalData();
+  const categorized = useMemo(() => getCategorizedBookings(), [getCategorizedBookings]);
   return {
     data: myBookings,
     loading: myBookingsLoading,
     error: myBookingsError,
     refreshing: myBookingsRefreshing,
     refresh: refreshMyBookings,
-    categorized: getCategorizedBookings(),
+    categorized,
   };
 }
 

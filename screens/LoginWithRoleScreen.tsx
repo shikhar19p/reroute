@@ -158,53 +158,55 @@ export default function LoginWithRoleScreen({ navigation }: any) {
 
       <View style={styles.container}>
 
-        {/* --- 1. Logo Icon --- */}
-        <View style={styles.iconContainer}>
-          <Image
-            source={require('../assets/icon.png')}
-            style={styles.iconImage}
-            resizeMode="cover"
-          />
+        <View style={styles.centerContent}>
+          {/* --- 1. Logo Icon --- */}
+          <View style={styles.iconContainer}>
+            <Image
+              source={require('../assets/icon.png')}
+              style={styles.iconImage}
+              resizeMode="cover"
+            />
+          </View>
+
+          {/* --- 2 & 3. Titles and Subtitle --- */}
+          <Text style={styles.title}>Welcome to Reroute</Text>
+          <Text style={styles.subtitle}>Sign in to continue your journey</Text>
+
+          {/* --- 4. Google Sign In Button --- */}
+          <TouchableOpacity
+            style={styles.googleButton}
+            onPress={handleGoogleSignIn}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator color={PRIMARY_COLOR} size="small" />
+            ) : (
+              <View style={styles.buttonContent}>
+                <Text style={styles.googleIconPlaceholder}>G</Text>
+                <Text style={styles.googleButtonText}>Sign in with Google</Text>
+                <Text style={styles.arrowIconPlaceholder}>→</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          {/* Info Text */}
+          <Text style={styles.infoText}>You'll choose your role after signing in</Text>
         </View>
 
-        {/* --- 2 & 3. Titles and Subtitle --- */}
-        <Text style={styles.title}>Welcome to Reroute</Text>
-        <Text style={styles.subtitle}>Sign in to continue your journey</Text>
-
-        {/* --- 4. Google Sign In Button --- */}
+        {/* --- Back Button --- */}
         <TouchableOpacity
-          style={styles.googleButton}
-          onPress={handleGoogleSignIn}
-          disabled={loading}
-          activeOpacity={0.8}
+          style={styles.backButton}
+          onPress={handleBack}
+          activeOpacity={0.7}
         >
-          {loading ? (
-            <ActivityIndicator color={PRIMARY_COLOR} size="small" />
-          ) : (
-            <View style={styles.buttonContent}>
-              <Text style={styles.googleIconPlaceholder}>G</Text>
-              <Text style={styles.googleButtonText}>Sign in with Google</Text>
-              <Text style={styles.arrowIconPlaceholder}>→</Text>
-            </View>
-          )}
+          <View style={styles.backButtonContent}>
+            <Text style={styles.backArrow}>&lt;</Text>
+            <Text style={styles.backText}>Back</Text>
+          </View>
         </TouchableOpacity>
 
-        {/* Info Text */}
-        <Text style={styles.infoText}>You'll choose your role after signing in</Text>
-
       </View>
-
-      {/* --- Back Button (Fixed at Bottom) --- */}
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={handleBack}
-        activeOpacity={0.7}
-      >
-        <View style={styles.backButtonContent}>
-          <Text style={styles.backArrow}>&lt;</Text>
-          <Text style={styles.backText}>Back</Text>
-        </View>
-      </TouchableOpacity>
 
     </SafeAreaView>
   );
@@ -217,9 +219,13 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
+    flexDirection: 'column',
+    paddingHorizontal: width * 0.08,
+  },
+  centerContent: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: width * 0.08,
     paddingTop: 20,
   },
   iconContainer: {
@@ -306,11 +312,8 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   backButton: {
-    position: 'absolute',
-    bottom: 40,
-    width: '100%',
     alignItems: 'center',
-    paddingBottom: 20,
+    paddingBottom: 16,
   },
   backButtonContent: {
     flexDirection: 'row',

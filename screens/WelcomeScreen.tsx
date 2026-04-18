@@ -7,6 +7,7 @@ import {
   ImageBackground,
   StatusBar,
   Dimensions,
+  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ChevronRight } from 'lucide-react-native';
@@ -97,9 +98,10 @@ const styles = StyleSheet.create({
     color: '#D4AF37',
     letterSpacing: 3,
     textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.4)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
+    ...Platform.select({
+      web: { textShadow: '0px 1px 3px rgba(0,0,0,0.4)' },
+      default: { textShadowColor: 'rgba(0,0,0,0.4)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+    }),
   },
   premierText: {
     fontFamily: 'Seasons-Light',
@@ -109,9 +111,10 @@ const styles = StyleSheet.create({
     letterSpacing: 4,
     marginTop: 8,
     textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.4)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    ...Platform.select({
+      web: { textShadow: '0px 1px 2px rgba(0,0,0,0.4)' },
+      default: { textShadowColor: 'rgba(0,0,0,0.4)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
+    }),
   },
   bottomSection: {
     flex: 1, // 40% of screen
@@ -124,11 +127,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 36,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
     elevation: 5,
+    ...Platform.select({
+      web: { boxShadow: '0px 4px 8px rgba(0,0,0,0.15)' },
+      default: { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8 },
+    }),
   },
   tagline: {
     fontFamily: 'Seasons-Regular',

@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, Suspense } from 'react';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -11,7 +11,6 @@ import {
   Inter_600SemiBold,
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
-import * as Font from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import Constants from 'expo-constants';
 
@@ -42,44 +41,99 @@ import { TabBarVisibilityProvider } from './context/TabBarVisibilityContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { registerForPushNotifications } from './services/notificationService';
 
-// Screens
+// Critical screens — always eager (needed on first render)
 import WelcomeScreen from './screens/WelcomeScreen';
 import LoginWithRoleScreen from './screens/LoginWithRoleScreen';
 import RoleSelectionScreen from './screens/RoleSelectionScreen';
 
-// Farm Registration
-import BasicDetailsScreen from './screens/FarmRegistration/BasicDetailsScreen';
-import PricesScreen from './screens/FarmRegistration/PricesScreen';
-import PhotosScreen from './screens/FarmRegistration/PhotosScreen';
-import AmenitiesGamesScreen from './screens/FarmRegistration/AmenitiesGamesScreen';
-import RulesRestrictionsScreen from './screens/FarmRegistration/RulesRestrictionsScreen';
-import KycScreen from './screens/FarmRegistration/KycScreen';
-import RegistrationFeeScreen from './screens/FarmRegistration/RegistrationFeeScreen';
+// Farm Registration — lazy on web
+const BasicDetailsScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/FarmRegistration/BasicDetailsScreen'))
+  : require('./screens/FarmRegistration/BasicDetailsScreen').default;
+const PricesScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/FarmRegistration/PricesScreen'))
+  : require('./screens/FarmRegistration/PricesScreen').default;
+const PhotosScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/FarmRegistration/PhotosScreen'))
+  : require('./screens/FarmRegistration/PhotosScreen').default;
+const AmenitiesGamesScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/FarmRegistration/AmenitiesGamesScreen'))
+  : require('./screens/FarmRegistration/AmenitiesGamesScreen').default;
+const RulesRestrictionsScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/FarmRegistration/RulesRestrictionsScreen'))
+  : require('./screens/FarmRegistration/RulesRestrictionsScreen').default;
+const KycScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/FarmRegistration/KycScreen'))
+  : require('./screens/FarmRegistration/KycScreen').default;
+const RegistrationFeeScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/FarmRegistration/RegistrationFeeScreen'))
+  : require('./screens/FarmRegistration/RegistrationFeeScreen').default;
 
-// User Screens
-import ExploreScreen from './screens/User/ExploreScreen';
-import FarmhouseDetailScreen from './screens/User/FarmhouseDetailScreen';
-import AllAmenitiesScreen from './screens/User/AllAmenitiesScreen';
-import AllReviewsScreen from './screens/User/AllReviewsScreen';
-import BookingConfirmationScreen from './screens/User/BookingConfirmationScreen';
-import BookingDetailsScreen from './screens/User/BookingDetailsScreen';
-import EditProfileScreen from './screens/User/EditProfileScreen';
-import BookingsScreen from './screens/User/tabs/BookingsScreen';
-import WishlistScreen from './screens/User/tabs/WishlistScreen';
-import ProfileScreen from './screens/User/tabs/ProfileScreen';
+// User Screens — lazy on web
+const ExploreScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/User/ExploreScreen'))
+  : require('./screens/User/ExploreScreen').default;
+const FarmhouseDetailScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/User/FarmhouseDetailScreen'))
+  : require('./screens/User/FarmhouseDetailScreen').default;
+const AllAmenitiesScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/User/AllAmenitiesScreen'))
+  : require('./screens/User/AllAmenitiesScreen').default;
+const AllReviewsScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/User/AllReviewsScreen'))
+  : require('./screens/User/AllReviewsScreen').default;
+const BookingConfirmationScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/User/BookingConfirmationScreen'))
+  : require('./screens/User/BookingConfirmationScreen').default;
+const BookingDetailsScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/User/BookingDetailsScreen'))
+  : require('./screens/User/BookingDetailsScreen').default;
+const EditProfileScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/User/EditProfileScreen'))
+  : require('./screens/User/EditProfileScreen').default;
+const BookingsScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/User/tabs/BookingsScreen'))
+  : require('./screens/User/tabs/BookingsScreen').default;
+const WishlistScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/User/tabs/WishlistScreen'))
+  : require('./screens/User/tabs/WishlistScreen').default;
+const ProfileScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/User/tabs/ProfileScreen'))
+  : require('./screens/User/tabs/ProfileScreen').default;
 
-// Owner Screens
-import MyFarmhousesScreen from './screens/Owner/MyFarmhousesScreen';
-import OwnerHomeScreen from './screens/Owner/OwnerHomeScreen';
-import FarmhouseDetailOwnerScreen from './screens/Owner/FarmhouseDetailOwnerScreen';
-import EditFarmhouseScreen from './screens/Owner/EditFarmhouseScreen';
-import OwnerBookingsScreen from './screens/Owner/BookingsListScreen';
-import OwnerBookingDetailScreen from './screens/Owner/BookingDetailScreen';
-import ManageBlockedDatesScreen from './screens/Owner/ManageBlockedDatesScreen';
+// Owner Screens — lazy on web
+const MyFarmhousesScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/Owner/MyFarmhousesScreen'))
+  : require('./screens/Owner/MyFarmhousesScreen').default;
+const OwnerHomeScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/Owner/OwnerHomeScreen'))
+  : require('./screens/Owner/OwnerHomeScreen').default;
+const FarmhouseDetailOwnerScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/Owner/FarmhouseDetailOwnerScreen'))
+  : require('./screens/Owner/FarmhouseDetailOwnerScreen').default;
+const EditFarmhouseScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/Owner/EditFarmhouseScreen'))
+  : require('./screens/Owner/EditFarmhouseScreen').default;
+const OwnerBookingsScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/Owner/BookingsListScreen'))
+  : require('./screens/Owner/BookingsListScreen').default;
+const OwnerBookingDetailScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/Owner/BookingDetailScreen'))
+  : require('./screens/Owner/BookingDetailScreen').default;
+const ManageBlockedDatesScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/Owner/ManageBlockedDatesScreen'))
+  : require('./screens/Owner/ManageBlockedDatesScreen').default;
 
 // Components
 import PremiumTabBar from './components/PremiumTabBar';
 import AnimatedSplashScreen from './components/AnimatedSplashScreen';
+
+// Suspense fallback for lazy screens on web
+const ScreenLoader = () => (
+  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F7F7F7' }}>
+    <ActivityIndicator color="#C5A565" size="large" />
+  </View>
+);
 
 // Navigation types
 import { RootStackParamList, TabParamList } from './types/navigation';
@@ -423,24 +477,53 @@ function AppNavigator() {
 
 // Root App Wrapper
 export default function App() {
-  const [showApp, setShowApp] = React.useState(false);
+  // Web: skip splash entirely — instant FCP, auth handled by AppNavigator loading state
+  const isWeb = Platform.OS === 'web';
+
+  // Inject CSS to nuke all focus outlines on web (RN Web applies inline styles that
+  // override web/index.html CSS, so we inject a <style> tag at runtime instead)
+  useEffect(() => {
+    if (!isWeb) return;
+    const style = document.createElement('style');
+    style.id = 'rn-no-focus-outline';
+    style.textContent = `
+      input, textarea, select, [contenteditable] {
+        outline: none !important;
+        box-shadow: none !important;
+        -webkit-appearance: none;
+      }
+      input:focus, textarea:focus, select:focus, [contenteditable]:focus {
+        outline: none !important;
+        box-shadow: none !important;
+      }
+      *:focus { outline: none !important; }
+      *:focus-visible { outline: none !important; box-shadow: none !important; }
+    `;
+    if (!document.getElementById('rn-no-focus-outline')) {
+      document.head.appendChild(style);
+    }
+  }, [isWeb]);
+  const [showApp, setShowApp] = React.useState(isWeb);
   const [appReady, setAppReady] = React.useState(false);
 
-  // Load fonts in background - non-blocking
-  const [fontsLoaded] = useFonts({
-    // Inter fonts for general UI
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-    // Seasons fonts for premium screens
-    'Seasons-Regular': require('./assets/fonts/Fontspring-DEMO-theseasons-reg.otf'),
-    'Seasons-Light': require('./assets/fonts/Fontspring-DEMO-theseasons-lt.otf'),
-    'Seasons-Bold': require('./assets/fonts/Fontspring-DEMO-theseasons-bd.otf'),
-    'Seasons-Italic': require('./assets/fonts/Fontspring-DEMO-theseasons-it.otf'),
-    'Seasons-LightItalic': require('./assets/fonts/Fontspring-DEMO-theseasons-ltit.otf'),
-    'Seasons-BoldItalic': require('./assets/fonts/Fontspring-DEMO-theseasons-bdit.otf'),
-  });
+  // On web: only load Inter (via CSS in index.html), skip Seasons OTF (not needed on web)
+  // On native: load all fonts as before
+  const [fontsLoaded] = useFonts(
+    isWeb
+      ? {}
+      : {
+          Inter_400Regular,
+          Inter_500Medium,
+          Inter_600SemiBold,
+          Inter_700Bold,
+          'Seasons-Regular': require('./assets/fonts/Fontspring-DEMO-theseasons-reg.otf'),
+          'Seasons-Light': require('./assets/fonts/Fontspring-DEMO-theseasons-lt.otf'),
+          'Seasons-Bold': require('./assets/fonts/Fontspring-DEMO-theseasons-bd.otf'),
+          'Seasons-Italic': require('./assets/fonts/Fontspring-DEMO-theseasons-it.otf'),
+          'Seasons-LightItalic': require('./assets/fonts/Fontspring-DEMO-theseasons-ltit.otf'),
+          'Seasons-BoldItalic': require('./assets/fonts/Fontspring-DEMO-theseasons-bdit.otf'),
+        }
+  );
 
   // Track auth loading state to prevent showing app before ready
   const [authInitialized, setAuthInitialized] = React.useState(false);
@@ -482,9 +565,8 @@ export default function App() {
     }
   }, []);
 
-  // Show custom splash (native splash still visible until onReady called)
-  // Splash waits for auth to initialize before completing
-  if (!showApp && !SKIP_SPLASH) {
+  // Show custom splash on native only — web goes straight to app
+  if (!showApp && !SKIP_SPLASH && !isWeb) {
     return (
       <View style={{ flex: 1, backgroundColor: 'rgb(249, 248, 239)' }}>
         <AnimatedSplashWithAuth
@@ -507,7 +589,9 @@ export default function App() {
                 <ToastProvider>
                   <WishlistProvider>
                     <FarmRegistrationProvider>
-                      <AppNavigator />
+                      <Suspense fallback={<ScreenLoader />}>
+                        <AppNavigator />
+                      </Suspense>
                     </FarmRegistrationProvider>
                   </WishlistProvider>
                 </ToastProvider>
