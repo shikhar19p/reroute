@@ -35,10 +35,12 @@ yarn-error.*
 .env
 !.env.example
 
-# Firebase sensitive files
+# Firebase & Google Play sensitive files
 firebaseConfig-prod.ts
 *.firebase.json
 service-account-*.json
+serviceAccountKey.json
+google-play-key.json
 
 # Keep google-services.json in root (it's needed for builds)
 # The /android folder is gitignored, but we keep the source file

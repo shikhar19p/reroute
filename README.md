@@ -1,409 +1,275 @@
-# ReRoute Adventures
+# ReRoute - Premium Farmhouse Booking Platform
 
-Farmhouse & resort booking app built with **React Native + Expo** (bare workflow), **Firebase** backend, and **Razorpay** payments.
+A professional React Native application for booking farmhouses and vacation properties, built with Expo and Firebase.
 
----
+## 🚀 Features
 
-## Table of Contents
+### For Customers
+- **Browse & Search**: Discover farmhouses with advanced filters
+- **Smart Booking**: Real-time availability checking and instant booking
+- **Secure Payments**: Integrated Razorpay payment gateway
+- **Reviews & Ratings**: Read and write authentic reviews
+- **Wishlist**: Save favorite properties
+- **Booking Management**: Track bookings, view history, cancel bookings
+- **Push Notifications**: Real-time booking updates
 
-1. [Quick Start](#quick-start)
-2. [Project Structure](#project-structure)
-3. [Environment Setup](#environment-setup)
-4. [Google Sign-In Setup](#google-sign-in-setup)
-5. [Android Build Guide](#android-build-guide)
-6. [Common Errors & Fixes](#common-errors--fixes)
-7. [Branch Overview](#branch-overview)
-8. [Payment Flow](#payment-flow)
+### For Property Owners
+- **Property Listing**: Easy multi-step property registration
+- **Booking Management**: Accept/reject bookings, manage availability
+- **Calendar Management**: Block dates, set custom pricing
+- **Analytics Dashboard**: Track earnings and bookings
+- **KYC Verification**: Secure identity verification
 
----
+### For Admins
+- **Admin Panel**: Web-based dashboard for management
+- **Property Approvals**: Review and approve listings
+- **User Management**: Manage users and roles
+- **Revenue Tracking**: Monitor payments and commissions
+- **Analytics**: Comprehensive business insights
 
-## Quick Start
+## 🛠️ Tech Stack
 
+- **Frontend**: React Native (Expo SDK 54)
+- **Backend**: Firebase (Firestore, Auth, Storage, Functions)
+- **Payment**: Razorpay
+- **State Management**: React Context API
+- **Navigation**: React Navigation v7
+- **UI Components**: Custom components with Lucide icons
+- **Notifications**: Expo Notifications
+- **Error Tracking**: Sentry
+
+## 📋 Prerequisites
+
+- Node.js 18+ and npm/yarn
+- Expo CLI (`npm install -g expo-cli`)
+- iOS Simulator (Mac) or Android Studio (for emulators)
+- Firebase account
+- Razorpay account (for payments)
+
+## 🔧 Installation
+
+1. **Clone the repository**
 ```bash
-# 1. Clone and install
-git clone https://github.com/shikhar19p/reroute.git
+git clone <repository-url>
 cd reroute
-git checkout master2          # stable working branch
-npm install
-
-# 2. Add required secret files (see sections below)
-#    - .env
-#    - google-services.json   (root + android/app/)
-
-# 3. Run on Android device / emulator
-npx expo run:android
-
-# 4. Run on web
-npx expo start --web
 ```
 
-> **Note:** `npx expo start` (Expo Go) works for UI testing but **Google Sign-In will not work** in Expo Go — it requires a native dev build (`npx expo run:android`).
+2. **Install dependencies**
+```bash
+npm install
+```
 
----
+3. **Configure environment variables**
+```bash
+cp .env.example .env
+```
 
-## Project Structure
+Edit `.env` with your credentials:
+- Firebase configuration (from Firebase Console)
+- Razorpay keys (from Razorpay Dashboard)
+- Google OAuth client ID
+- Encryption secret (generate with: `openssl rand -base64 32`)
+- Sentry DSN (optional, for error tracking)
+
+4. **Setup Firebase**
+- Create a Firebase project at https://console.firebase.google.com/
+- Enable Authentication (Email/Password and Google Sign-In)
+- Create Firestore database
+- Enable Storage
+- Deploy security rules:
+  ```bash
+  firebase deploy --only firestore:rules
+  firebase deploy --only storage:rules
+  ```
+
+5. **Configure Google Services**
+- Download `google-services.json` (Android) from Firebase Console
+- Place it in the project root
+- For iOS, download `GoogleService-Info.plist` and configure accordingly
+
+## 🚀 Running the App
+
+### Development
+```bash
+# Start Expo dev server
+npm start
+
+# Run on iOS simulator
+npm run ios
+
+# Run on Android emulator
+npm run android
+
+# Run on web
+npm run web
+```
+
+### Production Builds
+
+```bash
+# Development build
+npm run build:dev
+
+# Preview build (internal testing)
+npm run build:preview
+
+# Production build
+npm run build:prod
+```
+
+## 📱 App Store Deployment
+
+### iOS (App Store)
+1. Configure `app.json` with your bundle identifier
+2. Set up App Store Connect account
+3. Build with EAS: `eas build --platform ios --profile production`
+4. Submit: `eas submit --platform ios`
+
+### Android (Google Play)
+1. Generate upload keystore
+2. Configure `eas.json` with service account key
+3. Build: `eas build --platform android --profile production`
+4. Submit: `eas submit --platform android`
+
+## 🔒 Security
+
+### Environment Variables
+- **Never commit** `.env` file to version control
+- Use strong encryption keys (minimum 32 characters)
+- Rotate API keys regularly
+- Use separate Firebase projects for dev/staging/production
+
+### Data Privacy
+- GDPR compliant data export/deletion
+- Encrypted sensitive data (bank details, KYC documents)
+- Secure payment processing via Razorpay
+- User consent for data collection
+
+### Security Rules
+- Firestore security rules enforce data access control
+- Storage rules validate file types and sizes
+- Rate limiting on sensitive operations
+- Input sanitization and validation
+
+## 🧪 Testing
+
+```bash
+# Run tests
+npm test
+
+# Run tests with coverage
+npm test -- --coverage
+
+# Run specific test file
+npm test -- validators.test.ts
+```
+
+## 📊 Monitoring
+
+### Error Tracking (Sentry)
+- Automatic crash reporting
+- Performance monitoring
+- User feedback collection
+
+### Analytics
+- Firebase Analytics integration
+- Custom event tracking
+- User behavior insights
+
+## 🏗️ Project Structure
 
 ```
 reroute/
-├── android/                    # Native Android project (generated by expo prebuild)
-│   └── app/
-│       ├── build.gradle        # applicationId: com.rerouteaventures.app
-│       ├── debug.keystore      # Debug signing cert — SHA1 must match Firebase
-│       └── google-services.json  ← Gradle reads THIS file (not root)
-├── assets/fonts/               # Seasons + Inter font files
-├── components/                 # Shared UI components
-├── context/                    # React contexts (Theme, Wishlist, etc.)
-├── screens/
-│   ├── User/                   # Customer-facing screens
-│   ├── Owner/                  # Owner dashboard screens
-│   └── FarmRegistration/       # Multi-step farm listing flow
-├── services/                   # Firebase/Razorpay service layer
-├── App.tsx                     # Root — navigation + GoogleSignin.configure()
-├── authContext.tsx             # Firebase auth state + session management
-├── app.config.js               # Expo config (reads .env, sets package names)
-├── google-services.json        # Root copy (used by EAS Build / reference)
-└── .env                        # Secret keys — never commit this
+├── assets/              # Images, fonts, icons
+├── components/          # Reusable UI components
+├── constants/           # App constants and configuration
+├── context/            # React Context providers
+├── screens/            # Screen components
+│   ├── User/          # Customer-facing screens
+│   ├── Owner/         # Property owner screens
+│   └── FarmRegistration/ # Property listing flow
+├── services/           # API and business logic
+├── utils/             # Utility functions
+├── types/             # TypeScript type definitions
+├── admin-panel/       # Web admin dashboard
+└── functions/         # Firebase Cloud Functions
 ```
 
----
+## 🔑 Key Files
 
-## Environment Setup
+- `App.tsx` - Main app entry point
+- `firebaseConfig.ts` - Firebase initialization
+- `app.config.js` - Expo configuration
+- `eas.json` - EAS Build configuration
+- `firestore.rules` - Firestore security rules
+- `storage.rules` - Storage security rules
 
-Create a `.env` file in the project root:
+## 📝 Scripts
 
-```env
-FIREBASE_API_KEY=AIzaSy...
-FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_STORAGE_BUCKET=your-project.firebasestorage.app
-FIREBASE_MESSAGING_SENDER_ID=272634614965
-FIREBASE_APP_ID=1:272634614965:android:...
-GOOGLE_WEB_CLIENT_ID=272634614965-xxxx.apps.googleusercontent.com
-RAZORPAY_KEY_ID=rzp_live_...
-ENCRYPTION_SECRET=your-32-char-secret
-ENVIRONMENT=development
-```
+- `npm start` - Start development server
+- `npm run android` - Run on Android
+- `npm run ios` - Run on iOS
+- `npm run web` - Run on web
+- `npm run build:prod` - Production build
+- `npm test` - Run tests
 
-These are read by `app.config.js` and exposed via `expo-constants`.
+## 🐛 Troubleshooting
 
----
+### Common Issues
 
-## Google Sign-In Setup
-
-### How it works (3 paths)
-
-```
-Platform.OS === 'web'
-  └─ signInWithPopup (Firebase)
-
-NativeModules.RNGoogleSignin is falsy  (Expo Go)
-  └─ expo-auth-session → auth.expo.io proxy → Firebase
-
-NativeModules.RNGoogleSignin exists  (npx expo run:android)
-  └─ @react-native-google-signin/google-signin → Firebase
-```
-
-### Required files
-
-#### `google-services.json`
-Must be placed in **both** locations:
-- `google-services.json` (root — used by EAS Build)
-- `android/app/google-services.json` (used by Gradle for local builds)
-
-Download from: **Firebase Console → Project Settings → Your Android app → google-services.json**
-
-The file must contain an Android OAuth client (`client_type: 1`) whose `certificate_hash` matches the SHA1 of `android/app/debug.keystore`.
-
-#### `android/app/debug.keystore`
-This is the signing certificate used when building with `npx expo run:android`.
-
-To get its SHA1:
+**Metro bundler cache issues**
 ```bash
-keytool -list -v \
-  -keystore android/app/debug.keystore \
-  -alias androiddebugkey \
-  -storepass android -keypass android
+npx expo start --clear
 ```
 
-**That SHA1 must be registered in Firebase:**
-Firebase Console → Project Settings → Your Android app → Add fingerprint → paste SHA1 → Save → re-download `google-services.json`.
-
-### Registering redirect URIs (for Expo Go)
-
-In Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Web Client → Authorized redirect URIs, add:
-```
-https://auth.expo.io/@<your-expo-username>/reroute
-```
-
----
-
-## Android Build Guide
-
-### First-time setup
-
+**iOS build fails**
 ```bash
-# Make sure android/ folder exists (it's committed — no prebuild needed)
-npx expo run:android
+cd ios && pod install && cd ..
 ```
 
-### Clean build (if things break)
+**Android build fails**
+- Ensure `google-services.json` is in project root
+- Check Android SDK is properly installed
 
-```bash
-# Option 1: clean Gradle cache
-cd android && ./gradlew clean && cd ..
-npx expo run:android
+**Firebase connection issues**
+- Verify `.env` file has correct credentials
+- Check Firebase project is active
+- Ensure billing is enabled for Cloud Functions
 
-# Option 2: full rebuild from scratch
-rm -rf android/
-npx expo prebuild --platform android
-npx expo run:android
-```
+## 📄 License
 
-> After `expo prebuild`, always copy `google-services.json` back to `android/app/`.
+Proprietary - All rights reserved
 
-### Checking what SHA1 your keystore has
+## 🤝 Support
 
-```bash
-keytool -list -v \
-  -keystore android/app/debug.keystore \
-  -alias androiddebugkey \
-  -storepass android -keypass android
-```
+For support, email support@reroute.app or create an issue in the repository.
+
+## 🔗 Links
+
+- [Privacy Policy](https://reroute.app/privacy-policy)
+- [Terms of Service](https://reroute.app/terms-of-service)
+- [Refund Policy](https://reroute.app/refund-policy)
+- [Firebase Documentation](https://firebase.google.com/docs)
+- [Expo Documentation](https://docs.expo.dev/)
+- [React Native Documentation](https://reactnative.dev/)
+
+## 📈 Roadmap
+
+- [ ] In-app chat between owners and customers
+- [ ] Advanced search filters (amenities, price range)
+- [ ] Multi-language support
+- [ ] Dark mode enhancements
+- [ ] Social media integration
+- [ ] Referral program
+- [ ] Loyalty rewards
+- [ ] Virtual property tours
+
+## 👥 Contributors
+
+- Development Team - ReRoute Technologies
 
 ---
 
-## Common Errors & Fixes
-
-### 1. `DEVELOPER_ERROR (code 10)` — Google Sign-In fails
-
-**Symptom:** Sign in button shows "Sign in failed" / console logs `code: "10"`.
-
-**Root cause:** The APK's signing certificate SHA1 is not registered in Firebase/Google Cloud Console.
-
-**Fix:**
-```bash
-# Step 1: Find which keystore the build actually uses
-# → android/app/build.gradle → signingConfigs.debug → storeFile
-# Usually: android/app/debug.keystore
-
-# Step 2: Get its SHA1
-keytool -list -v -keystore android/app/debug.keystore \
-  -alias androiddebugkey -storepass android -keypass android
-
-# Step 3: Register that SHA1 in Firebase Console
-# Firebase → Project Settings → Android app → Add fingerprint
-
-# Step 4: Re-download google-services.json and put it in BOTH locations:
-#   google-services.json  (root)
-#   android/app/google-services.json
-
-# Step 5: Rebuild
-npx expo run:android
-```
-
-> **Watch out:** `~/.android/debug.keystore` and `android/app/debug.keystore` are often **different files with different SHA1s**. Always check which one `build.gradle` references.
-
----
-
-### 2. `INSTALL_FAILED_UPDATE_INCOMPATIBLE` — APK won't install
-
-**Symptom:**
-```
-Failure [INSTALL_FAILED_UPDATE_INCOMPATIBLE: Existing package signatures do not match]
-```
-
-**Root cause:** A previous APK signed with a different keystore is already installed on the device.
-
-**Fix:**
-```bash
-adb uninstall com.rerouteaventures.app
-npx expo run:android
-```
-
-Or go to phone Settings → Apps → ReRoute Adventures → Uninstall, then run `npx expo run:android`.
-
----
-
-### 3. `Error 400: redirect_uri_mismatch` — Google Sign-In in Expo Go
-
-**Symptom:** Browser opens, then shows "Access blocked: Authorization Error — Error 400".
-
-**Root cause:** Expo Go sends `exp://192.168.x.x:8081` as the redirect URI, which Google blocks.
-
-**Fix:** The code automatically uses `https://auth.expo.io` as the proxy when native module isn't available. You must register this URL in Google Cloud Console:
-
-Google Cloud Console → APIs & Services → Credentials → OAuth 2.0 Web Client → Authorized redirect URIs:
-```
-https://auth.expo.io/@shikahr_19/reroute
-```
-
----
-
-### 4. App crashes immediately in Expo Go
-
-**Symptom:** App opens and instantly crashes with a red screen about `@react-native-google-signin`.
-
-**Root cause:** Top-level `import { GoogleSignin } from '@react-native-google-signin/google-signin'` in any file that loads at startup (e.g. `authContext.tsx`, `App.tsx`) crashes Expo Go because the native module isn't linked.
-
-**Fix:** Never import `GoogleSignin` at the top level. Always use a conditional require:
-
-```typescript
-// WRONG — crashes Expo Go
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
-
-// CORRECT
-const hasNativeGoogleSignin = Platform.OS !== 'web' && !!NativeModules.RNGoogleSignin;
-if (hasNativeGoogleSignin) {
-  const { GoogleSignin } = require('@react-native-google-signin/google-signin');
-  GoogleSignin.configure({ webClientId: WEB_CLIENT_ID });
-}
-```
-
----
-
-### 5. `google-services.json is missing` — Gradle build failure
-
-**Symptom:**
-```
-File google-services.json is missing. The Google Services Plugin cannot function without it.
-```
-
-**Root cause:** `android/app/google-services.json` doesn't exist. The root-level `google-services.json` is NOT used by Gradle.
-
-**Fix:**
-```bash
-# Copy root file to android/app/
-cp google-services.json android/app/google-services.json
-
-# Force-add if gitignored
-git add -f android/app/google-services.json
-git commit -m "fix: add google-services.json for Gradle"
-```
-
----
-
-### 6. `Unable to resolve "../../components/AnimatedImage"` or similar missing component
-
-**Symptom:** Metro bundler fails with "Unable to resolve" on a component that exists in one branch but not another.
-
-**Fix:** Create the missing component. For `AnimatedImage`:
-```typescript
-// components/AnimatedImage.tsx
-import React, { useRef } from 'react';
-import { Animated } from 'react-native';
-
-export default function AnimatedImage({ uri, style, resizeMode = 'cover' }: any) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  return (
-    <Animated.Image
-      source={{ uri }}
-      style={[style, { opacity }]}
-      resizeMode={resizeMode}
-      onLoad={() => Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }).start()}
-    />
-  );
-}
-```
-
----
-
-### 7. `scheme` warning — Linking not configured
-
-**Symptom:**
-```
-Linking: 'scheme' is not set in app.config.js
-```
-
-**Fix:** Add `scheme` to `app.config.js`:
-```javascript
-expo: {
-  scheme: "reroute",
-  // ...
-}
-```
-
----
-
-### 8. Windows — Metro bundler can't connect to device
-
-**Symptom:** App installs but shows "Unable to connect to Metro" or blank screen.
-
-**Fix:** Add a loopback exemption on Windows:
-```powershell
-# Run as Administrator
-CheckNetIsolation LoopbackExempt -a -n="microsoft.win32webviewhost_cw5n1h2txyewy"
-```
-
-Then reload the app with `r` in the Metro terminal.
-
----
-
-### 9. Gradle daemon crashes / OOM on Windows
-
-**Symptom:** Build hangs or `OutOfMemoryError` during Gradle build.
-
-**Fix:** Add to `android/gradle.properties`:
-```properties
-org.gradle.daemon=false
-org.gradle.jvmargs=-Xmx4096m
-```
-
----
-
-## Branch Overview
-
-| Branch | Status | Description |
-|--------|--------|-------------|
-| `master2` | ✅ Working | Clean base with all Google Sign-In fixes — use this |
-| `master` | ⚠️ Partial | Has some fixes but missing keystore fix |
-| `architecture-refactor` | ⚠️ Old | Performance-optimized architecture, needs Sign-In fixes merged in |
-| `paymentint-clean` | Payment only | Razorpay integration branch |
-
-**Recommended branch for new development: `master2`**
-
----
-
-## Payment Flow
-
-```
-User selects dates → BookingConfirmationScreen
-  └─ createPendingBooking()  → Firestore status: "pending", paymentStatus: "pending"
-  └─ Razorpay payment sheet opens (10-minute window)
-      ├─ SUCCESS → verifyPayment() → status: "confirmed", paymentStatus: "paid"
-      ├─ FAILURE → booking stays "pending" for 10 min, then auto-cleaned
-      └─ USER CLOSES APP → booking stays "pending", check BookingsScreen for retry
-```
-
-Pending bookings older than 10 minutes are automatically cleaned up by a background job in `GlobalDataContext`.
-
----
-
-## Pushing Changes
-
-```bash
-# Standard flow
-git add <files>
-git commit -m "your message"
-git push origin master2
-
-# Force-add gitignored files (keystore, google-services)
-git add -f android/app/google-services.json
-git add -f android/app/debug.keystore
-
-# Check what's registered in git remote
-git log --oneline origin/master2 | head -10
-```
-
----
-
-## Key IDs & References
-
-| Item | Value |
-|------|-------|
-| Package name | `com.rerouteaventures.app` |
-| Firebase project | `rustique-6b7c4` |
-| EAS project ID | `b4fd15d4-8419-4cd7-b47a-ba697e65979e` |
-| Web Client ID | `272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com` |
-| Debug keystore SHA1 | `25:99:69:2B:9E:2A:AB:CE:68:40:C1:5B:C7:E2:63:52:10:01:16:85` |
-| Expo username | `shikahr_19` |
-| Auth proxy URL | `https://auth.expo.io/@shikahr_19/reroute` |
+**Version**: 1.0.0  
+**Last Updated**: 2024  
+**Status**: Production Ready ✅

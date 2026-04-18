@@ -2,7 +2,8 @@ import React, { useEffect, useCallback } from 'react';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
+import { ActivityIndicator, View, StyleSheet, Text, Platform } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   useFonts,
   Inter_400Regular,
@@ -12,10 +13,12 @@ import {
 } from '@expo-google-fonts/inter';
 import * as Font from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
-import { Platform, NativeModules } from 'react-native';
+import Constants from 'expo-constants';
 
-// Configure Google Sign-In at startup (native builds only)
-if (Platform.OS !== 'web' && !!NativeModules.RNGoogleSignin) {
+// Configure Google Sign-In only in real native builds.
+// Not available in Expo Go or on web — the native module would crash.
+const isExpoGo = Constants.executionEnvironment === 'storeClient';
+if (Platform.OS !== 'web' && !isExpoGo) {
   const { GoogleSignin } = require('@react-native-google-signin/google-signin');
   GoogleSignin.configure({
     webClientId: '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com',
@@ -84,6 +87,65 @@ import { RootStackParamList, TabParamList } from './types/navigation';
 // Navigation setup
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
+
+// Component that waits for auth before completing splash
+function AnimatedSplashWithAuth({ message, onReady, onComplete }: {
+  message: string;
+  onReady: () => void;
+  onComplete: () => void;
+}) {
+  return (
+    <ErrorBoundary>
+      <AuthProvider>
+        <SplashWithAuthCheck
+          message={message}
+          onReady={onReady}
+          onComplete={onComplete}
+        />
+      </AuthProvider>
+    </ErrorBoundary>
+  );
+}
+
+// Inner component that has access to auth context
+function SplashWithAuthCheck({ message, onReady, onComplete }: {
+  message: string;
+  onReady: () => void;
+  onComplete: () => void;
+}) {
+  const { loading: authLoading } = useAuth();
+  const [animationDone, setAnimationDone] = React.useState(false);
+  const MIN_SPLASH_TIME = 1500; // Minimum 1.5 seconds
+  const [minTimeElapsed, setMinTimeElapsed] = React.useState(false);
+  const startTimeRef = React.useRef(Date.now());
+
+  // Ensure minimum splash display time
+  React.useEffect(() => {
+    const elapsed = Date.now() - startTimeRef.current;
+    const remaining = Math.max(0, MIN_SPLASH_TIME - elapsed);
+
+    const timer = setTimeout(() => {
+      setMinTimeElapsed(true);
+    }, remaining);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Wait for: animation done + auth ready + minimum time
+  React.useEffect(() => {
+    if (animationDone && !authLoading && minTimeElapsed) {
+      setTimeout(onComplete, 200);
+    }
+  }, [animationDone, authLoading, minTimeElapsed, onComplete]);
+
+  return (
+    <AnimatedSplashScreen
+      message={authLoading ? "Initializing..." : message}
+      onReady={onReady}
+      onAnimationComplete={() => setAnimationDone(true)}
+    />
+  );
+}
 
 // Wrapper component to check if owner has farmhouses and route accordingly
 function OwnerNavigator({ navigation }: any) {
@@ -171,29 +233,21 @@ function UserTabs() {
 function AppNavigator() {
   const { user, loading } = useAuth();
 
-  console.log('📄 AppNavigator render - loading:', loading, 'user:', user?.email, 'role:', user?.role);
-
-  // Don't show loading screen - let app load silently
+  // Show a minimal loading indicator while auth initializes
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="rgb(244, 173, 50)" />
+      </View>
+    );
+  }
 
   // Determine initial route based on user role
   const getInitialRoute = () => {
-    if (!user) {
-      console.log('🔓 No user - going to Welcome');
-      return 'Welcome';
-    }
-    if (!user.role) {
-      console.log('🔓 User authenticated but no role - going to RoleSelection');
-      return 'RoleSelection';
-    }
-    if (user.role === 'customer') {
-      console.log('🔓 Customer role - going to UserHome');
-      return 'UserHome';
-    }
-    if (user.role === 'owner') {
-      console.log('🔓 Owner role - going to OwnerNavigator');
-      return 'OwnerNavigator';
-    }
-    console.log('🔓 Unknown state - going to Welcome');
+    if (!user) return 'Welcome';
+    if (!user.role) return 'RoleSelection';
+    if (user.role === 'customer') return 'UserHome';
+    if (user.role === 'owner') return 'OwnerNavigator';
     return 'Welcome';
   };
 
@@ -388,9 +442,11 @@ export default function App() {
     'Seasons-BoldItalic': require('./assets/fonts/Fontspring-DEMO-theseasons-bdit.otf'),
   });
 
+  // Track auth loading state to prevent showing app before ready
+  const [authInitialized, setAuthInitialized] = React.useState(false);
+
   // Keep native splash visible until custom splash is ready
   React.useEffect(() => {
-    // Set app ready immediately - custom splash will render
     setAppReady(true);
   }, []);
 
@@ -399,31 +455,42 @@ export default function App() {
     try {
       await SplashScreen.hideAsync();
     } catch (e) {
-      // Ignore errors
+      console.error('Error hiding splash:', e);
     }
   }, []);
 
-  // Register for push notifications on app start
+  // Register for push notifications on app start - but don't block
   // Note: FCM (Firebase Cloud Messaging) credentials must be configured for production
   // See: https://docs.expo.dev/push-notifications/fcm-credentials/
   // For development, push notifications will gracefully fail if FCM is not set up
   useEffect(() => {
-    registerForPushNotifications().then((token) => {
-      if (token) {
-        console.log('✅ Push notification token:', token);
-        // TODO: Save token to user profile in Firestore
-      }
-    });
+    // Run in background without blocking
+    setTimeout(() => {
+      registerForPushNotifications().catch(() => {
+        // Push notifications unavailable — not critical
+      });
+    }, 5000); // Delay by 5 seconds to not block startup
+  }, []);
+
+  // DEV MODE: Skip splash for faster development
+  const SKIP_SPLASH = __DEV__ && false; // Change to true to skip splash
+
+  React.useEffect(() => {
+    if (SKIP_SPLASH) {
+      SplashScreen.hideAsync().catch(() => {});
+      setShowApp(true);
+    }
   }, []);
 
   // Show custom splash (native splash still visible until onReady called)
-  if (!showApp) {
+  // Splash waits for auth to initialize before completing
+  if (!showApp && !SKIP_SPLASH) {
     return (
       <View style={{ flex: 1, backgroundColor: 'rgb(249, 248, 239)' }}>
-        <AnimatedSplashScreen
+        <AnimatedSplashWithAuth
           message="Loading..."
           onReady={onCustomSplashReady}
-          onAnimationComplete={() => setShowApp(true)}
+          onComplete={() => setShowApp(true)}
         />
       </View>
     );
@@ -431,23 +498,25 @@ export default function App() {
 
   // Show app only after splash completes
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <GlobalDataProvider>
-          <ThemeProvider>
-            <DialogProvider>
-              <ToastProvider>
-                <WishlistProvider>
-                  <FarmRegistrationProvider>
-                    <AppNavigator />
-                  </FarmRegistrationProvider>
-                </WishlistProvider>
-              </ToastProvider>
-            </DialogProvider>
-          </ThemeProvider>
-        </GlobalDataProvider>
-      </AuthProvider>
-    </ErrorBoundary>
+    <SafeAreaProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <GlobalDataProvider>
+            <ThemeProvider>
+              <DialogProvider>
+                <ToastProvider>
+                  <WishlistProvider>
+                    <FarmRegistrationProvider>
+                      <AppNavigator />
+                    </FarmRegistrationProvider>
+                  </WishlistProvider>
+                </ToastProvider>
+              </DialogProvider>
+            </ThemeProvider>
+          </GlobalDataProvider>
+        </AuthProvider>
+      </ErrorBoundary>
+    </SafeAreaProvider>
   );
 }
 

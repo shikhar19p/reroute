@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFarmRegistration } from '../../context/FarmRegistrationContext';
+import { Check } from 'lucide-react-native';
 
 type RootStackParamList = {
   FarmKyc: undefined;
@@ -12,122 +13,86 @@ type RulesRestrictionsScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, any>;
 };
 
+const AMENITY_LABELS: Record<string, string> = {
+  wifi: 'WiFi',
+  ac: 'Air Conditioning',
+  parking: 'Parking',
+  kitchen: 'Kitchen',
+  tv: 'TV',
+  geyser: 'Geyser (Hot Water)',
+  pool: 'Swimming Pool',
+  bonfire: 'Bonfire',
+  bbq: 'BBQ / Grill',
+  outdoorSeating: 'Outdoor Seating',
+  hotTub: 'Hot Tub / Jacuzzi',
+  djMusicSystem: 'DJ / Music System',
+  projector: 'Projector',
+  restaurant: 'Restaurant',
+  foodPrepOnDemand: 'Food Prep on Demand',
+  decorService: 'Decor Service',
+  chess: 'Chess',
+  carrom: 'Carom Board',
+  volleyball: 'Volleyball',
+  badminton: 'Badminton Court',
+  tableTennis: 'Table Tennis',
+  cricket: 'Cricket Ground',
+};
+
 export default function RulesRestrictionsScreen({ navigation }: RulesRestrictionsScreenProps) {
   const { farm } = useFarmRegistration();
   const { amenities, rules } = farm;
 
+  const enabledAmenities = Object.entries(AMENITY_LABELS).filter(
+    ([key]) => (amenities as any)[key] === true || (amenities as any)[key] > 0
+  );
+
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom']} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Review Configuration</Text>
-        <Text style={styles.subtitle}>Please review your amenities and rules before proceeding</Text>
-
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>🏠 Amenities & Games</Text>
+          <Text style={styles.cardTitle}>Amenities & Facilities</Text>
 
-          {amenities.tv > 0 && (
-            <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✅</Text>
-              <Text style={styles.itemText}>TV: {amenities.tv}</Text>
-            </View>
+          {enabledAmenities.length === 0 && (
+            <Text style={styles.emptyText}>No amenities selected</Text>
           )}
 
-          {amenities.geyser > 0 && (
-            <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✅</Text>
-              <Text style={styles.itemText}>Geyser: {amenities.geyser}</Text>
+          {enabledAmenities.map(([key, label]) => (
+            <View key={key} style={styles.itemRow}>
+              <Check size={14} color="#16A34A" />
+              <Text style={styles.itemText}>{label}</Text>
             </View>
-          )}
+          ))}
 
-          {amenities.bonfire > 0 && (
-            <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✅</Text>
-              <Text style={styles.itemText}>Bonfire: {amenities.bonfire}</Text>
-            </View>
-          )}
-
-          {amenities.pool && (
-            <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✅</Text>
-              <Text style={styles.itemText}>Swimming Pool Available</Text>
-            </View>
-          )}
-
-          {amenities.chess > 0 && (
-            <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✅</Text>
-              <Text style={styles.itemText}>Chess: {amenities.chess}</Text>
-            </View>
-          )}
-
-          {amenities.carroms > 0 && (
-            <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✅</Text>
-              <Text style={styles.itemText}>Carroms: {amenities.carroms}</Text>
-            </View>
-          )}
-
-          {amenities.volleyball > 0 && (
-            <View style={styles.itemRow}>
-              <Text style={styles.checkIcon}>✅</Text>
-              <Text style={styles.itemText}>Volleyball: {amenities.volleyball}</Text>
-            </View>
-          )}
-
-          {amenities.customAmenities && (
+          {amenities.customAmenities ? (
             <View style={styles.infoBox}>
               <Text style={styles.infoLabel}>Additional Amenities:</Text>
               <Text style={styles.infoValue}>{amenities.customAmenities}</Text>
             </View>
-          )}
+          ) : null}
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>📋 Rules & Restrictions</Text>
-
-          <View style={styles.ruleRow}>
-            <Text style={styles.ruleLabel}>Unmarried couples allowed?</Text>
-            {rules.unmarriedNotAllowed ? (
-              <View style={styles.noIcon}>
-                <Text style={styles.crossIcon}>❌</Text>
-                <Text style={styles.noText}>No</Text>
-              </View>
-            ) : (
-              <View style={styles.yesIcon}>
-                <Text style={styles.checkIconGreen}>✅</Text>
-                <Text style={styles.yesText}>Yes</Text>
-              </View>
-            )}
-          </View>
+          <Text style={styles.cardTitle}>Rules & Restrictions</Text>
 
           <View style={styles.ruleRow}>
             <Text style={styles.ruleLabel}>Pets allowed?</Text>
             {rules.petsNotAllowed ? (
               <View style={styles.noIcon}>
-                <Text style={styles.crossIcon}>❌</Text>
                 <Text style={styles.noText}>No</Text>
               </View>
             ) : (
               <View style={styles.yesIcon}>
-                <Text style={styles.checkIconGreen}>✅</Text>
                 <Text style={styles.yesText}>Yes</Text>
               </View>
             )}
           </View>
 
-          {rules.quietHours && (
-            <View style={styles.infoBox}>
-              <Text style={styles.infoLabel}>Quiet Hours:</Text>
-              <Text style={styles.infoValue}>{rules.quietHours}</Text>
-            </View>
-          )}
-
-          {rules.customRules && (
+          {rules.customRules ? (
             <View style={styles.infoBox}>
               <Text style={styles.infoLabel}>Additional Rules:</Text>
               <Text style={styles.infoValue}>{rules.customRules}</Text>
             </View>
-          )}
+          ) : null}
         </View>
       </ScrollView>
 
@@ -160,18 +125,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 15,
-    color: '#6B7280',
-    marginBottom: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 20,
   },
   card: {
     backgroundColor: '#FFFFFF',
@@ -190,17 +146,19 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     marginBottom: 16,
   },
+  emptyText: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    fontStyle: 'italic',
+  },
   itemRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 12,
-  },
-  checkIcon: {
-    fontSize: 20,
+    marginBottom: 10,
   },
   itemText: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#374151',
   },
   ruleRow: {
@@ -220,10 +178,6 @@ const styles = StyleSheet.create({
   yesIcon: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-  },
-  checkIconGreen: {
-    fontSize: 20,
   },
   yesText: {
     fontSize: 15,
@@ -233,10 +187,6 @@ const styles = StyleSheet.create({
   noIcon: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-  },
-  crossIcon: {
-    fontSize: 20,
   },
   noText: {
     fontSize: 15,

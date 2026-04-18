@@ -151,28 +151,6 @@ export async function getRecentAuditLogs(maxResults: number = 100): Promise<Audi
 }
 
 /**
- * Log security violations
- */
-export async function logSecurityViolation(
-  userId: string,
-  violationType: string,
-  details: Record<string, any>
-): Promise<void> {
-  await logAuditEvent(
-    'security_violation',
-    userId,
-    'security',
-    'violation',
-    {
-      violationType,
-      ...details,
-      severity: 'high',
-      timestamp: new Date().toISOString(),
-    }
-  );
-}
-
-/**
  * Helper functions for common audit events
  */
 export const auditHelpers = {

@@ -45,11 +45,40 @@ export default function ManageBlockedDatesScreen({ route, navigation }: Props) {
 
   const save = async () => {
     try {
-      const arr = blockedDatesInput
+      const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+      const allEntries = blockedDatesInput
         .split(',')
         .map(s => s.trim())
         .filter(Boolean);
-      await updateDoc(doc(db, 'farmhouses', farmhouseId), { blockedDates: arr });
+      const validDates = allEntries.filter(d => dateRegex.test(d));
+      const invalidDates = allEntries.filter(d => !dateRegex.test(d));
+
+      if (invalidDates.length > 0) {
+        showDialog({
+          title: 'Invalid Dates',
+          message: `The following entries are not in YYYY-MM-DD format and will be skipped:\n\n${invalidDates.join(', ')}`,
+          type: 'warning',
+          buttons: [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Save Valid Only',
+              style: 'default',
+              onPress: async () => {
+                await updateDoc(doc(db, 'farmhouses', farmhouseId), { blockedDates: validDates });
+                showDialog({
+                  title: 'Saved',
+                  message: `Blocked dates updated. ${invalidDates.length} invalid date(s) were skipped.`,
+                  type: 'success'
+                });
+                navigation.goBack();
+              }
+            }
+          ]
+        });
+        return;
+      }
+
+      await updateDoc(doc(db, 'farmhouses', farmhouseId), { blockedDates: validDates });
       showDialog({
         title: 'Saved',
         message: 'Blocked dates updated',
@@ -66,7 +95,7 @@ export default function ManageBlockedDatesScreen({ route, navigation }: Props) {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right', 'bottom']}>
       {loading ? (
         <View style={styles.loading}><ActivityIndicator size="large" color={colors.buttonBackground} /></View>
       ) : (

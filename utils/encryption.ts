@@ -5,6 +5,28 @@
  */
 
 import * as Crypto from 'expo-crypto';
+import CryptoJS from 'crypto-js';
+import Constants from 'expo-constants';
+
+// Fix CryptoJS random number generation for React Native
+// CryptoJS expects crypto.getRandomValues which may not be available
+if (typeof global !== 'undefined' && !global.crypto) {
+  (global as any).crypto = {
+    getRandomValues: (array: Uint8Array) => {
+      for (let i = 0; i < array.length; i++) {
+        array[i] = Math.floor(Math.random() * 256);
+      }
+      return array;
+    },
+  };
+} else if (typeof global !== 'undefined' && global.crypto && !global.crypto.getRandomValues) {
+  (global.crypto as any).getRandomValues = (array: Uint8Array) => {
+    for (let i = 0; i < array.length; i++) {
+      array[i] = Math.floor(Math.random() * 256);
+    }
+    return array;
+  };
+}
 
 /**
  * Hash sensitive data using SHA-256
@@ -141,4 +163,109 @@ export function sanitizePII(data: string, type: 'aadhaar' | 'pan' | 'phone' | 'i
     default:
       return cleaned;
   }
+}
+
+// ==================== AES ENCRYPTION (For Bank Details) ====================
+
+/**
+ * Encryption secret key - MUST be stored in environment variables
+ * CRITICAL: Never commit encryption keys to version control!
+ * Generate using: openssl rand -base64 32
+ */
+function getEncryptionSecret(): string {
+  const secret =
+    Constants.expoConfig?.extra?.encryptionSecret ||
+    (typeof process !== 'undefined' ? process.env?.ENCRYPTION_SECRET : undefined);
+
+  if (!secret || secret.length < 32) {
+    throw new Error(
+      'Encryption not configured. Set ENCRYPTION_SECRET in .env (minimum 32 characters).'
+    );
+  }
+  return secret;
+}
+
+/**
+ * Derive encryption key from user ID for user-specific encryption
+ */
+function deriveKey(userId: string): string {
+  return CryptoJS.SHA256(userId + getEncryptionSecret()).toString();
+}
+
+/**
+ * Encrypt sensitive data (bank account numbers, IFSC codes)
+ * Uses AES-256 encryption with user-specific keys and a random IV via expo-crypto
+ */
+export async function encryptSensitiveData(plainText: string, userId: string): Promise<string> {
+  if (!plainText) {
+    throw new Error('Data to encrypt cannot be empty');
+  }
+
+  if (!userId) {
+    throw new Error('User ID is required for encryption');
+  }
+
+  try {
+    const key = deriveKey(userId);
+    // Use expo-crypto for secure random IV (avoids CryptoJS native module error)
+    const ivBytes = await Crypto.getRandomBytesAsync(16);
+    const ivArray = Array.from(ivBytes);
+    const iv = CryptoJS.lib.WordArray.create(ivArray);
+    const keyParsed = CryptoJS.enc.Hex.parse(key);
+    const encrypted = CryptoJS.AES.encrypt(plainText, keyParsed, { iv });
+    const ivHex = CryptoJS.enc.Hex.stringify(iv);
+    return `enc_v2_${ivHex}:${encrypted.toString()}`;
+  } catch (error) {
+    console.error('Encryption error:', error);
+    throw new Error('Failed to encrypt sensitive data');
+  }
+}
+
+/**
+ * Decrypt sensitive data
+ * Handles both enc_v1 (old passphrase format) and enc_v2 (IV-based format)
+ */
+export function decryptSensitiveData(encryptedText: string, userId: string): string {
+  if (!encryptedText) {
+    throw new Error('Encrypted data cannot be empty');
+  }
+
+  if (!userId) {
+    throw new Error('User ID is required for decryption');
+  }
+
+  try {
+    const key = deriveKey(userId);
+
+    if (encryptedText.startsWith('enc_v2_')) {
+      // New format: enc_v2_{ivHex}:{ciphertext}
+      const payload = encryptedText.slice('enc_v2_'.length);
+      const colonIdx = payload.indexOf(':');
+      const ivHex = payload.slice(0, colonIdx);
+      const ciphertext = payload.slice(colonIdx + 1);
+      const iv = CryptoJS.enc.Hex.parse(ivHex);
+      const keyParsed = CryptoJS.enc.Hex.parse(key);
+      const decrypted = CryptoJS.AES.decrypt(ciphertext, keyParsed, { iv });
+      const plainText = decrypted.toString(CryptoJS.enc.Utf8);
+      if (!plainText) throw new Error('Decryption failed - invalid key or corrupted data');
+      return plainText;
+    } else {
+      // Legacy format: enc_v1_{ciphertext} (passphrase-based, no explicit IV)
+      const encrypted = encryptedText.replace(/^enc_v\d+_/, '');
+      const decrypted = CryptoJS.AES.decrypt(encrypted, key);
+      const plainText = decrypted.toString(CryptoJS.enc.Utf8);
+      if (!plainText) throw new Error('Decryption failed - invalid key or corrupted data');
+      return plainText;
+    }
+  } catch (error) {
+    console.error('Decryption error:', error);
+    throw new Error('Failed to decrypt sensitive data');
+  }
+}
+
+/**
+ * Check if data is encrypted
+ */
+export function isEncrypted(data: string): boolean {
+  return data?.startsWith('enc_v') || false;
 }

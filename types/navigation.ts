@@ -5,6 +5,7 @@ import { CompositeScreenProps } from '@react-navigation/native';
 // This Farmhouse interface now matches the one in your service file.
 export interface Farmhouse {
   id: string;
+  propertyType?: 'farmhouse' | 'resort';
   name: string;
   location: string;
   city: string;
@@ -31,11 +32,29 @@ export interface Farmhouse {
     carroms: number;
     volleyball: number;
     pool: boolean;
+    // New amenities (optional for backward compat)
+    wifi?: boolean;
+    ac?: boolean;
+    parking?: boolean;
+    kitchen?: boolean;
+    bbq?: boolean;
+    outdoorSeating?: boolean;
+    hotTub?: boolean;
+    djMusicSystem?: boolean;
+    projector?: boolean;
+    restaurant?: boolean;
+    foodPrepOnDemand?: boolean;
+    decorService?: boolean;
+    badminton?: boolean;
+    tableTennis?: boolean;
+    cricket?: boolean;
+    additionalAmenities?: string;
+    customAmenities?: string;
   };
   rules: {
-    unmarriedCouples: boolean;
+    unmarriedCouples?: boolean;
     pets: boolean;
-    quietHours: boolean | string; // Can be boolean or string (e.g., "11 PM - 6AM")
+    quietHours?: boolean | string;
   };
   ownerId: string;
   status: 'pending' | 'approved' | 'rejected';

@@ -1,9 +1,16 @@
-export default ({ config }) => ({
-  ...config,
+const IS_PROD = process.env.ENVIRONMENT === 'production';
+const IS_PREVIEW = process.env.ENVIRONMENT === 'preview';
+
+const getAppName = () => {
+  if (IS_PROD) return 'ReRoute Adventures';
+  if (IS_PREVIEW) return 'ReRoute Adventures (Preview)';
+  return 'ReRoute Adventures (Dev)';
+};
+
+export default {
   expo: {
-    name: "ReRoute Adventures",
+    name: getAppName(),
     slug: "reroute",
-    scheme: "reroute",
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/icon.png",
@@ -25,18 +32,27 @@ export default ({ config }) => ({
         backgroundColor: "#F9F8EF"
       },
       edgeToEdgeEnabled: true,
-      predictiveBackGestureEnabled: false,
       googleServicesFile: "./google-services.json"
     },
     web: {
-      favicon: "./assets/favicon.png"
+      favicon: "./assets/favicon.png",
+      bundler: "metro",
+      name: "ReRoute Adventures",
+      shortName: "ReRoute",
     },
     plugins: [
       "expo-web-browser",
       [
         "@react-native-google-signin/google-signin",
         {
-          iosUrlScheme: "com.googleusercontent.apps.272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm"
+          iosUrlScheme: "com.googleusercontent.apps.272634614965-64lm03jaaj2vk3sbu351u7cr3iebmqrm"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          photosPermission: "Allow $(PRODUCT_NAME) to access your photos to upload property images.",
+          cameraPermission: "Allow $(PRODUCT_NAME) to access your camera to take photos of your property."
         }
       ]
     ],
@@ -49,11 +65,12 @@ export default ({ config }) => ({
       firebaseAppId: process.env.FIREBASE_APP_ID,
       googleWebClientId: process.env.GOOGLE_WEB_CLIENT_ID,
       razorpayKeyId: process.env.RAZORPAY_KEY_ID,
-      encryptionSecret: process.env.ENCRYPTION_SECRET,
+      // ENCRYPTION_SECRET is intentionally NOT included here.
+      // Bank detail encryption/decryption is handled server-side in Cloud Functions only.
       environment: process.env.ENVIRONMENT || 'development',
       eas: {
         projectId: "b4fd15d4-8419-4cd7-b47a-ba697e65979e"
       }
     }
   }
-});
+};

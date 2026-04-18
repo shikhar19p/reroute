@@ -7,7 +7,10 @@ import { useAuth } from '../../../authContext';
 import { useToast } from '../../../components/Toast';
 import { useDialog } from '../../../components/CustomDialog';
 import { useScrollHandler } from '../../../context/TabBarVisibilityContext';
-import { cancelBooking, Booking } from '../../../services/bookingService';
+import { Booking } from '../../../services/bookingService';
+import { cancelBookingWithRefund, calculateRefundAmount } from '../../../services/cancellationService';
+import { parseError } from '../../../utils/errorHandler';
+import { REFUND_POLICY } from '../../../config/refundPolicy';
 import { useFocusEffect } from '@react-navigation/native';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
@@ -56,7 +59,7 @@ const BookingCard = React.memo(({
         </View>
         <View style={[styles.paymentBadge, { backgroundColor: item.paymentStatus === 'paid' ? '#E8F5E9' : '#FFF3E0' }]}>
           <Text style={[styles.paymentText, { color: item.paymentStatus === 'paid' ? '#4CAF50' : '#FF9800' }]}>
-            {item.paymentStatus === 'paid' ? '✓ Paid' : 'Pending'}
+            {item.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
           </Text>
         </View>
       </View>
@@ -64,14 +67,14 @@ const BookingCard = React.memo(({
       <View style={styles.actionRow}>
         <TouchableOpacity
           style={[styles.viewButton, { backgroundColor: colors.buttonBackground }]}
-          onPress={() => navigation.navigate('BookingDetails', { booking: item })}
+          onPress={() => navigation.navigate('BookingDetails', { booking: item, bookingId: item.id })}
         >
           <Text style={[styles.buttonText, { color: colors.buttonText }]}>View Details</Text>
         </TouchableOpacity>
         {canCancel && (
           <TouchableOpacity
             style={[styles.cancelButton, { borderColor: '#F44336' }]}
-            onPress={() => handleCancelBooking(item.id, item.farmhouseName)}
+            onPress={() => handleCancelBooking(item)}
           >
             <Text style={[styles.cancelButtonText, { color: '#F44336' }]}>Cancel</Text>
           </TouchableOpacity>
@@ -125,8 +128,8 @@ export default function BookingsScreen({ navigation }: any) {
       (error) => {
         console.error('Error loading bookings:', error);
         showDialog({
-          title: 'Error',
-          message: 'Failed to load bookings. Please try again.',
+          title: 'Couldn\'t load bookings',
+          message: 'Pull down to retry.',
           type: 'error'
         });
         setLoading(false);
@@ -153,24 +156,37 @@ export default function BookingsScreen({ navigation }: any) {
     }
   };
 
-  const handleCancelBooking = async (bookingId: string, farmhouseName: string) => {
+  const handleCancelBooking = async (booking: Booking) => {
+    if (!user) return;
+
+    const preview = calculateRefundAmount(booking.totalPrice, booking.checkInDate);
+    const refundLine = preview.refundPercentage > 0
+      ? `\n\nRefund: ₹${preview.refundAmount.toLocaleString('en-IN')} (${preview.refundPercentage}%) — 5–7 business days.`
+      : '\n\nNo refund — cancellation after check-in time.';
+
     showDialog({
       title: 'Cancel Booking',
-      message: `Are you sure you want to cancel your booking for ${farmhouseName}?`,
+      message: `Cancel your booking for ${booking.farmhouseName}?${refundLine}`,
       type: 'warning',
       buttons: [
-        { text: 'No', style: 'cancel' },
+        { text: 'No, Keep It', style: 'cancel' },
         {
           text: 'Yes, Cancel',
           style: 'destructive',
           onPress: async () => {
             try {
-              // cancelBooking service handles both status update and date removal
-              await cancelBooking(bookingId);
-              showToast('Booking cancelled successfully', 'success');
-            } catch (error) {
+              const result = await cancelBookingWithRefund(
+                booking.id,
+                user.uid,
+                'User requested cancellation'
+              );
+              const msg = result.refundAmount > 0
+                ? `Cancelled. ₹${result.refundAmount} refund initiated.`
+                : 'Booking cancelled. No refund applicable.';
+              showToast(msg, result.refundAmount > 0 ? 'success' : 'info');
+            } catch (error: any) {
               console.error('Error cancelling booking:', error);
-              showToast('Failed to cancel booking. Please try again.', 'error');
+              showToast(parseError(error).message, 'error');
             }
           }
         }
@@ -327,7 +343,7 @@ const styles = StyleSheet.create({
   tabContainer: { flexDirection: 'row', gap: 8 },
   tab: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 20 },
   tabText: { fontSize: 14, fontWeight: '500' },
-  listContainer: { padding: 20, paddingTop: 0 },
+  listContainer: { padding: 20, paddingTop: 0, paddingBottom: 100 },
   bookingCard: { borderRadius: 16, padding: 16, marginBottom: 16, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
   bookingHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   farmhouseName: { fontSize: 17, fontWeight: 'bold', flex: 1, marginRight: 8 },

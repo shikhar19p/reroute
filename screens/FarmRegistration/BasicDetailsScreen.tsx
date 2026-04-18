@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { basicSchema } from '../../utils/validation';
 import { useFarmRegistration } from '../../context/FarmRegistrationContext';
+import { useDialog } from '../../components/CustomDialog';
 
 type RootStackParamList = {
   FarmPrices: undefined;
@@ -23,7 +24,7 @@ type BasicDetailsScreenProps = {
 };
 
 const fieldConfigs = [
-  { key: 'name', label: 'Farmhouse Name*', placeholder: 'Enter farmhouse name', keyboardType: 'default' as const },
+  { key: 'name', label: 'Property Name*', placeholder: 'Enter property name', keyboardType: 'default' as const },
   { key: 'contactPhone1', label: 'Primary Phone*', placeholder: '10-digit phone number', keyboardType: 'phone-pad' as const },
   { key: 'contactPhone2', label: 'Alternate Phone', placeholder: '10-digit phone number', keyboardType: 'phone-pad' as const },
   { key: 'city', label: 'City*', placeholder: 'Enter city', keyboardType: 'default' as const },
@@ -35,8 +36,76 @@ const fieldConfigs = [
 ];
 
 export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenProps) {
-  const { farm, setField } = useFarmRegistration();
+  const { farm, setField, hasDraft, loadDraft, clearDraft, resetFarm, saveDraft } = useFarmRegistration();
+  const { showDialog } = useDialog();
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [draftChecked, setDraftChecked] = useState(false);
+
+  // Intercept back navigation to offer save/discard draft
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
+      const hasData = farm.name || farm.contactPhone1 || farm.city || farm.area || farm.photos.length > 0;
+      if (!hasData) return;
+
+      e.preventDefault();
+      showDialog({
+        title: 'Exit Registration?',
+        message: 'Would you like to save your progress as a draft?',
+        type: 'confirm',
+        buttons: [
+          {
+            text: 'Discard',
+            style: 'destructive',
+            onPress: async () => {
+              await clearDraft();
+              navigation.dispatch(e.data.action);
+            },
+          },
+          {
+            text: 'Save Draft',
+            style: 'default',
+            onPress: async () => {
+              await saveDraft();
+              navigation.dispatch(e.data.action);
+            },
+          },
+          {
+            text: 'Stay',
+            style: 'cancel',
+          },
+        ],
+      });
+    });
+    return unsubscribe;
+  }, [navigation, farm, showDialog, clearDraft, saveDraft]);
+
+  // Check for saved draft on mount
+  useEffect(() => {
+    if (hasDraft && !draftChecked) {
+      setDraftChecked(true);
+      showDialog({
+        title: 'Resume Draft?',
+        message: 'You have a saved draft of your farmhouse registration. Would you like to continue where you left off?',
+        type: 'info',
+        buttons: [
+          {
+            text: 'Start Fresh',
+            style: 'cancel',
+            onPress: async () => {
+              await resetFarm();
+            }
+          },
+          {
+            text: 'Resume Draft',
+            style: 'default',
+            onPress: async () => {
+              await loadDraft();
+            }
+          }
+        ]
+      });
+    }
+  }, [hasDraft, draftChecked, showDialog, loadDraft, clearDraft]);
 
   const formValues = useMemo(
     () => ({
@@ -61,11 +130,6 @@ export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenPro
     if (keyboardType === 'phone-pad' || keyboardType === 'numeric') {
       processedValue = value.replace(/[^0-9]/g, '');
     }
-    // Strip non-alphabetic characters for farmhouse name (allow spaces)
-    else if (key === 'name') {
-      processedValue = value.replace(/[^a-zA-Z\s]/g, '');
-    }
-
     setField(key, processedValue);
     if (errors[key]) {
       setErrors((prev) => ({ ...prev, [key]: undefined }));
@@ -98,11 +162,11 @@ export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenPro
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        behavior="padding"
+        keyboardVerticalOffset={0}
       >
         <ScrollView
           style={styles.scrollView}
@@ -110,7 +174,33 @@ export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenPro
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.sectionTitle}>Basic Information</Text>
+          {/* Property Type Selector */}
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Property Type*</Text>
+            <View style={styles.typeRow}>
+              <TouchableOpacity
+                style={[styles.typeOption, farm.propertyType === 'farmhouse' && styles.typeOptionSelected]}
+                onPress={() => setField('propertyType', 'farmhouse')}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.typeOptionText, farm.propertyType === 'farmhouse' && styles.typeOptionTextSelected]}>
+                  Farmhouse
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.typeOption, farm.propertyType === 'resort' && styles.typeOptionSelected]}
+                onPress={() => setField('propertyType', 'resort')}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.typeOptionText, farm.propertyType === 'resort' && styles.typeOptionTextSelected]}>
+                  Resort
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.typeNote}>
+              Registration fee: {farm.propertyType === 'resort' ? '₹5,000' : '₹2,000'} (one-time)
+            </Text>
+          </View>
 
           {fieldConfigs.map(({ key, label, placeholder, keyboardType }) => (
             <View key={key} style={styles.fieldContainer}>
@@ -167,14 +257,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 20,
-    paddingBottom: 32,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 24,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 20,
   },
   fieldContainer: {
     marginBottom: 20,
@@ -230,5 +315,35 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 17,
     fontWeight: '600',
+  },
+  typeRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  typeOption: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB',
+  },
+  typeOptionSelected: {
+    borderColor: '#4CAF50',
+    backgroundColor: '#F0FDF4',
+  },
+  typeOptionText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  typeOptionTextSelected: {
+    color: '#4CAF50',
+  },
+  typeNote: {
+    marginTop: 8,
+    fontSize: 13,
+    color: '#6B7280',
   },
 });
