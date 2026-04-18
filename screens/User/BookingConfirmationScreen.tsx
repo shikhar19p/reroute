@@ -46,6 +46,9 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
   const [farmhouseDetails, setFarmhouseDetails] = useState<any>(null);
   const [currentBookingId, setCurrentBookingId] = useState<string | null>(null);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [agreedToAge, setAgreedToAge] = useState(false);
+  const [phoneInput, setPhoneInput] = useState('');
+  const [phoneError, setPhoneError] = useState('');
   const [showTermsModal, setShowTermsModal] = useState(false);
   // Ref mirrors state so the unmount cleanup always has the latest bookingId
   // (state closures can be stale at unmount time, refs are always current)
@@ -89,11 +92,13 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
       const userDocRef = doc(db, 'users', user.uid);
       const userDoc = await getDoc(userDocRef);
       const data = userDoc.data();
+      const phone = data?.phone || user.phoneNumber || '';
       setUserProfile({
         name: data?.name || user.displayName || 'Guest User',
         email: user.email || 'guest@example.com',
-        phone: data?.phone || user.phoneNumber || 'Not provided',
+        phone,
       });
+      if (phone && phone !== 'Not provided') setPhoneInput(phone);
     } catch (error) {
       console.error("Failed to fetch user profile:", error);
     } finally {
@@ -175,10 +180,19 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
       return;
     }
 
-    if (!userProfile.phone || userProfile.phone === 'Not provided') {
+    // Phone validation
+    const phoneRegex = /^[6-9]\d{9}$/;
+    if (!phoneInput || !phoneRegex.test(phoneInput)) {
+      setPhoneError('Enter a valid 10-digit Indian mobile number');
+      return;
+    }
+    setPhoneError('');
+
+    // Age confirmation
+    if (!agreedToAge) {
       showDialog({
-        title: 'Phone number missing',
-        message: 'Add a phone number in your profile to continue.',
+        title: 'Age Confirmation Required',
+        message: 'You must confirm you are 18 years or older to make a booking.',
         type: 'warning'
       });
       return;
@@ -208,7 +222,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
         userId: user.uid,
         userEmail: user.email || '',
         userName: userProfile.name,
-        userPhone: userProfile.phone,
+        userPhone: phoneInput,
         checkInDate: startDate,
         checkOutDate: endDate,
         guests: guestCount,
@@ -244,7 +258,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
         user.uid,
         userProfile.name,
         userProfile.email,
-        userProfile.phone,
+        phoneInput,
         `Booking for ${farmhouseDetails?.name || farmhouseName}`
       );
 
@@ -423,6 +437,30 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
 
         <View style={[styles.billingCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Billing Summary</Text>
+
+          {/* Stay details */}
+          <View style={styles.billingRow}>
+            <Text style={[styles.billingLabel, { color: colors.placeholder }]}>Check-in:</Text>
+            <Text style={[styles.billingValue, { color: colors.text }]}>{startDate} at 2:00 PM</Text>
+          </View>
+          <View style={styles.billingRow}>
+            <Text style={[styles.billingLabel, { color: colors.placeholder }]}>Check-out:</Text>
+            <Text style={[styles.billingValue, { color: colors.text }]}>
+              {endDate} at {numberOfNights === 0 ? '6:00 PM' : '12:00 PM'}
+            </Text>
+          </View>
+          <View style={styles.billingRow}>
+            <Text style={[styles.billingLabel, { color: colors.placeholder }]}>Duration:</Text>
+            <Text style={[styles.billingValue, { color: colors.text }]}>
+              {numberOfNights === 0 ? 'Day Use' : `${numberOfNights} night${numberOfNights > 1 ? 's' : ''}`}
+            </Text>
+          </View>
+          <View style={styles.billingRow}>
+            <Text style={[styles.billingLabel, { color: colors.placeholder }]}>Guests:</Text>
+            <Text style={[styles.billingValue, { color: colors.text }]}>{guestCount}</Text>
+          </View>
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
           <View style={styles.billingRow}>
             <Text style={[styles.billingLabel, { color: colors.placeholder }]}>Base Price:</Text>
             <Text style={[styles.billingValue, { color: colors.text }]}>₹{totalPrice}</Text>
@@ -442,6 +480,9 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
             <Text style={[styles.finalTotalLabel, { color: colors.text }]}>Total Amount:</Text>
             <Text style={[styles.finalTotalValue, { color: colors.buttonBackground }]}>₹{finalPrice}</Text>
           </View>
+          <Text style={{ fontSize: 11, color: colors.placeholder, marginTop: 4 }}>
+            Booking initiated: {new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+          </Text>
         </View>
 
         <View style={[styles.couponCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
@@ -513,8 +554,17 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
               </View>
               <View style={styles.contactItem}>
                 <Phone size={20} color={colors.buttonBackground} />
-                <Text style={[styles.contactValue, { color: colors.text }]}>{userProfile.phone}</Text>
+                <TextInput
+                  style={[styles.contactValue, { color: colors.text, flex: 1, borderBottomWidth: 1, borderBottomColor: phoneError ? '#EF4444' : colors.border, paddingBottom: 2 }]}
+                  value={phoneInput}
+                  onChangeText={(t) => { setPhoneInput(t); setPhoneError(''); }}
+                  placeholder="10-digit mobile number"
+                  placeholderTextColor={colors.placeholder}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                />
               </View>
+              {phoneError ? <Text style={{ color: '#EF4444', fontSize: 12, marginBottom: 8, marginLeft: 28 }}>{phoneError}</Text> : null}
               <View style={styles.contactItem}>
                 <Mail size={20} color={colors.buttonBackground} />
                 <Text style={[styles.contactValue, { color: colors.text }]}>{userProfile.email}</Text>
@@ -534,6 +584,13 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
             <TouchableOpacity onPress={() => setShowTermsModal(true)}>
               <Text style={[styles.termsLink, { color: colors.buttonBackground }]}>Terms & Conditions</Text>
             </TouchableOpacity>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.termsRow, { marginTop: 8 }]} onPress={() => setAgreedToAge(!agreedToAge)} activeOpacity={0.7}>
+            {agreedToAge
+              ? <CheckCircle size={22} color={colors.buttonBackground} />
+              : <Square size={22} color="#9CA3AF" />
+            }
+            <Text style={[styles.termsText, { color: colors.text }]}>I confirm I am 18 years or older</Text>
           </TouchableOpacity>
         </View>
 
@@ -613,7 +670,7 @@ GENERAL TERMS
         </View>
         <TouchableOpacity
           style={[styles.proceedButton, {
-            backgroundColor: (loading || profileLoading || !agreedToTerms) ? colors.border : colors.buttonBackground
+            backgroundColor: (loading || profileLoading || !agreedToTerms || !agreedToAge) ? colors.border : colors.buttonBackground
           }]}
           onPress={() => {
             if (!agreedToTerms) {
