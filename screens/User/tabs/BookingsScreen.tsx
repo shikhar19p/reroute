@@ -7,7 +7,10 @@ import { useAuth } from '../../../authContext';
 import { useToast } from '../../../components/Toast';
 import { useDialog } from '../../../components/CustomDialog';
 import { useScrollHandler } from '../../../context/TabBarVisibilityContext';
-import { cancelBooking, Booking } from '../../../services/bookingService';
+import { Booking } from '../../../services/bookingService';
+import { cancelBookingWithRefund, calculateRefundAmount } from '../../../services/cancellationService';
+import { parseError } from '../../../utils/errorHandler';
+import { REFUND_POLICY } from '../../../config/refundPolicy';
 import { useFocusEffect } from '@react-navigation/native';
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
@@ -71,7 +74,7 @@ const BookingCard = React.memo(({
         {canCancel && (
           <TouchableOpacity
             style={[styles.cancelButton, { borderColor: '#F44336' }]}
-            onPress={() => handleCancelBooking(item.id, item.farmhouseName)}
+            onPress={() => handleCancelBooking(item)}
           >
             <Text style={[styles.cancelButtonText, { color: '#F44336' }]}>Cancel</Text>
           </TouchableOpacity>
@@ -153,24 +156,30 @@ export default function BookingsScreen({ navigation }: any) {
     }
   };
 
-  const handleCancelBooking = async (bookingId: string, farmhouseName: string) => {
+  const handleCancelBooking = async (booking: Booking) => {
+    if (!user) return;
+    const preview = calculateRefundAmount(booking.totalPrice, booking.checkInDate);
+    const refundLine = preview.refundPercentage > 0
+      ? `\n\nRefund: ₹${preview.refundAmount.toLocaleString('en-IN')} (${preview.refundPercentage}%) — 5–7 business days.`
+      : '\n\nNo refund applicable for this cancellation.';
     showDialog({
       title: 'Cancel Booking',
-      message: `Are you sure you want to cancel your booking for ${farmhouseName}?`,
+      message: `Cancel your booking for ${booking.farmhouseName}?${refundLine}`,
       type: 'warning',
       buttons: [
-        { text: 'No', style: 'cancel' },
+        { text: 'No, Keep It', style: 'cancel' },
         {
           text: 'Yes, Cancel',
           style: 'destructive',
           onPress: async () => {
             try {
-              // cancelBooking service handles both status update and date removal
-              await cancelBooking(bookingId);
-              showToast('Booking cancelled successfully', 'success');
-            } catch (error) {
-              console.error('Error cancelling booking:', error);
-              showToast('Failed to cancel booking. Please try again.', 'error');
+              const result = await cancelBookingWithRefund(booking.id, user.uid, 'User requested cancellation');
+              const msg = result.refundAmount > 0
+                ? `Cancelled. ₹${result.refundAmount} refund initiated (5–7 business days).`
+                : 'Booking cancelled. No refund applicable.';
+              showToast(msg, result.refundAmount > 0 ? 'success' : 'info');
+            } catch (error: any) {
+              showToast(parseError(error).message, 'error');
             }
           }
         }
