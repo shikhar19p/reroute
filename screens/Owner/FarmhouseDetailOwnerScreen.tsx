@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Dimensions,
   Linking,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -18,6 +19,7 @@ import { ArrowLeft, Edit, MapPin, Users, Home, Star } from 'lucide-react-native'
 import { useTheme } from '../../context/ThemeContext';
 import { getFarmhouseById, Farmhouse } from '../../services/farmhouseService';
 import { useDialog } from '../../components/CustomDialog';
+import { getStatusColor, getStatusText } from '../../utils/statusColors';
 
 const { width } = Dimensions.get('window');
 
@@ -35,6 +37,7 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
   const { showDialog } = useDialog();
   const [farmhouse, setFarmhouse] = useState<Farmhouse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   useEffect(() => {
@@ -72,20 +75,41 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
       navigation.goBack();
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadFarmhouse();
   };
 
   const amenitiesList = useMemo(() => {
     if (!farmhouse) return [];
-    const amenities = farmhouse.amenities;
+    const a = farmhouse.amenities as any;
     const list: string[] = [];
-    if (amenities.tv > 0) list.push(`${amenities.tv} TV${amenities.tv > 1 ? 's' : ''}`);
-    if (amenities.geyser > 0) list.push(`${amenities.geyser} Geyser${amenities.geyser > 1 ? 's' : ''}`);
-    if (amenities.bonfire > 0) list.push('Bonfire');
-    if (amenities.chess > 0) list.push('Chess');
-    if (amenities.carroms > 0) list.push('Carroms');
-    if (amenities.volleyball > 0) list.push('Volleyball');
-    if (amenities.pool) list.push('Swimming Pool');
+    if (a.wifi) list.push('WiFi');
+    if (a.ac) list.push('Air Conditioning');
+    if (a.parking) list.push('Parking');
+    if (a.kitchen) list.push('Kitchen');
+    if (a.tv > 0 || a.tv === true) list.push('TV');
+    if (a.geyser > 0 || a.geyser === true) list.push('Geyser');
+    if (a.pool) list.push('Swimming Pool');
+    if (a.bonfire > 0 || a.bonfire === true) list.push('Bonfire');
+    if (a.bbq) list.push('BBQ / Grill');
+    if (a.outdoorSeating) list.push('Outdoor Seating');
+    if (a.hotTub) list.push('Hot Tub / Jacuzzi');
+    if (a.djMusicSystem) list.push('DJ / Music System');
+    if (a.projector) list.push('Projector');
+    if (a.restaurant) list.push('Restaurant');
+    if (a.foodPrepOnDemand) list.push('Food Prep on Demand');
+    if (a.decorService) list.push('Decor Service');
+    if (a.chess > 0 || a.chess === true) list.push('Chess');
+    if (a.carroms > 0 || a.carroms === true) list.push('Carom Board');
+    if (a.volleyball > 0 || a.volleyball === true) list.push('Volleyball');
+    if (a.badminton) list.push('Badminton Court');
+    if (a.tableTennis) list.push('Table Tennis');
+    if (a.cricket) list.push('Cricket Ground');
     return list;
   }, [farmhouse?.amenities]);
 
@@ -93,29 +117,10 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
     if (!farmhouse) return [];
     const rules = farmhouse.rules;
     const list: string[] = [];
-    if (!rules.unmarriedCouples) list.push('Unmarried couples not allowed');
     if (rules.pets) list.push('Pets allowed');
     if (!rules.pets) list.push('No pets allowed');
-    if (rules.quietHours) list.push('Quiet hours enforced');
     return list;
   }, [farmhouse?.rules]);
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return '#10b981';
-      case 'pending':
-        return '#f59e0b';
-      case 'rejected':
-        return '#ef4444';
-      default:
-        return colors.placeholder;
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    return status.charAt(0).toUpperCase() + status.slice(1);
-  };
 
   const handleEdit = () => {
     if (farmhouse) {
@@ -125,7 +130,16 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
 
   const openGoogleMaps = () => {
     if (farmhouse?.mapLink) {
-      Linking.openURL(farmhouse.mapLink);
+      const url = farmhouse.mapLink;
+      if (url.startsWith('http://') || url.startsWith('https://')) {
+        Linking.openURL(url);
+      } else {
+        showDialog({
+          title: 'Invalid URL',
+          message: 'The map link is not a valid URL. It must start with http:// or https://.',
+          type: 'error',
+        });
+      }
     }
   };
 
@@ -153,8 +167,20 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
   const mainImage = images[0] || 'https://via.placeholder.com/400x300';
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right', 'bottom']}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={{ paddingBottom: 24 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.buttonBackground]}
+            tintColor={colors.buttonBackground}
+          />
+        }
+      >
         {/* Image Gallery */}
         <View style={styles.imageSection}>
           <ScrollView
@@ -317,9 +343,10 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
                   },
                 ]}
               >
-                <Text style={[{ color: colors.text, fontSize: 16, marginBottom: 8 }]}>
-                  📍 {farmhouse.location}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <MapPin size={16} color={colors.text} />
+                  <Text style={[{ color: colors.text, fontSize: 15 }]}>{farmhouse.location}</Text>
+                </View>
                 <Text style={[{ color: colors.buttonBackground, fontSize: 14 }]}>
                   Tap to open in Google Maps
                 </Text>
@@ -337,7 +364,6 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
             ))}
           </View>
 
-          <View style={{ height: 100 }} />
         </View>
 
         {/* Owner Quick Actions (no title) */}

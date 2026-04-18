@@ -323,14 +323,9 @@ export async function verifyPaymentSignature(
   orderId: string,
   paymentId: string,
   signature: string,
-  bookingId: string,
-  skipVerification: boolean = false
+  bookingId: string
 ): Promise<boolean> {
   try {
-    if (skipVerification) {
-      return true;
-    }
-
     const verifyPaymentFn = httpsCallable(functions, 'verifyPayment', {
       timeout: 20000, // 20 second timeout
     });
@@ -367,8 +362,7 @@ export async function completePaymentFlow(
   customerName: string,
   customerEmail: string,
   customerPhone: string,
-  description: string,
-  skipVerification: boolean = false
+  description: string
 ): Promise<PaymentResponse> {
   try {
     // Step 1: Create order on backend
@@ -386,13 +380,12 @@ export async function completePaymentFlow(
       bookingId,
     });
 
-    // Step 3: Verify payment signature (optional for registration)
+    // Step 3: Verify payment signature server-side
     const verified = await verifyPaymentSignature(
       paymentResponse.razorpay_order_id,
       paymentResponse.razorpay_payment_id,
       paymentResponse.razorpay_signature,
-      bookingId,
-      skipVerification
+      bookingId
     );
 
     if (!verified) {

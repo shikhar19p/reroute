@@ -1,19 +1,21 @@
 import { initializeApp } from 'firebase/app';
-import { initializeAuth, getReactNativePersistence } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeAuth, getReactNativePersistence, getAuth } from 'firebase/auth';
+import { initializeFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
 // Get Firebase config from environment variables (via expo-constants)
-// SECURITY: In production, all values must come from environment variables.
-// In development, fallback values are allowed for convenience.
+// SECURITY: All values MUST come from environment variables in production
+// Development fallback is only for local testing
 
 const isDevelopment = __DEV__;
+const environment = Constants.expoConfig?.extra?.environment || 'development';
 
-// Firebase configuration values
-// These can be overridden by environment variables via expo-constants
-const defaultConfig = {
+// Firebase web config — these are PUBLIC client-side identifiers, not secrets.
+// Security is enforced by Firebase Security Rules, not by hiding these values.
+// They are safe to commit and bundle in the web app.
+const hardcodedConfig = {
   apiKey: 'AIzaSyDMLXQjQSSZRPUdlOeNf1afg2WPPQFSTAI',
   authDomain: 'rustique-6b7c4.firebaseapp.com',
   projectId: 'rustique-6b7c4',
@@ -23,12 +25,12 @@ const defaultConfig = {
 };
 
 const firebaseConfig = {
-  apiKey: Constants.expoConfig?.extra?.firebaseApiKey || defaultConfig.apiKey,
-  authDomain: Constants.expoConfig?.extra?.firebaseAuthDomain || defaultConfig.authDomain,
-  projectId: Constants.expoConfig?.extra?.firebaseProjectId || defaultConfig.projectId,
-  storageBucket: Constants.expoConfig?.extra?.firebaseStorageBucket || defaultConfig.storageBucket,
-  messagingSenderId: Constants.expoConfig?.extra?.firebaseMessagingSenderId || defaultConfig.messagingSenderId,
-  appId: Constants.expoConfig?.extra?.firebaseAppId || defaultConfig.appId,
+  apiKey: Constants.expoConfig?.extra?.firebaseApiKey || hardcodedConfig.apiKey,
+  authDomain: Constants.expoConfig?.extra?.firebaseAuthDomain || hardcodedConfig.authDomain,
+  projectId: Constants.expoConfig?.extra?.firebaseProjectId || hardcodedConfig.projectId,
+  storageBucket: Constants.expoConfig?.extra?.firebaseStorageBucket || hardcodedConfig.storageBucket,
+  messagingSenderId: Constants.expoConfig?.extra?.firebaseMessagingSenderId || hardcodedConfig.messagingSenderId,
+  appId: Constants.expoConfig?.extra?.firebaseAppId || hardcodedConfig.appId,
 };
 
 // Validate that all required config values are present
@@ -36,17 +38,35 @@ const requiredFields = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'm
 const missingFields = requiredFields.filter(field => !firebaseConfig[field as keyof typeof firebaseConfig]);
 
 if (missingFields.length > 0) {
-  console.warn(
-    '⚠️  WARNING: Firebase configuration is incomplete.\n' +
-    `Missing fields: ${missingFields.join(', ')}\n` +
-    'Using default configuration.'
-  );
+  const errorMsg = `Firebase configuration incomplete. Missing: ${missingFields.join(', ')}`;
+  
+  if (environment === 'production') {
+    // In production, this is a critical error
+    console.error('❌ CRITICAL:', errorMsg);
+    throw new Error('Firebase not configured for production. Check environment variables.');
+  } else {
+    // In development, warn but allow to continue
+    console.warn('⚠️  WARNING:', errorMsg);
+    console.warn('Set Firebase credentials in .env file for full functionality');
+  }
 }
 
 const app = initializeApp(firebaseConfig);
 
-export const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(ReactNativeAsyncStorage)
-});
-export const db = getFirestore(app);
+// Web: use getAuth which includes browser popup/redirect resolvers
+// Native: use initializeAuth with AsyncStorage persistence
+export const auth = Platform.OS === 'web'
+  ? getAuth(app)
+  : initializeAuth(app, {
+      persistence: getReactNativePersistence(
+        require('@react-native-async-storage/async-storage').default
+      ),
+    });
+
+// Firestore long polling is needed on native (WebChannel is unreliable in React Native).
+// On web, use the default transport — long polling causes issues in browsers.
+export const db = initializeFirestore(app,
+  Platform.OS !== 'web' ? { experimentalForceLongPolling: true } : {}
+);
+
 export const storage = getStorage(app);

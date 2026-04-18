@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Animated, Dimensions, TouchableOpacity } from 'react-native';
-import { CheckCircle, XCircle, AlertCircle, Info, X } from 'lucide-react-native';
+import { X } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 
 const { width } = Dimensions.get('window');
@@ -22,190 +22,129 @@ const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 export function useToast() {
   const context = useContext(ToastContext);
-  if (!context) {
-    throw new Error('useToast must be used within ToastProvider');
-  }
+  if (!context) throw new Error('useToast must be used within ToastProvider');
   return context;
 }
+
+const TYPE_BORDER: Record<ToastType, string> = {
+  success: '#10B981',
+  error:   '#EF4444',
+  warning: '#F59E0B',
+  info:    '#3B82F6',
+};
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  const showToast = useCallback((message: string, type: ToastType = 'info', duration: number = 3000) => {
+  const showToast = useCallback((message: string, type: ToastType = 'info', duration = 3200) => {
     const id = Date.now().toString();
-    const newToast: ToastMessage = { id, message, type, duration };
-
-    setToasts(prev => [...prev, newToast]);
-
-    // Auto-dismiss after duration
+    // Keep at most 3 toasts stacked
+    setToasts(prev => [...prev.slice(-2), { id, message, type, duration }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
     }, duration);
   }, []);
 
-  const dismissToast = useCallback((id: string) => {
+  const dismiss = useCallback((id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <View style={styles.toastContainer} pointerEvents="box-none">
+      <View style={styles.container} pointerEvents="box-none">
         {toasts.map((toast, index) => (
-          <ToastItem
-            key={toast.id}
-            toast={toast}
-            index={index}
-            onDismiss={() => dismissToast(toast.id)}
-          />
+          <ToastItem key={toast.id} toast={toast} index={index} onDismiss={() => dismiss(toast.id)} />
         ))}
       </View>
     </ToastContext.Provider>
   );
 }
 
-interface ToastItemProps {
-  toast: ToastMessage;
-  index: number;
-  onDismiss: () => void;
-}
-
-function ToastItem({ toast, index, onDismiss }: ToastItemProps) {
+function ToastItem({ toast, index, onDismiss }: { toast: ToastMessage; index: number; onDismiss: () => void }) {
   const { colors } = useTheme();
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(-100)).current;
+  const slideAnim = useRef(new Animated.Value(-72)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Entrance animation
     Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 65,
-        friction: 10,
-        useNativeDriver: true,
-      }),
+      Animated.spring(slideAnim, { toValue: 0, tension: 68, friction: 11, useNativeDriver: true }),
+      Animated.timing(opacityAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
     ]).start();
 
-    // Exit animation before auto-dismiss
-    const exitTimeout = setTimeout(() => {
+    const exitAt = (toast.duration || 3200) - 300;
+    const timer = setTimeout(() => {
       Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: -100,
-          duration: 200,
-          useNativeDriver: true,
-        }),
+        Animated.timing(slideAnim, { toValue: -72, duration: 260, useNativeDriver: true }),
+        Animated.timing(opacityAnim, { toValue: 0, duration: 260, useNativeDriver: true }),
       ]).start();
-    }, (toast.duration || 3000) - 300);
+    }, exitAt);
 
-    return () => clearTimeout(exitTimeout);
+    return () => clearTimeout(timer);
   }, []);
 
-  const getToastConfig = () => {
-    switch (toast.type) {
-      case 'success':
-        return {
-          icon: <CheckCircle size={22} color="#FFFFFF" />,
-          backgroundColor: '#10B981',
-          borderColor: '#059669',
-        };
-      case 'error':
-        return {
-          icon: <XCircle size={22} color="#FFFFFF" />,
-          backgroundColor: '#EF4444',
-          borderColor: '#DC2626',
-        };
-      case 'warning':
-        return {
-          icon: <AlertCircle size={22} color="#FFFFFF" />,
-          backgroundColor: '#F59E0B',
-          borderColor: '#D97706',
-        };
-      case 'info':
-      default:
-        return {
-          icon: <Info size={22} color="#FFFFFF" />,
-          backgroundColor: '#3B82F6',
-          borderColor: '#2563EB',
-        };
-    }
-  };
-
-  const config = getToastConfig();
+  const borderColor = TYPE_BORDER[toast.type];
 
   return (
     <Animated.View
       style={[
         styles.toast,
         {
-          backgroundColor: config.backgroundColor,
-          borderColor: config.borderColor,
-          opacity: fadeAnim,
+          backgroundColor: colors.cardBackground,
+          borderLeftColor: borderColor,
+          opacity: opacityAnim,
           transform: [{ translateY: slideAnim }],
-          marginTop: index * 70, // Stack toasts vertically
+          top: index * 66,
         },
       ]}
     >
-      <View style={styles.toastContent}>
-        <View style={styles.iconContainer}>{config.icon}</View>
-        <Text style={styles.toastMessage} numberOfLines={2}>
-          {toast.message}
-        </Text>
-        <TouchableOpacity onPress={onDismiss} style={styles.closeButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <X size={18} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
+      <View style={[styles.dot, { backgroundColor: borderColor }]} />
+      <Text style={[styles.message, { color: colors.text }]} numberOfLines={2}>
+        {toast.message}
+      </Text>
+      <TouchableOpacity onPress={onDismiss} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+        <X size={14} color={colors.placeholder} />
+      </TouchableOpacity>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  toastContainer: {
+  container: {
     position: 'absolute',
-    top: 60,
+    top: 54,
     left: 0,
     right: 0,
     alignItems: 'center',
     zIndex: 9999,
   },
   toast: {
+    position: 'absolute',
     width: width - 32,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  toastContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    gap: 12,
+    paddingVertical: 13,
+    paddingRight: 14,
+    paddingLeft: 16,
+    borderRadius: 10,
+    borderLeftWidth: 3,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.09,
+    shadowRadius: 10,
+    elevation: 5,
   },
-  iconContainer: {
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
     flexShrink: 0,
   },
-  toastMessage: {
+  message: {
     flex: 1,
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '500',
     lineHeight: 20,
-  },
-  closeButton: {
-    flexShrink: 0,
-    padding: 4,
   },
 });

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "ReRoute",
+    "name": "ReRoute Adventures",
     "slug": "reroute",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -13,19 +13,15 @@
       "backgroundColor": "#F9F8EF"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rerouteaventures.app"
     },
     "android": {
       "package": "com.rerouteaventures.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#F9F8EF"
-      },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
+      }
     },
     "plugins": [
       "expo-web-browser",
@@ -37,6 +33,17 @@
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to take photos of your property."
         }
       ]
-    ]
+    ],
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "environment": "development",
+      "eas": {
+        "projectId": "b4fd15d4-8419-4cd7-b47a-ba697e65979e"
+      }
+    }
   }
 }

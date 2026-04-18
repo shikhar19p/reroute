@@ -81,9 +81,13 @@ export default function AnimatedSplashScreen({
     });
   }, [isExiting, onAnimationComplete]);
 
+  // Track if onReady has been called
+  const onReadyCalled = useRef(false);
+
   useEffect(() => {
-    // Signal that custom splash is ready - hide native splash
-    if (onReady) {
+    // Signal that custom splash is ready - hide native splash (only once)
+    if (onReady && !onReadyCalled.current) {
+      onReadyCalled.current = true;
       // Small delay to ensure this component is fully rendered
       setTimeout(() => {
         onReady();

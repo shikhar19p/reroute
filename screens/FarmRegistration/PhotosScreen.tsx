@@ -143,7 +143,7 @@ export default function PhotosScreen({ navigation }: PhotosScreenProps) {
   const handleRemovePhoto = (index: number) => {
     showDialog({
       title: 'Remove Photo',
-      message: 'Are you sure you want to remove this photo?',
+      message: 'This photo will be removed.',
       type: 'confirm',
       buttons: [
         { text: 'Cancel', style: 'cancel' },
@@ -153,7 +153,7 @@ export default function PhotosScreen({ navigation }: PhotosScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['bottom']} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
       <ScrollView style={styles.container} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <Text style={styles.title}>Farm Photos</Text>
@@ -173,7 +173,7 @@ export default function PhotosScreen({ navigation }: PhotosScreenProps) {
                 onPress={() => handleRemovePhoto(index)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.removeIcon}>❌</Text>
+                <Text style={styles.removeIcon}>✕</Text>
               </TouchableOpacity>
             </View>
           ))}
@@ -186,7 +186,7 @@ export default function PhotosScreen({ navigation }: PhotosScreenProps) {
               disabled={isProcessing}
             >
               <View style={styles.addIconContainer}>
-                <Text style={styles.imageIcon}>🖼️</Text>
+                <Text style={styles.imageIcon}>+</Text>
               </View>
               <Text style={styles.addText}>Add Photo</Text>
             </TouchableOpacity>
@@ -224,7 +224,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
   },
   header: {
     flexDirection: 'row',

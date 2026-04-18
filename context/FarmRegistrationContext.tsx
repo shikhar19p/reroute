@@ -1,4 +1,31 @@
-import React, { createContext, useCallback, useContext, useMemo, useState, ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useMemo, useState, ReactNode, useEffect } from 'react';
+import { Platform } from 'react-native';
+import { useAuth } from '../authContext';
+
+// Platform-aware key-value storage for draft persistence
+async function storageGet(key: string): Promise<string | null> {
+  if (Platform.OS === 'web') {
+    try { return localStorage.getItem(key); } catch { return null; }
+  }
+  const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  return AsyncStorage.getItem(key);
+}
+async function storageSet(key: string, value: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    try { localStorage.setItem(key, value); } catch {}
+    return;
+  }
+  const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  await AsyncStorage.setItem(key, value);
+}
+async function storageRemove(key: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    try { localStorage.removeItem(key); } catch {}
+    return;
+  }
+  const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  await AsyncStorage.removeItem(key);
+}
 
 interface Photo {
   uri: string;
@@ -8,20 +35,39 @@ interface Photo {
 }
 
 interface Amenities {
-  tv: number;
-  geyser: number;
-  bonfire: number;
+  // Essentials
+  wifi: boolean;
+  ac: boolean;
+  parking: boolean;
+  kitchen: boolean;
+  tv: boolean;
+  geyser: boolean;
+  // Outdoors
   pool: boolean;
-  chess: number;
-  carroms: number;
-  volleyball: number;
+  bonfire: boolean;
+  bbq: boolean;
+  outdoorSeating: boolean;
+  hotTub: boolean;
+  // Entertainment
+  djMusicSystem: boolean;
+  projector: boolean;
+  // Food & Services
+  restaurant: boolean;
+  foodPrepOnDemand: boolean;
+  decorService: boolean;
+  // Games & Sports
+  chess: boolean;
+  carrom: boolean;
+  volleyball: boolean;
+  badminton: boolean;
+  tableTennis: boolean;
+  cricket: boolean;
+  // Additional
   customAmenities: string;
 }
 
 interface Rules {
-  unmarriedNotAllowed: boolean;
   petsNotAllowed: boolean;
-  quietHours: string;
   customRules: string;
 }
 
@@ -35,9 +81,11 @@ interface FileData {
 interface Person {
   name: string;
   phone: string;
-  aadhaarNumber: string;
-  aadhaarFront: FileData | null;
-  aadhaarBack: FileData | null;
+  panCard: string;
+  idProofType: 'driving_license' | 'passport' | 'voter_id';
+  idProofNumber: string;
+  idProofFront: FileData | null;
+  idProofBack: FileData | null;
 }
 
 interface BankDetails {
@@ -71,6 +119,7 @@ interface Pricing {
 }
 
 interface Farm {
+  propertyType: 'farmhouse' | 'resort';
   name: string;
   contactPhone1: string;
   contactPhone2: string;
@@ -91,15 +140,20 @@ interface Farm {
 interface FarmRegistrationContextType {
   farm: Farm;
   setFarm: React.Dispatch<React.SetStateAction<Farm>>;
-  resetFarm: () => void;
+  resetFarm: () => Promise<void>;
   setField: (path: string | string[], newValue: any) => void;
   addPhoto: (item: Photo) => void;
   removePhoto: (index: number) => void;
   incAmenity: (key: string) => void;
   decAmenity: (key: string) => void;
+  saveDraft: () => Promise<void>;
+  loadDraft: () => Promise<boolean>;
+  clearDraft: () => Promise<void>;
+  hasDraft: boolean;
 }
 
 const createInitialFarm = (): Farm => ({
+  propertyType: 'farmhouse',
   name: '',
   contactPhone1: '',
   contactPhone2: '',
@@ -119,35 +173,52 @@ const createInitialFarm = (): Farm => ({
   },
   photos: [],
   amenities: {
-    tv: 0,
-    geyser: 0,
-    bonfire: 0,
+    wifi: false,
+    ac: false,
+    parking: false,
+    kitchen: false,
+    tv: false,
+    geyser: false,
     pool: false,
-    chess: 0,
-    carroms: 0,
-    volleyball: 0,
+    bonfire: false,
+    bbq: false,
+    outdoorSeating: false,
+    hotTub: false,
+    djMusicSystem: false,
+    projector: false,
+    restaurant: false,
+    foodPrepOnDemand: false,
+    decorService: false,
+    chess: false,
+    carrom: false,
+    volleyball: false,
+    badminton: false,
+    tableTennis: false,
+    cricket: false,
     customAmenities: '',
   },
   rules: {
-    unmarriedNotAllowed: false,
     petsNotAllowed: false,
-    quietHours: '',
     customRules: '',
   },
   kyc: {
     person1: {
       name: '',
       phone: '',
-      aadhaarNumber: '',
-      aadhaarFront: null,
-      aadhaarBack: null,
+      panCard: '',
+      idProofType: 'driving_license',
+      idProofNumber: '',
+      idProofFront: null,
+      idProofBack: null,
     },
     person2: {
       name: '',
       phone: '',
-      aadhaarNumber: '',
-      aadhaarFront: null,
-      aadhaarBack: null,
+      panCard: '',
+      idProofType: 'driving_license',
+      idProofNumber: '',
+      idProofFront: null,
+      idProofBack: null,
     },
     panNumber: '',
     companyPAN: null,
@@ -176,12 +247,108 @@ const cloneForPathSegment = (value: any): any => {
   return {};
 };
 
-export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) => {
-  const [farm, setFarm] = useState<Farm>(createInitialFarm);
+const DRAFT_STORAGE_KEY = 'farm_registration_draft';
 
-  const resetFarm = useCallback(() => {
+export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) => {
+  const { user } = useAuth();
+  const [farm, setFarm] = useState<Farm>(createInitialFarm);
+  const [hasDraft, setHasDraft] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Get user-specific draft key
+  const getDraftKey = useCallback(() => {
+    return user?.uid ? `${DRAFT_STORAGE_KEY}_${user.uid}` : DRAFT_STORAGE_KEY;
+  }, [user?.uid]);
+
+  // Save draft to AsyncStorage
+  const saveDraft = useCallback(async () => {
+    try {
+      const draftKey = getDraftKey();
+      // Only save if there's meaningful data (not just initial empty state)
+      const hasData = farm.name || farm.contactPhone1 || farm.city || farm.area || farm.photos.length > 0;
+
+      if (hasData) {
+        await storageSet(draftKey, JSON.stringify(farm));
+        setHasDraft(true);
+      }
+    } catch (error) {
+      console.warn('Error saving draft:', error);
+    }
+  }, [farm, getDraftKey]);
+
+  // Load draft from AsyncStorage
+  const loadDraft = useCallback(async (): Promise<boolean> => {
+    try {
+      const draftKey = getDraftKey();
+      const draftData = await storageGet(draftKey);
+
+      if (draftData) {
+        const parsedDraft = JSON.parse(draftData);
+        // Validate parsed draft has expected structure
+        if (parsedDraft && typeof parsedDraft === 'object' && 'kyc' in parsedDraft) {
+          setFarm(parsedDraft);
+          setHasDraft(true);
+          return true;
+        }
+        // Corrupted draft - clear it
+        await storageRemove(draftKey);
+        setHasDraft(false);
+        return false;
+      }
+      return false;
+    } catch (error) {
+      console.warn('Error loading draft:', error);
+      return false;
+    }
+  }, [getDraftKey]);
+
+  // Clear draft from AsyncStorage
+  const clearDraft = useCallback(async () => {
+    try {
+      const draftKey = getDraftKey();
+      await storageRemove(draftKey);
+      setHasDraft(false);
+    } catch (error) {
+      console.warn('Error clearing draft:', error);
+    }
+  }, [getDraftKey]);
+
+  // Check for draft on mount
+  useEffect(() => {
+    const checkForDraft = async () => {
+      try {
+        const draftKey = getDraftKey();
+        const draftData = await storageGet(draftKey);
+        setHasDraft(!!draftData);
+        setIsInitialized(true);
+      } catch (error) {
+        console.warn('Error checking for draft:', error);
+        setIsInitialized(true);
+      }
+    };
+
+    if (user) {
+      checkForDraft();
+    } else {
+      setIsInitialized(true);
+    }
+  }, [user, getDraftKey]);
+
+  // Auto-save draft when farm data changes (debounced)
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    const timeoutId = setTimeout(() => {
+      saveDraft();
+    }, 1000); // Save 1 second after last change
+
+    return () => clearTimeout(timeoutId);
+  }, [farm, saveDraft, isInitialized]);
+
+  const resetFarm = useCallback(async () => {
     setFarm(createInitialFarm());
-  }, []);
+    await clearDraft();
+  }, [clearDraft]);
 
   const setField = useCallback((path: string | string[], newValue: any) => {
     if (!path) {
@@ -260,8 +427,21 @@ export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) 
   }, []);
 
   const value = useMemo(
-    () => ({ farm, setFarm, resetFarm, setField, addPhoto, removePhoto, incAmenity, decAmenity }),
-    [farm, resetFarm, setField, addPhoto, removePhoto, incAmenity, decAmenity]
+    () => ({
+      farm,
+      setFarm,
+      resetFarm,
+      setField,
+      addPhoto,
+      removePhoto,
+      incAmenity,
+      decAmenity,
+      saveDraft,
+      loadDraft,
+      clearDraft,
+      hasDraft,
+    }),
+    [farm, resetFarm, setField, addPhoto, removePhoto, incAmenity, decAmenity, saveDraft, loadDraft, clearDraft, hasDraft]
   );
 
   return (

@@ -12,62 +12,21 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // ✅ Check Firestore role field (more reliable than auth token)
     function isAdmin() {
       return isAuthenticated() &&
              exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    function isVerified() {
-      return isAuthenticated() && request.auth.token.email_verified == true;
-    }
-
-    function isFarmhouseOwner(ownerId) {
-      return isAuthenticated() && request.auth.uid == ownerId;
-    }
-
-    // ✅ Support both old and new field name formats
-    function validateFarmhouseData() {
-      let hasOwnerId = request.resource.data.keys().hasAny(['owner_id', 'ownerId']);
-      let validStatus = request.resource.data.status in ['pending', 'approved', 'rejected', 'pending_approval', 'active'];
-      let hasValidName = (
-        // New format with basicDetails
-        (request.resource.data.keys().hasAll(['basicDetails'])
-          && request.resource.data.basicDetails.name is string
-          && request.resource.data.basicDetails.name.size() > 0
-          && request.resource.data.basicDetails.name.size() <= 200)
-        ||
-        // Old format with direct fields
-        (request.resource.data.keys().hasAll(['name'])
-          && request.resource.data.name is string
-          && request.resource.data.name.size() > 0
-          && request.resource.data.name.size() <= 200)
-      );
-
-      return hasOwnerId && validStatus && hasValidName;
-    }
-
-    // ✅ Support both field name formats
-    function validateBookingData() {
-      let data = request.resource.data;
-      return data.keys().hasAny(['farmhouseId', 'farmhouse_id'])
-        && data.keys().hasAny(['userId', 'user_id'])
-        && data.status in ['pending', 'confirmed', 'cancelled', 'completed']
-        && (data.keys().hasAny(['paymentStatus', 'payment_status'])
-            && (data.paymentStatus in ['pending', 'paid', 'refunded']
-                || data.payment_status in ['pending', 'paid', 'refunded']))
-        && data.keys().hasAny(['guests', 'guest_count'])
-        && data.keys().hasAny(['totalPrice', 'total_amount']);
-    }
-
     // ========== Users Collection ==========
     match /users/{userId} {
-      allow read: if isAuthenticated() || isAdmin();
+      // Users can only read their own profile; admins can read any
+      allow read: if isOwner(userId) || isAdmin();
       allow create: if isAuthenticated();
-      allow update: if isOwner(userId)
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'createdAt', 'email'])
-        || isAdmin();
+      allow update: if (isOwner(userId) && (
+        // Prevent updates to critical immutable fields
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['createdAt', 'email', 'uid'])
+      )) || isAdmin();
       allow delete: if isAdmin();
     }
 
@@ -75,43 +34,75 @@ service cloud.firestore {
     match /farmhouses/{farmhouseId} {
       allow read: if true; // Public read for browsing
 
-      // Allow authenticated users to create farmhouses with proper ownership
       allow create: if isAuthenticated()
         && request.resource.data.ownerId == request.auth.uid
         && request.resource.data.status == 'pending';
 
       allow update: if isAuthenticated() && (
-        // Farmhouse owner can update (except status, approvedAt, ownerId)
+        // Farmhouse owner can update their listing (except status, approvedAt, ownerId)
         ((resource.data.ownerId == request.auth.uid || resource.data.owner_id == request.auth.uid)
           && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'approvedAt', 'ownerId', 'owner_id']))
-        // Authenticated users can update bookedDates (for bookings)
+        // Any authenticated user can update bookedDates (booking flow)
         || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bookedDates']))
-        // Admins can update anything
         || isAdmin()
       );
 
       allow delete: if isAdmin();
+
+      // Reviews subcollection
+      match /reviews/{reviewId} {
+        allow read: if true;
+
+        allow create: if isAuthenticated()
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.rating is number
+          && request.resource.data.rating >= 1
+          && request.resource.data.rating <= 5;
+
+        allow update: if isAuthenticated() && (
+          resource.data.userId == request.auth.uid || isAdmin()
+        );
+
+        allow delete: if isAuthenticated() && (
+          resource.data.userId == request.auth.uid || isAdmin()
+        );
+      }
     }
 
     // ========== Bookings Collection ==========
     match /bookings/{bookingId} {
-      allow read: if isAuthenticated() || isAdmin();
+      // Users can only read their own bookings.
+      // Farmhouse owners can't directly query here — they use Cloud Functions
+      // or list their farmhouse's bookings via a server-side call.
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid
+        || resource.data.user_id == request.auth.uid
+        || isAdmin()
+      );
 
       allow create: if isAuthenticated()
         && (request.resource.data.userId == request.auth.uid || request.resource.data.user_id == request.auth.uid);
 
       allow update: if isAuthenticated() && (
+        // Booking owner can update their own booking (except critical financial/identity fields)
         ((resource.data.userId == request.auth.uid || resource.data.user_id == request.auth.uid)
          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['farmhouseId', 'farmhouse_id', 'totalPrice', 'total_amount', 'userId', 'user_id']))
         || isAdmin()
+        // Note: payment status updates (paymentStatus, refundStatus, status) must go through
+        // Cloud Functions (verifyPayment, processRefund) which use the Admin SDK.
       );
 
-      allow delete: if isAdmin();
+      allow delete: if isAuthenticated() && (
+        ((resource.data.userId == request.auth.uid || resource.data.user_id == request.auth.uid)
+         && resource.data.status == 'pending'
+         && (resource.data.paymentStatus == 'pending' || resource.data.payment_status == 'pending'))
+        || isAdmin()
+      );
     }
 
     // ========== Reviews Collection ==========
     match /reviews/{reviewId} {
-      allow read: if true; // Public read
+      allow read: if true;
 
       allow create: if isAuthenticated()
         && (request.resource.data.userId == request.auth.uid || request.resource.data.user_id == request.auth.uid)
@@ -119,6 +110,24 @@ service cloud.firestore {
         && request.resource.data.rating >= 1
         && request.resource.data.rating <= 5
         && request.resource.data.comment.size() <= 1000;
+
+      allow update: if isAuthenticated() && (
+        (resource.data.userId == request.auth.uid || resource.data.user_id == request.auth.uid)
+        || isAdmin()
+      );
+
+      allow delete: if isAuthenticated() && (
+        (resource.data.userId == request.auth.uid || resource.data.user_id == request.auth.uid)
+        || isAdmin()
+      );
+    }
+
+    // ========== Ratings Collection ==========
+    match /ratings/{ratingId} {
+      allow read: if true;
+
+      allow create: if isAuthenticated()
+        && (request.resource.data.userId == request.auth.uid || request.resource.data.user_id == request.auth.uid);
 
       allow update: if isAuthenticated() && (
         (resource.data.userId == request.auth.uid || resource.data.user_id == request.auth.uid)
@@ -153,7 +162,14 @@ service cloud.firestore {
       allow read: if true; // Public read for active coupons
 
       allow create: if isAdmin();
-      allow update: if isAdmin() || isAuthenticated(); // Allow users to increment usage
+
+      // Users may only increment current_uses; admins can change anything
+      allow update: if isAdmin() || (
+        isAuthenticated() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['current_uses']) &&
+        request.resource.data.current_uses == resource.data.current_uses + 1
+      );
+
       allow delete: if isAdmin();
     }
 
@@ -165,6 +181,57 @@ service cloud.firestore {
     // ========== Communications Collection ==========
     match /communications/{commId} {
       allow read, write: if isAdmin();
+    }
+
+    // ========== Notifications Collection ==========
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+
+      allow create: if isAuthenticated();
+
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+
+      allow delete: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+    }
+
+    // ========== Payments Collection ==========
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+
+      // Clients may only create a payment record with 'pending' status.
+      // Success/failed/refunded status transitions must go through Cloud Functions.
+      allow create: if isAuthenticated()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'pending';
+
+      allow update: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // ========== Payment Orders / Refunds (Cloud Functions only) ==========
+    // These collections are written exclusively by Cloud Functions via Admin SDK.
+    // No direct client access is permitted.
+    match /payment_orders/{docId} {
+      allow read, write: if false;
+    }
+
+    match /refunds/{docId} {
+      allow read, write: if false;
+    }
+
+    match /couponUsage/{docId} {
+      allow read, write: if false;
     }
   }
 }

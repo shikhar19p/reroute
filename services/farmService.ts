@@ -1,20 +1,17 @@
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db, storage, auth } from '../firebaseConfig';
 
 const uriToBlob = async (uri: string): Promise<Blob> => {
   try {
-    console.log('Fetching URI:', uri);
     const response = await fetch(uri);
-    console.log('Fetch response status:', response.status, response.statusText);
-    console.log('Response headers:', JSON.stringify(Object.fromEntries(response.headers.entries())));
 
     if (!response.ok) {
       throw new Error(`Failed to fetch URI: ${response.status} ${response.statusText}`);
     }
 
     const blob = await response.blob();
-    console.log('Blob created successfully');
     return blob;
   } catch (error) {
     console.error('uriToBlob error:', error);
@@ -28,37 +25,17 @@ export const uploadImage = async (uri: string, path: string): Promise<string> =>
   }
 
   try {
-    console.log('Storage instance:', storage);
-    console.log('Storage bucket:', storage.app.options.storageBucket);
-    console.log('Converting URI to blob:', uri);
     const blob = await uriToBlob(uri);
-    console.log('Blob created, size:', blob.size, 'type:', blob.type);
 
-    console.log('Creating storage reference:', path);
     const storageRef = ref(storage, path);
-    console.log('Storage reference created, fullPath:', storageRef.fullPath);
-    console.log('Storage reference bucket:', storageRef.bucket);
 
-    console.log('Uploading bytes to storage...');
     const snapshot = await uploadBytes(storageRef, blob);
-    console.log('Upload complete, getting download URL...');
 
     const downloadURL = await getDownloadURL(snapshot.ref);
-    console.log('Download URL obtained:', downloadURL);
 
     return downloadURL;
   } catch (error: any) {
-    console.error('Upload error details:', {
-      code: error.code,
-      message: error.message,
-      serverResponse: error.serverResponse,
-      customData: error.customData,
-      fullError: JSON.stringify(error, Object.getOwnPropertyNames(error)),
-      storageInfo: {
-        bucket: storage.app.options.storageBucket,
-        path: path
-      }
-    });
+    console.error('Upload error:', error.code, error.message);
     throw error;
   }
 };
@@ -69,46 +46,22 @@ export const uploadDocument = async (fileObj: any, path: string): Promise<string
   }
 
   try {
-    console.log('Converting document URI to blob:', fileObj.uri);
     const blob = await uriToBlob(fileObj.uri);
-    console.log('Document blob created, size:', blob.size, 'type:', blob.type);
 
-    console.log('Creating storage reference for document:', path);
     const storageRef = ref(storage, path);
-    console.log('Storage reference created, fullPath:', storageRef.fullPath);
 
-    console.log('Uploading document bytes to storage...');
     const snapshot = await uploadBytes(storageRef, blob);
-    console.log('Document upload complete, getting download URL...');
 
     const downloadURL = await getDownloadURL(snapshot.ref);
-    console.log('Document download URL obtained:', downloadURL);
 
     return downloadURL;
   } catch (error: any) {
-    console.error('Document upload error details:', {
-      code: error.code,
-      message: error.message,
-      serverResponse: error.serverResponse,
-      customData: error.customData,
-      fullError: JSON.stringify(error, Object.getOwnPropertyNames(error)),
-      path: path,
-      fileInfo: {
-        uri: fileObj.uri,
-        name: fileObj.name,
-        mimeType: fileObj.mimeType,
-        size: fileObj.size
-      }
-    });
+    console.error('Document upload error:', error.code, error.message);
     throw error;
   }
 };
 
 export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: string; userId: string }> => {
-  console.log('========================================');
-  console.log('Starting farm registration save...');
-  console.log('Farm data:', JSON.stringify(farmData, null, 2));
-
   const currentUser = auth.currentUser;
 
   if (!currentUser) {
@@ -118,58 +71,47 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
 
   const userId = currentUser.uid;
   const timestamp = Date.now();
-  console.log('✅ User authenticated!');
-  console.log('User ID:', userId);
-  console.log('User email:', currentUser.email);
-  console.log('Timestamp:', timestamp);
-
-  console.log('Uploading photos to Storage...');
-  console.log('Number of photos to upload:', farmData.photos.length);
 
   const photoUrls: string[] = [];
   for (let i = 0; i < farmData.photos.length; i++) {
     const photo = farmData.photos[i];
     const photoPath = `farms/${userId}/${timestamp}/photos/photo_${i}.jpg`;
-    console.log(`Uploading photo ${i + 1}/${farmData.photos.length}...`);
     try {
       const photoUrl = await uploadImage(photo.uri, photoPath);
       photoUrls.push(photoUrl);
-      console.log(`Photo ${i + 1} uploaded successfully`);
     } catch (error) {
       console.error(`Failed to upload photo ${i + 1}:`, error);
       throw new Error(`Failed to upload photo ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
-  console.log('All photos uploaded successfully!');
-  console.log('Photo URLs:', photoUrls);
-  console.log('Now uploading KYC documents to Storage...');
-
-  const person1AadhaarFrontUrl = farmData.kyc.person1.aadhaarFront
+  // Person 1 ID Proof uploads (NO AADHAAR)
+  const person1IdProofFrontUrl = farmData.kyc.person1.idProofFront
     ? await uploadDocument(
-        farmData.kyc.person1.aadhaarFront,
-        `farms/${userId}/${timestamp}/kyc/person1_aadhaar_front`
+        farmData.kyc.person1.idProofFront,
+        `farms/${userId}/${timestamp}/kyc/person1_id_proof_front`
       )
     : null;
 
-  const person1AadhaarBackUrl = farmData.kyc.person1.aadhaarBack
+  const person1IdProofBackUrl = farmData.kyc.person1.idProofBack
     ? await uploadDocument(
-        farmData.kyc.person1.aadhaarBack,
-        `farms/${userId}/${timestamp}/kyc/person1_aadhaar_back`
+        farmData.kyc.person1.idProofBack,
+        `farms/${userId}/${timestamp}/kyc/person1_id_proof_back`
       )
     : null;
 
-  const person2AadhaarFrontUrl = farmData.kyc.person2.aadhaarFront
+  // Person 2 ID Proof uploads (NO AADHAAR)
+  const person2IdProofFrontUrl = farmData.kyc.person2.idProofFront
     ? await uploadDocument(
-        farmData.kyc.person2.aadhaarFront,
-        `farms/${userId}/${timestamp}/kyc/person2_aadhaar_front`
+        farmData.kyc.person2.idProofFront,
+        `farms/${userId}/${timestamp}/kyc/person2_id_proof_front`
       )
     : null;
 
-  const person2AadhaarBackUrl = farmData.kyc.person2.aadhaarBack
+  const person2IdProofBackUrl = farmData.kyc.person2.idProofBack
     ? await uploadDocument(
-        farmData.kyc.person2.aadhaarBack,
-        `farms/${userId}/${timestamp}/kyc/person2_aadhaar_back`
+        farmData.kyc.person2.idProofBack,
+        `farms/${userId}/${timestamp}/kyc/person2_id_proof_back`
       )
     : null;
 
@@ -187,7 +129,19 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
       )
     : null;
 
+  // Encrypt sensitive bank details server-side (ENCRYPTION_SECRET never leaves Cloud Functions)
+  const encryptBankDetailsFn = httpsCallable<
+    { accountNumber: string; ifscCode: string },
+    { encryptedAccountNumber: string; encryptedIFSC: string }
+  >(getFunctions(), 'encryptBankDetails');
+  const encryptResult = await encryptBankDetailsFn({
+    accountNumber: farmData.kyc.bankDetails.accountNumber,
+    ifscCode: farmData.kyc.bankDetails.ifscCode,
+  });
+  const encryptedAccountNumber = encryptResult.data.encryptedAccountNumber;
+  const encryptedIFSC = encryptResult.data.encryptedIFSC;
   const farmDoc = {
+    propertyType: farmData.propertyType || 'farmhouse',
     basicDetails: {
       name: farmData.name,
       contactPhone1: farmData.contactPhone1,
@@ -212,44 +166,62 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
     },
     photoUrls,
     amenities: {
-      tv: parseInt(farmData.amenities.tv) || 0,
-      geyser: parseInt(farmData.amenities.geyser) || 0,
-      bonfire: parseInt(farmData.amenities.bonfire) || 0,
+      wifi: farmData.amenities.wifi || false,
+      ac: farmData.amenities.ac || false,
+      parking: farmData.amenities.parking || false,
+      kitchen: farmData.amenities.kitchen || false,
+      tv: farmData.amenities.tv ? 1 : 0,
+      geyser: farmData.amenities.geyser ? 1 : 0,
       pool: farmData.amenities.pool || false,
-      chess: parseInt(farmData.amenities.chess) || 0,
-      carroms: parseInt(farmData.amenities.carroms) || 0,
-      volleyball: parseInt(farmData.amenities.volleyball) || 0,
+      bonfire: farmData.amenities.bonfire ? 1 : 0,
+      bbq: farmData.amenities.bbq || false,
+      outdoorSeating: farmData.amenities.outdoorSeating || false,
+      hotTub: farmData.amenities.hotTub || false,
+      djMusicSystem: farmData.amenities.djMusicSystem || false,
+      projector: farmData.amenities.projector || false,
+      restaurant: farmData.amenities.restaurant || false,
+      foodPrepOnDemand: farmData.amenities.foodPrepOnDemand || false,
+      decorService: farmData.amenities.decorService || false,
+      chess: farmData.amenities.chess ? 1 : 0,
+      carroms: farmData.amenities.carrom ? 1 : 0,
+      volleyball: farmData.amenities.volleyball ? 1 : 0,
+      badminton: farmData.amenities.badminton || false,
+      tableTennis: farmData.amenities.tableTennis || false,
+      cricket: farmData.amenities.cricket || false,
       customAmenities: farmData.amenities.customAmenities || null,
     },
     rules: {
-      unmarriedNotAllowed: farmData.rules.unmarriedNotAllowed,
       petsNotAllowed: farmData.rules.petsNotAllowed,
-      quietHours: farmData.rules.quietHours || null,
       customRules: farmData.rules.customRules || null,
     },
     kyc: {
       person1: {
         name: farmData.kyc.person1.name,
         phone: farmData.kyc.person1.phone,
-        aadhaarNumber: farmData.kyc.person1.aadhaarNumber,
-        aadhaarFrontUrl: person1AadhaarFrontUrl,
-        aadhaarBackUrl: person1AadhaarBackUrl,
+        panCard: farmData.kyc.person1.panCard,
+        idProofType: farmData.kyc.person1.idProofType,
+        idProofNumber: farmData.kyc.person1.idProofNumber,
+        idProofFrontUrl: person1IdProofFrontUrl,
+        idProofBackUrl: person1IdProofBackUrl,
       },
       person2: {
         name: farmData.kyc.person2.name || null,
         phone: farmData.kyc.person2.phone || null,
-        aadhaarNumber: farmData.kyc.person2.aadhaarNumber || null,
-        aadhaarFrontUrl: person2AadhaarFrontUrl,
-        aadhaarBackUrl: person2AadhaarBackUrl,
+        panCard: farmData.kyc.person2.panCard || null,
+        idProofType: farmData.kyc.person2.idProofType || null,
+        idProofNumber: farmData.kyc.person2.idProofNumber || null,
+        idProofFrontUrl: person2IdProofFrontUrl,
+        idProofBackUrl: person2IdProofBackUrl,
       },
       panNumber: farmData.kyc.panNumber,
       companyPANUrl,
       labourDocUrl,
       bankDetails: {
         accountHolderName: farmData.kyc.bankDetails.accountHolderName,
-        accountNumber: farmData.kyc.bankDetails.accountNumber,
-        ifscCode: farmData.kyc.bankDetails.ifscCode,
+        accountNumber: encryptedAccountNumber, // ENCRYPTED
+        ifscCode: encryptedIFSC, // ENCRYPTED
         branchName: farmData.kyc.bankDetails.branchName,
+        encrypted: true, // Flag to indicate encryption
       },
       agreedToTerms: farmData.kyc.agreedToTerms,
     },
@@ -258,29 +230,17 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
     createdAt: serverTimestamp(),
   };
 
-  console.log('Saving to Firestore...');
-  console.log('Farm document to be saved:', JSON.stringify(farmDoc, null, 2));
-  console.log('✅ Document has ownerId:', farmDoc.ownerId);
-  console.log('✅ Document has status:', farmDoc.status);
-  console.log('✅ ownerId matches userId:', farmDoc.ownerId === userId);
-
   try {
     const farmsCollection = collection(db, 'farmhouses');
-    console.log('Firestore collection reference created');
 
     const docRef = await addDoc(farmsCollection, farmDoc);
-    console.log('✅ Farm saved successfully! Document ID:', docRef.id);
 
     return {
       farmId: docRef.id,
       userId,
     };
   } catch (firestoreError: any) {
-    console.error('Firestore save error:', {
-      code: firestoreError.code,
-      message: firestoreError.message,
-      details: JSON.stringify(firestoreError, Object.getOwnPropertyNames(firestoreError))
-    });
+    console.error('Firestore save error:', firestoreError.code, firestoreError.message);
     throw new Error(`Failed to save to Firestore: ${firestoreError.message}`);
   }
 };

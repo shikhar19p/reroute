@@ -2,42 +2,28 @@ import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, Platform, Animated } from 'react-native';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { BlurView } from 'expo-blur';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { Compass, CalendarCheck, Heart, UserCircle } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useTabBarVisibility } from '../context/TabBarVisibilityContext';
 import * as Haptics from 'expo-haptics';
 
 export default function PremiumTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
-  const { colors, typography, shadows, isDark } = useTheme();
+  const { colors, isDark } = useTheme();
   const { translateY } = useTabBarVisibility();
 
-  const getTabIcon = (routeName: string): string => {
+  const getTabIcon = (routeName: string, focused: boolean, color: string) => {
+    const size = 24;
     switch (routeName) {
       case 'Explore':
-        return 'compass-outline';
+        return <Compass size={size} color={color} />;
       case 'Bookings':
-        return 'calendar-check';
+        return <CalendarCheck size={size} color={color} />;
       case 'Wishlist':
-        return 'heart-outline';
+        return <Heart size={size} color={color} fill={focused ? color : 'transparent'} />;
       case 'Profile':
-        return 'account-circle-outline';
+        return <UserCircle size={size} color={color} />;
       default:
-        return 'circle';
-    }
-  };
-
-  const getTabIconFocused = (routeName: string): string => {
-    switch (routeName) {
-      case 'Explore':
-        return 'compass';
-      case 'Bookings':
-        return 'calendar-check';
-      case 'Wishlist':
-        return 'heart';
-      case 'Profile':
-        return 'account-circle';
-      default:
-        return 'circle';
+        return <Compass size={size} color={color} />;
     }
   };
 
@@ -63,7 +49,9 @@ export default function PremiumTabBar({ state, descriptors, navigation }: Bottom
             const isFocused = state.index === index;
 
             const onPress = () => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              if (Platform.OS !== 'web') {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }
 
               const event = navigation.emit({
                 type: 'tabPress',
@@ -77,7 +65,9 @@ export default function PremiumTabBar({ state, descriptors, navigation }: Bottom
             };
 
             const onLongPress = () => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              if (Platform.OS !== 'web') {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              }
               navigation.emit({
                 type: 'tabLongPress',
                 target: route.key,
@@ -103,18 +93,14 @@ export default function PremiumTabBar({ state, descriptors, navigation }: Bottom
                     transform: [{ scale: 1.1 }],
                   }
                 ]}>
-                  <MaterialCommunityIcons
-                    name={isFocused ? getTabIconFocused(route.name) : getTabIcon(route.name)}
-                    size={24}
-                    color={isFocused ? colors.primary : colors.textSecondary}
-                  />
+                  {getTabIcon(route.name, isFocused, isFocused ? colors.primary : colors.textSecondary)}
                 </View>
                 <Text
                   style={[
                     styles.tabLabel,
                     {
                       color: isFocused ? colors.primary : colors.textSecondary,
-                      fontFamily: isFocused ? typography.fontFamily.semiBold : typography.fontFamily.regular,
+                      fontWeight: isFocused ? '600' : '400',
                     }
                   ]}
                 >

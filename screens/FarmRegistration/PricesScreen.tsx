@@ -1,7 +1,9 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
+  Modal,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,6 +12,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Plus, Calendar } from 'lucide-react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { pricesSchema } from '../../utils/validation';
 import { useFarmRegistration } from '../../context/FarmRegistrationContext';
@@ -30,10 +33,16 @@ const priceFields = [
   { key: 'weekendNight', label: 'Night Price*', placeholder: '₹ Enter weekend night price', section: 'Weekend Rates' },
 ];
 
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DAY_NAMES = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+
 export default function PricesScreen({ navigation }: PricesScreenProps) {
   const { farm, setField } = useFarmRegistration();
   const { showDialog } = useDialog();
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [datePickerIndex, setDatePickerIndex] = useState<number | null>(null);
+  const [viewDate, setViewDate] = useState(new Date());
 
   const formValues = useMemo(() => farm.pricing, [farm.pricing]);
 
@@ -60,6 +69,63 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
     const currentCustom = farm.pricing.customPricing || [];
     setField(['pricing', 'customPricing'], currentCustom.filter((_, i) => i !== index));
   }, [farm.pricing.customPricing, setField]);
+
+  const openDatePicker = useCallback((index: number) => {
+    setViewDate(new Date());
+    setDatePickerIndex(index);
+  }, []);
+
+  const handleDateSelect = useCallback((day: number) => {
+    const selected = new Date(viewDate.getFullYear(), viewDate.getMonth(), day);
+    const formatted = `${day} ${MONTH_SHORT[selected.getMonth()]} ${selected.getFullYear()}`;
+    if (datePickerIndex !== null) {
+      updateCustomPrice(datePickerIndex, 'name', formatted);
+    }
+    setDatePickerIndex(null);
+  }, [datePickerIndex, viewDate, updateCustomPrice]);
+
+  const renderCalendar = () => {
+    const year = viewDate.getFullYear();
+    const month = viewDate.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDay = new Date(year, month, 1).getDay();
+    const cells: (number | null)[] = [];
+    for (let i = 0; i < firstDay; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+    while (cells.length % 7 !== 0) cells.push(null);
+    const rows: (number | null)[][] = [];
+    for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
+
+    return (
+      <View>
+        <View style={styles.calHeader}>
+          <TouchableOpacity onPress={() => setViewDate(new Date(year, month - 1, 1))} style={styles.calNav}>
+            <Text style={styles.calNavText}>‹</Text>
+          </TouchableOpacity>
+          <Text style={styles.calMonthText}>{MONTHS[month]} {year}</Text>
+          <TouchableOpacity onPress={() => setViewDate(new Date(year, month + 1, 1))} style={styles.calNav}>
+            <Text style={styles.calNavText}>›</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.calDayNames}>
+          {DAY_NAMES.map(d => <Text key={d} style={styles.calDayName}>{d}</Text>)}
+        </View>
+        {rows.map((row, ri) => (
+          <View key={ri} style={styles.calRow}>
+            {row.map((day, ci) => (
+              day ? (
+                <TouchableOpacity key={ci} style={styles.calDay} onPress={() => handleDateSelect(day)}>
+                  <Text style={styles.calDayText}>{day}</Text>
+                </TouchableOpacity>
+              ) : (
+                <View key={ci} style={styles.calDay} />
+              )
+            ))}
+          </View>
+        ))}
+      </View>
+    );
+  };
 
   const showHighPriceConfirm = () =>
     new Promise<boolean>((resolve) => {
@@ -108,11 +174,22 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
+      <Modal visible={datePickerIndex !== null} transparent animationType="fade">
+        <Pressable style={styles.modalOverlay} onPress={() => setDatePickerIndex(null)}>
+          <Pressable style={styles.calendarModal}>
+            <Text style={styles.calendarTitle}>Select Date</Text>
+            {renderCalendar()}
+            <TouchableOpacity style={styles.calCancelBtn} onPress={() => setDatePickerIndex(null)}>
+              <Text style={styles.calCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
       <KeyboardAvoidingView
         style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        behavior="padding"
+        keyboardVerticalOffset={0}
       >
         <ScrollView
           style={styles.scrollView}
@@ -123,8 +200,8 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
           {priceFields.map(({ key, label, placeholder, section }, index) => (
             <View key={key}>
               {(index === 0 || priceFields[index - 1].section !== section) && (
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionIcon}>💰</Text>
+                <View style={[styles.sectionHeader, index === 0 && { marginTop: 0 }]}>
+                  <Text style={styles.sectionIcon}>Rs.</Text>
                   <Text style={styles.sectionTitle}>{section}</Text>
                 </View>
               )}
@@ -145,7 +222,7 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
           ))}
 
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionIcon}>➕</Text>
+            <Plus size={16} color="#6B7280" />
             <Text style={styles.sectionTitle}>Custom Pricing (Optional)</Text>
           </View>
           <Text style={styles.helperText}>Add special pricing for holidays or special events</Text>
@@ -153,13 +230,16 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
           {(farm.pricing.customPricing || []).map((item, index) => (
             <View key={index} style={styles.customPriceRow}>
               <View style={styles.customPriceInputs}>
-                <TextInput
-                  value={item.name}
-                  onChangeText={(text) => updateCustomPrice(index, 'name', text)}
-                  placeholder="Event name (e.g., Diwali, New Year)"
-                  placeholderTextColor="#9CA3AF"
-                  style={[styles.input, styles.customNameInput]}
-                />
+                <TouchableOpacity
+                  style={[styles.input, styles.datePickerButton]}
+                  onPress={() => openDatePicker(index)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={item.name ? styles.datePickerText : styles.datePickerPlaceholder}>
+                    {item.name || 'Tap to select date'}
+                  </Text>
+                  <Calendar size={16} color="#9CA3AF" />
+                </TouchableOpacity>
                 <TextInput
                   value={item.price}
                   onChangeText={(text) => updateCustomPrice(index, 'price', text.replace(/[^0-9]/g, ''))}
@@ -218,14 +298,15 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 20,
-    paddingBottom: 32,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 20,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 24,
-    marginBottom: 16,
+    marginTop: 16,
+    marginBottom: 12,
     gap: 8,
   },
   sectionIcon: {
@@ -280,11 +361,104 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 12,
   },
-  customNameInput: {
+  datePickerButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  datePickerText: {
+    fontSize: 16,
+    color: '#1F2937',
     flex: 1,
+  },
+  datePickerPlaceholder: {
+    fontSize: 16,
+    color: '#9CA3AF',
+    flex: 1,
+  },
+  calendarIcon: {
+    fontSize: 18,
   },
   customPriceInput: {
     flex: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  calendarModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    width: '88%',
+    maxWidth: 360,
+  },
+  calendarTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  calHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  calNav: {
+    padding: 8,
+  },
+  calNavText: {
+    fontSize: 24,
+    color: '#4CAF50',
+    fontWeight: '600',
+  },
+  calMonthText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  calDayNames: {
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
+  calDayName: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6B7280',
+    paddingVertical: 4,
+  },
+  calRow: {
+    flexDirection: 'row',
+    marginBottom: 2,
+  },
+  calDay: {
+    flex: 1,
+    aspectRatio: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+  },
+  calDayText: {
+    fontSize: 15,
+    color: '#1F2937',
+  },
+  calCancelBtn: {
+    marginTop: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  calCancelText: {
+    fontSize: 16,
+    color: '#6B7280',
+    fontWeight: '600',
   },
   removeButton: {
     width: 40,

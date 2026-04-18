@@ -2,6 +2,7 @@ import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -13,6 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as DocumentPicker from 'expo-document-picker';
+import { Upload, CheckSquare, Square } from 'lucide-react-native';
 import { kycSchema } from '../../utils/validation';
 import { useFarmRegistration } from '../../context/FarmRegistrationContext';
 import { useDialog } from '../../components/CustomDialog';
@@ -21,11 +23,66 @@ type KycScreenProps = {
   navigation: NativeStackNavigationProp<any, any>;
 };
 
+const OWNER_TERMS = `FOR FARMHOUSE OWNERS (HOSTS)
+
+1. Listing Accuracy
+   • Owners must provide true and accurate details of the property.
+   • Misleading information may lead to removal from the platform.
+
+2. Pricing & Availability
+   • Owners are responsible for updating pricing and availability regularly.
+   • Confirmed bookings must not be altered or canceled unfairly.
+
+3. Booking Commitment
+   • All confirmed bookings must be honored.
+   • Repeated cancellations may result in suspension from the platform.
+
+4. Property Standards
+   • Property must be clean, safe, and ready for guests.
+   • Promised amenities must be provided.
+
+5. Guest Handling
+   • Owners can deny entry if:
+     – Guest exceeds allowed capacity
+     – Rules are violated
+   • ID verification at check-in is mandatory.
+
+6. Damages
+   • Owners can claim damages directly from users with valid proof.
+   • Reroute will not be responsible for recovering damages.
+
+7. Payments & Commission
+   • Reroute will charge a commission per booking.
+   • Payouts will be processed after successful completion of stay as per payout cycle.
+
+GENERAL TERMS
+
+1. No Mediation Policy
+   • Reroute acts only as a platform connecting users and farmhouse owners.
+   • Reroute will NOT act as a mediator in any disputes between users and owners.
+
+2. No Liability
+   • Reroute shall not be held responsible for:
+     – Property damages
+     – Personal injuries
+     – Theft, loss, or accidents
+     – Any disputes between users and owners
+
+3. User & Owner Responsibility
+   • All responsibilities during the stay lie solely between the user and the owner.
+
+4. Account Suspension
+   • Reroute reserves the right to suspend or terminate accounts for violation of terms.
+
+5. Modification of Terms
+   • Terms may be updated anytime. Continued usage implies acceptance.`;
+
 export default function KycScreen({ navigation }: KycScreenProps) {
   const { farm, setField } = useFarmRegistration();
   const { showDialog } = useDialog();
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   const updateField = useCallback(
     (path: string[], value: any) => {
@@ -93,7 +150,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -109,7 +166,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
 
           {/* Person 1 Contact */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>👤 Contact Person 1</Text>
+            <Text style={styles.sectionTitle}>Contact Person 1</Text>
 
             <View style={styles.field}>
               <Text style={styles.label}>Name*</Text>
@@ -138,45 +195,107 @@ export default function KycScreen({ navigation }: KycScreenProps) {
             </View>
 
             <View style={styles.field}>
-              <Text style={styles.label}>Aadhaar Number*</Text>
+              <Text style={styles.label}>PAN Card*</Text>
               <TextInput
-                value={farm.kyc.person1.aadhaarNumber}
-                onChangeText={(text) => updateField(['kyc', 'person1', 'aadhaarNumber'], text.replace(/[^0-9]/g, ''))}
+                value={farm.kyc.person1.panCard}
+                onChangeText={(text) => updateField(['kyc', 'person1', 'panCard'], text.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
                 style={styles.input}
-                placeholder="12-digit Aadhaar number"
+                placeholder="ABCDE1234F"
                 placeholderTextColor="#9CA3AF"
-                keyboardType="number-pad"
-                maxLength={12}
+                autoCapitalize="characters"
+                maxLength={10}
               />
-              {errors['person1.aadhaarNumber'] && <Text style={styles.error}>{errors['person1.aadhaarNumber']}</Text>}
+              {errors['person1.panCard'] && <Text style={styles.error}>{errors['person1.panCard']}</Text>}
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>ID Proof Type*</Text>
+              <View style={styles.idProofTypeContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.idProofTypeButton,
+                    farm.kyc.person1.idProofType === 'driving_license' && styles.idProofTypeButtonActive
+                  ]}
+                  onPress={() => updateField(['kyc', 'person1', 'idProofType'], 'driving_license')}
+                >
+                  <Text style={[
+                    styles.idProofTypeButtonText,
+                    farm.kyc.person1.idProofType === 'driving_license' && styles.idProofTypeButtonTextActive
+                  ]}>
+                    Driving License
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.idProofTypeButton,
+                    farm.kyc.person1.idProofType === 'passport' && styles.idProofTypeButtonActive
+                  ]}
+                  onPress={() => updateField(['kyc', 'person1', 'idProofType'], 'passport')}
+                >
+                  <Text style={[
+                    styles.idProofTypeButtonText,
+                    farm.kyc.person1.idProofType === 'passport' && styles.idProofTypeButtonTextActive
+                  ]}>
+                    Passport
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.idProofTypeButton,
+                    farm.kyc.person1.idProofType === 'voter_id' && styles.idProofTypeButtonActive
+                  ]}
+                  onPress={() => updateField(['kyc', 'person1', 'idProofType'], 'voter_id')}
+                >
+                  <Text style={[
+                    styles.idProofTypeButtonText,
+                    farm.kyc.person1.idProofType === 'voter_id' && styles.idProofTypeButtonTextActive
+                  ]}>
+                    Voter ID
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {errors['person1.idProofType'] && <Text style={styles.error}>{errors['person1.idProofType']}</Text>}
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>ID Proof Number*</Text>
+              <TextInput
+                value={farm.kyc.person1.idProofNumber}
+                onChangeText={(text) => updateField(['kyc', 'person1', 'idProofNumber'], text.toUpperCase())}
+                style={styles.input}
+                placeholder="Enter ID proof number"
+                placeholderTextColor="#9CA3AF"
+                autoCapitalize="characters"
+              />
+              {errors['person1.idProofNumber'] && <Text style={styles.error}>{errors['person1.idProofNumber']}</Text>}
             </View>
 
             <TouchableOpacity
               style={styles.uploadButton}
-              onPress={() => pickDocument(['kyc', 'person1', 'aadhaarFront'])}
+              onPress={() => pickDocument(['kyc', 'person1', 'idProofFront'])}
             >
-              <Text style={styles.uploadIcon}>⬆️</Text>
+              <Upload size={20} color="#D4AF37" />
               <Text style={styles.uploadText}>
-                {farm.kyc.person1.aadhaarFront ? 'Aadhaar Front ✓' : 'Upload Aadhaar Front*'}
+                {farm.kyc.person1.idProofFront ? 'ID Proof Front — uploaded' : 'Upload ID Proof Front*'}
               </Text>
             </TouchableOpacity>
-            {errors['person1.aadhaarFront'] && <Text style={styles.error}>{errors['person1.aadhaarFront']}</Text>}
+            {errors['person1.idProofFront'] && <Text style={styles.error}>{errors['person1.idProofFront']}</Text>}
 
             <TouchableOpacity
               style={styles.uploadButton}
-              onPress={() => pickDocument(['kyc', 'person1', 'aadhaarBack'])}
+              onPress={() => pickDocument(['kyc', 'person1', 'idProofBack'])}
             >
-              <Text style={styles.uploadIcon}>⬆️</Text>
+              <Upload size={20} color="#D4AF37" />
               <Text style={styles.uploadText}>
-                {farm.kyc.person1.aadhaarBack ? 'Aadhaar Back ✓' : 'Upload Aadhaar Back*'}
+                {farm.kyc.person1.idProofBack ? 'ID Proof Back — uploaded' : 'Upload ID Proof Back*'}
               </Text>
             </TouchableOpacity>
-            {errors['person1.aadhaarBack'] && <Text style={styles.error}>{errors['person1.aadhaarBack']}</Text>}
+            {errors['person1.idProofBack'] && <Text style={styles.error}>{errors['person1.idProofBack']}</Text>}
           </View>
 
           {/* Person 2 Contact */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>👤 Contact Person 2</Text>
+            <Text style={styles.sectionTitle}>Contact Person 2</Text>
 
             <View style={styles.field}>
               <Text style={styles.label}>Name*</Text>
@@ -205,45 +324,107 @@ export default function KycScreen({ navigation }: KycScreenProps) {
             </View>
 
             <View style={styles.field}>
-              <Text style={styles.label}>Aadhaar Number*</Text>
+              <Text style={styles.label}>PAN Card*</Text>
               <TextInput
-                value={farm.kyc.person2.aadhaarNumber}
-                onChangeText={(text) => updateField(['kyc', 'person2', 'aadhaarNumber'], text.replace(/[^0-9]/g, ''))}
+                value={farm.kyc.person2.panCard}
+                onChangeText={(text) => updateField(['kyc', 'person2', 'panCard'], text.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
                 style={styles.input}
-                placeholder="12-digit Aadhaar number"
+                placeholder="ABCDE1234F"
                 placeholderTextColor="#9CA3AF"
-                keyboardType="number-pad"
-                maxLength={12}
+                autoCapitalize="characters"
+                maxLength={10}
               />
-              {errors['person2.aadhaarNumber'] && <Text style={styles.error}>{errors['person2.aadhaarNumber']}</Text>}
+              {errors['person2.panCard'] && <Text style={styles.error}>{errors['person2.panCard']}</Text>}
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>ID Proof Type*</Text>
+              <View style={styles.idProofTypeContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.idProofTypeButton,
+                    farm.kyc.person2.idProofType === 'driving_license' && styles.idProofTypeButtonActive
+                  ]}
+                  onPress={() => updateField(['kyc', 'person2', 'idProofType'], 'driving_license')}
+                >
+                  <Text style={[
+                    styles.idProofTypeButtonText,
+                    farm.kyc.person2.idProofType === 'driving_license' && styles.idProofTypeButtonTextActive
+                  ]}>
+                    Driving License
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.idProofTypeButton,
+                    farm.kyc.person2.idProofType === 'passport' && styles.idProofTypeButtonActive
+                  ]}
+                  onPress={() => updateField(['kyc', 'person2', 'idProofType'], 'passport')}
+                >
+                  <Text style={[
+                    styles.idProofTypeButtonText,
+                    farm.kyc.person2.idProofType === 'passport' && styles.idProofTypeButtonTextActive
+                  ]}>
+                    Passport
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.idProofTypeButton,
+                    farm.kyc.person2.idProofType === 'voter_id' && styles.idProofTypeButtonActive
+                  ]}
+                  onPress={() => updateField(['kyc', 'person2', 'idProofType'], 'voter_id')}
+                >
+                  <Text style={[
+                    styles.idProofTypeButtonText,
+                    farm.kyc.person2.idProofType === 'voter_id' && styles.idProofTypeButtonTextActive
+                  ]}>
+                    Voter ID
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              {errors['person2.idProofType'] && <Text style={styles.error}>{errors['person2.idProofType']}</Text>}
+            </View>
+
+            <View style={styles.field}>
+              <Text style={styles.label}>ID Proof Number*</Text>
+              <TextInput
+                value={farm.kyc.person2.idProofNumber}
+                onChangeText={(text) => updateField(['kyc', 'person2', 'idProofNumber'], text.toUpperCase())}
+                style={styles.input}
+                placeholder="Enter ID proof number"
+                placeholderTextColor="#9CA3AF"
+                autoCapitalize="characters"
+              />
+              {errors['person2.idProofNumber'] && <Text style={styles.error}>{errors['person2.idProofNumber']}</Text>}
             </View>
 
             <TouchableOpacity
               style={styles.uploadButton}
-              onPress={() => pickDocument(['kyc', 'person2', 'aadhaarFront'])}
+              onPress={() => pickDocument(['kyc', 'person2', 'idProofFront'])}
             >
-              <Text style={styles.uploadIcon}>⬆️</Text>
+              <Upload size={20} color="#D4AF37" />
               <Text style={styles.uploadText}>
-                {farm.kyc.person2.aadhaarFront ? 'Aadhaar Front ✓' : 'Upload Aadhaar Front*'}
+                {farm.kyc.person2.idProofFront ? 'ID Proof Front — uploaded' : 'Upload ID Proof Front*'}
               </Text>
             </TouchableOpacity>
-            {errors['person2.aadhaarFront'] && <Text style={styles.error}>{errors['person2.aadhaarFront']}</Text>}
+            {errors['person2.idProofFront'] && <Text style={styles.error}>{errors['person2.idProofFront']}</Text>}
 
             <TouchableOpacity
               style={styles.uploadButton}
-              onPress={() => pickDocument(['kyc', 'person2', 'aadhaarBack'])}
+              onPress={() => pickDocument(['kyc', 'person2', 'idProofBack'])}
             >
-              <Text style={styles.uploadIcon}>⬆️</Text>
+              <Upload size={20} color="#D4AF37" />
               <Text style={styles.uploadText}>
-                {farm.kyc.person2.aadhaarBack ? 'Aadhaar Back ✓' : 'Upload Aadhaar Back*'}
+                {farm.kyc.person2.idProofBack ? 'ID Proof Back — uploaded' : 'Upload ID Proof Back*'}
               </Text>
             </TouchableOpacity>
-            {errors['person2.aadhaarBack'] && <Text style={styles.error}>{errors['person2.aadhaarBack']}</Text>}
+            {errors['person2.idProofBack'] && <Text style={styles.error}>{errors['person2.idProofBack']}</Text>}
           </View>
 
           {/* Company Details */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🏢 Company Details</Text>
+            <Text style={styles.sectionTitle}>Company Details</Text>
 
             <View style={styles.field}>
               <Text style={styles.label}>PAN Number*</Text>
@@ -263,9 +444,9 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               style={styles.uploadButton}
               onPress={() => pickDocument(['kyc', 'companyPAN'])}
             >
-              <Text style={styles.uploadIcon}>⬆️</Text>
+              <Upload size={20} color="#D4AF37" />
               <Text style={styles.uploadText}>
-                {farm.kyc.companyPAN ? 'Company PAN ✓' : 'Upload Company PAN*'}
+                {farm.kyc.companyPAN ? 'Company PAN — uploaded' : 'Upload Company PAN*'}
               </Text>
             </TouchableOpacity>
             {errors.companyPAN && <Text style={styles.error}>{errors.companyPAN}</Text>}
@@ -274,9 +455,9 @@ export default function KycScreen({ navigation }: KycScreenProps) {
               style={styles.uploadButton}
               onPress={() => pickDocument(['kyc', 'labourDoc'])}
             >
-              <Text style={styles.uploadIcon}>⬆️</Text>
+              <Upload size={20} color="#D4AF37" />
               <Text style={styles.uploadText}>
-                {farm.kyc.labourDoc ? 'Labour License ✓' : 'Upload Labour License*'}
+                {farm.kyc.labourDoc ? 'Labour License — uploaded' : 'Upload Labour License*'}
               </Text>
             </TouchableOpacity>
             {errors.labourDoc && <Text style={styles.error}>{errors.labourDoc}</Text>}
@@ -284,7 +465,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
 
           {/* Bank Details */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>🏦 Bank Details</Text>
+            <Text style={styles.sectionTitle}>Bank Details</Text>
 
             <View style={styles.field}>
               <Text style={styles.label}>Account Holder Name*</Text>
@@ -310,6 +491,7 @@ export default function KycScreen({ navigation }: KycScreenProps) {
                 placeholderTextColor="#9CA3AF"
                 keyboardType="number-pad"
                 maxLength={18}
+                secureTextEntry
               />
               {errors['bankDetails.accountNumber'] && (
                 <Text style={styles.error}>{errors['bankDetails.accountNumber']}</Text>
@@ -322,10 +504,10 @@ export default function KycScreen({ navigation }: KycScreenProps) {
                 value={farm.kyc.bankDetails.ifscCode}
                 onChangeText={(text) => updateField(['kyc', 'bankDetails', 'ifscCode'], text.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
                 style={styles.input}
-                placeholder="Alphanumeric (9-18 chars)"
+                placeholder="e.g., SBIN0001234"
                 placeholderTextColor="#9CA3AF"
                 autoCapitalize="characters"
-                maxLength={18}
+                maxLength={11}
               />
               {errors['bankDetails.ifscCode'] && (
                 <Text style={styles.error}>{errors['bankDetails.ifscCode']}</Text>
@@ -347,14 +529,39 @@ export default function KycScreen({ navigation }: KycScreenProps) {
             </View>
           </View>
 
-          {/* Terms */}
-          <TouchableOpacity style={styles.termsRow} onPress={toggleTerms} activeOpacity={0.7}>
-            <Text style={styles.checkboxIcon}>
-              {farm.kyc.agreedToTerms ? '✅' : '⬜'}
-            </Text>
-            <Text style={styles.termsText}>I agree to terms and conditions*</Text>
-          </TouchableOpacity>
-          {errors.agreedToTerms && <Text style={styles.error}>{errors.agreedToTerms}</Text>}
+          {/* Terms & Conditions */}
+          <View style={styles.termsContainer}>
+            <TouchableOpacity style={styles.termsRow} onPress={toggleTerms} activeOpacity={0.7}>
+              {farm.kyc.agreedToTerms
+                ? <CheckSquare size={22} color="#4CAF50" />
+                : <Square size={22} color="#9CA3AF" />
+              }
+              <Text style={styles.termsText}>I agree to the </Text>
+              <TouchableOpacity onPress={() => setShowTermsModal(true)}>
+                <Text style={styles.termsLink}>Terms & Conditions</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
+            {errors.agreedToTerms && <Text style={styles.error}>{errors.agreedToTerms}</Text>}
+          </View>
+
+          {/* Terms Modal */}
+          <Modal visible={showTermsModal} animationType="slide" transparent>
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalCard}>
+                <Text style={styles.modalTitle}>Terms & Conditions</Text>
+                <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator>
+                  <Text style={styles.modalBody}>{OWNER_TERMS}</Text>
+                </ScrollView>
+                <TouchableOpacity
+                  style={styles.modalClose}
+                  onPress={() => { setShowTermsModal(false); setField(['kyc', 'agreedToTerms'], true); }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.modalCloseText}>I Accept & Close</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Modal>
         </ScrollView>
 
         <View style={styles.footer}>
@@ -390,7 +597,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
   },
   mainTitle: {
     fontSize: 28,
@@ -401,10 +610,10 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 15,
     color: '#6B7280',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   section: {
-    marginBottom: 32,
+    marginBottom: 20,
   },
   sectionTitle: {
     fontSize: 20,
@@ -431,6 +640,36 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontSize: 16,
   },
+  idProofTypeContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  idProofTypeButton: {
+    flex: 1,
+    minWidth: '30%',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  idProofTypeButtonActive: {
+    backgroundColor: '#D4AF37',
+    borderColor: '#D4AF37',
+  },
+  idProofTypeButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    textAlign: 'center',
+  },
+  idProofTypeButtonTextActive: {
+    color: '#FFFFFF',
+  },
   error: {
     marginTop: 4,
     fontSize: 13,
@@ -443,30 +682,74 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#4CAF50',
+    borderColor: '#D4AF37',
     borderRadius: 12,
     marginBottom: 12,
   },
-  uploadIcon: {
-    fontSize: 20,
-  },
+
   uploadText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#1F2937',
   },
+  termsContainer: {
+    marginTop: 8,
+  },
   termsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginTop: 8,
-  },
-  checkboxIcon: {
-    fontSize: 24,
+    flexWrap: 'wrap',
+    gap: 4,
+    marginBottom: 4,
   },
   termsText: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#374151',
+  },
+  termsLink: {
+    fontSize: 15,
+    color: '#4CAF50',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    maxHeight: '85%',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  modalScroll: {
+    maxHeight: 420,
+    marginBottom: 16,
+  },
+  modalBody: {
+    fontSize: 13,
+    color: '#374151',
+    lineHeight: 20,
+  },
+  modalClose: {
+    backgroundColor: '#4CAF50',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  modalCloseText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   footer: {
     flexDirection: 'row',
@@ -491,11 +774,11 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     flex: 1,
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#D4AF37',
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: 'center',
-    shadowColor: '#4CAF50',
+    shadowColor: '#D4AF37',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
