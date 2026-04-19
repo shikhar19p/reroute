@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { ArrowLeft, User, Compass, Home, ChevronRight } from 'lucide-react-native';
 import { useDialog } from '../components/CustomDialog';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useAuth } from '../authContext';
 import { saveSession } from '../sessionManager';
@@ -68,76 +68,29 @@ export default function RoleSelectionScreen({ navigation }: any) {
     setSelectedRole(role);
     setLoading(true);
 
-    try {
-      // Try to save to Firestore
-      try {
-        const userDocRef = doc(db, 'users', user.uid);
-        const userDoc = await getDoc(userDocRef);
+    const userRoles = [...(user.roles || [])];
+    if (!userRoles.includes(role)) userRoles.push(role);
 
-        let existingRoles: ('owner' | 'customer')[] = [];
-        if (userDoc.exists()) {
-          const userData = userDoc.data();
-          if (userData?.roles && Array.isArray(userData.roles)) {
-            existingRoles = userData.roles;
-          } else if (userData?.role) {
-            existingRoles = [userData.role];
-          }
-        }
+    // Save session locally (fast) — don't block navigation on Firestore
+    saveSession({ ...user, role, roles: userRoles }).catch(() => {});
 
-        if (!existingRoles.includes(role)) {
-          existingRoles.push(role);
-        }
+    // Firestore write in background — non-blocking
+    const userDocRef = doc(db, 'users', user.uid);
+    setDoc(userDocRef, {
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName,
+      photoURL: user.photoURL,
+      role,
+      roles: userRoles,
+      updatedAt: new Date().toISOString(),
+    }, { merge: true }).catch((e: any) => console.warn('Could not save role to Firestore:', e.message));
 
-        if (userDoc.exists()) {
-          await setDoc(userDocRef, {
-            ...userDoc.data(),
-            role,
-            roles: existingRoles,
-            updatedAt: new Date().toISOString(),
-          }, { merge: true });
-        } else {
-          await setDoc(userDocRef, {
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName,
-            photoURL: user.photoURL,
-            role,
-            roles: [role],
-            createdAt: new Date().toISOString(),
-          });
-        }
-      } catch (firestoreError: any) {
-        console.warn('Could not save to Firestore:', firestoreError.message);
-      }
-
-      // Update local session with role and roles array
-      const userRoles = user.roles || [];
-      if (!userRoles.includes(role)) {
-        userRoles.push(role);
-      }
-
-      await saveSession({
-        ...user,
-        role,
-        roles: userRoles,
-      });
-
-      setLoading(false);
-
-      if (role === 'customer') {
-        navigation.replace('UserHome');
-      } else if (role === 'owner') {
-        navigation.replace('OwnerNavigator');
-      }
-    } catch (error: any) {
-      console.error('Error setting role:', error);
-      showDialog({
-        title: 'Couldn\'t continue',
-        message: 'Please try again.',
-        type: 'error'
-      });
-      setLoading(false);
-      setSelectedRole(null);
+    // Navigate immediately — no waiting for network
+    if (role === 'customer') {
+      navigation.replace('UserHome');
+    } else {
+      navigation.replace('OwnerNavigator');
     }
   };
 

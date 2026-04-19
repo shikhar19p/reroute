@@ -80,7 +80,7 @@ GENERAL TERMS
 export default function KycScreen({ navigation }: KycScreenProps) {
   const { farm, setField } = useFarmRegistration();
   const { showDialog } = useDialog();
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
 
@@ -466,6 +466,11 @@ export default function KycScreen({ navigation }: KycScreenProps) {
           {/* Bank Details */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Bank Details</Text>
+            <View style={{ backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FED7AA', borderRadius: 8, padding: 12, marginBottom: 16 }}>
+              <Text style={{ fontSize: 13, color: '#92400E', lineHeight: 18 }}>
+                ⚠️ Bank details cannot be changed after registration. Please ensure all details are correct before proceeding.
+              </Text>
+            </View>
 
             <View style={styles.field}>
               <Text style={styles.label}>Account Holder Name*</Text>

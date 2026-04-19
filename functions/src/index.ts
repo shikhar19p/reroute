@@ -564,18 +564,18 @@ export const processRefund = functions.https.onCall(async (data, context) => {
       throw new functions.https.HttpsError('invalid-argument', `Invalid Razorpay payment ID: ${paymentId}`);
     }
 
-    // Cap refund at the booking's total price to prevent over-refunds
+    // Cap refund at booking total to prevent over-refunds
     const bookingTotal = booking?.totalPrice ?? booking?.total_amount ?? amount;
     const safeAmount = Math.min(amount, bookingTotal);
     if (safeAmount <= 0) {
       throw new functions.https.HttpsError('invalid-argument', 'Refund amount must be greater than zero');
     }
 
-    const amountInPaise = Math.round(safeAmount * 100);
+    const requestedPaise = Math.round(safeAmount * 100);
 
-    functions.logger.info('Processing refund:', { paymentId, bookingId, amountInPaise, reason });
+    functions.logger.info('Processing refund:', { paymentId, bookingId, requestedPaise, reason });
 
-    // Verify payment status before attempting refund
+    // Fetch payment to verify status and get actual captured amount
     let payment: any;
     try {
       payment = await getRazorpay().payments.fetch(paymentId);
@@ -584,14 +584,14 @@ export const processRefund = functions.https.onCall(async (data, context) => {
       throw new functions.https.HttpsError('not-found', `Payment not found: ${paymentId}`);
     }
 
-    functions.logger.info('Payment status before refund:', { status: payment.status, paymentId });
+    functions.logger.info('Payment status before refund:', { status: payment.status, amount: payment.amount, amountRefunded: payment.amount_refunded, paymentId });
 
     // If payment is only authorized (not captured), capture it first
     if (payment.status === 'authorized') {
       try {
         await getRazorpay().payments.capture(paymentId, payment.amount, payment.currency);
         functions.logger.info('Payment captured before refund:', { paymentId });
-        // Re-fetch to confirm captured status
+        // Re-fetch to get updated amount fields
         payment = await getRazorpay().payments.fetch(paymentId);
       } catch (captureErr: any) {
         // Authorization expired — no money was ever collected, so no refund is needed
@@ -608,6 +608,19 @@ export const processRefund = functions.https.onCall(async (data, context) => {
     if (payment.status === 'failed') {
       throw new functions.https.HttpsError('failed-precondition', 'Cannot refund a failed payment');
     }
+
+    // Cap by the actual refundable amount from Razorpay:
+    // payment.amount = total captured paise
+    // payment.amount_refunded = paise already refunded (for partial prior refunds)
+    const alreadyRefundedPaise = payment.amount_refunded || 0;
+    const maxRefundablePaise = payment.amount - alreadyRefundedPaise;
+    const amountInPaise = Math.min(requestedPaise, maxRefundablePaise);
+
+    if (amountInPaise <= 0) {
+      throw new functions.https.HttpsError('invalid-argument', 'No refundable amount remaining for this payment');
+    }
+
+    functions.logger.info('Refund amount resolved:', { requestedPaise, maxRefundablePaise, amountInPaise });
 
     let refund: any;
     try {
@@ -637,14 +650,18 @@ export const processRefund = functions.https.onCall(async (data, context) => {
       throw new functions.https.HttpsError('internal', rzpMsg);
     }
 
-    functions.logger.info('Refund processed:', { refundId: refund.id, paymentId, bookingId, amount: amountInPaise });
+    // Use actual confirmed paise from Razorpay response as source of truth
+    const actualRefundPaise: number = refund.amount ?? amountInPaise;
+    const actualRefundRupees = actualRefundPaise / 100;
+
+    functions.logger.info('Refund processed:', { refundId: refund.id, paymentId, bookingId, requestedPaise: amountInPaise, actualPaise: actualRefundPaise });
 
     await db.collection('refunds').add({
       refundId: refund.id,
       paymentId,
       bookingId,
       userId: context.auth.uid,
-      amount: amountInPaise,
+      amount: actualRefundPaise,
       status: refund.status,
       reason,
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -654,6 +671,7 @@ export const processRefund = functions.https.onCall(async (data, context) => {
     await db.collection('bookings').doc(bookingId).update({
       refundStatus,
       razorpayRefundId: refund.id,
+      refundAmount: actualRefundRupees, // overwrite with Razorpay-confirmed amount
       refundDate: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
@@ -666,16 +684,16 @@ export const processRefund = functions.https.onCall(async (data, context) => {
           await sendEmail(
             bData.userEmail,
             refundStatus === 'completed'
-              ? `[Refund] Processed — ₹${amount} | Reroute`
-              : `[Refund] Initiated — ₹${amount} | Reroute`,
-            refundStatusEmail(bData, amount, refund.id, 'processed')
+              ? `[Refund] Processed — ₹${actualRefundRupees} | Reroute`
+              : `[Refund] Initiated — ₹${actualRefundRupees} | Reroute`,
+            refundStatusEmail(bData, actualRefundRupees, refund.id, 'processed')
           );
         }
         if (ADMIN_EMAIL) {
           await sendEmail(
             ADMIN_EMAIL,
             `[Refund] ${refundStatus} — Booking ${bookingId}`,
-            refundStatusEmail(bData, amount, refund.id, 'processed')
+            refundStatusEmail(bData, actualRefundRupees, refund.id, 'processed')
           );
         }
       } catch (emailErr) {
@@ -683,7 +701,7 @@ export const processRefund = functions.https.onCall(async (data, context) => {
       }
     })();
 
-    return { success: true, refundId: refund.id, status: refund.status, amount };
+    return { success: true, refundId: refund.id, status: refund.status, amount: actualRefundRupees };
   } catch (error: any) {
     functions.logger.error('Error processing refund:', error);
     if (error instanceof functions.https.HttpsError) throw error;
@@ -1170,6 +1188,55 @@ export const notifyBankDetailsUpdate = functions.https.onCall(async (data, conte
 
   functions.logger.info('Bank details update email sent:', { farmhouseId, to: BANK_UPDATE_EMAIL });
   return { success: true };
+});
+
+// ─── ingestLogs ───────────────────────────────────────────────────────────────
+// Client-side log ingestion. React Native / web app batches log entries and
+// POSTs them here. Function writes each entry to Google Cloud Logging using
+// functions.logger so all app logs appear in Log Explorer alongside server logs.
+//
+// View in GCP Console → Logging → Log Explorer
+// Filter: jsonPayload.source="client"  OR  jsonPayload.userId="xyz"
+//         OR jsonPayload.level="error"  OR  jsonPayload.category="payment"
+//
+// Auth: simple shared secret in Authorization header.
+// Set with: firebase functions:config:set logging.ingest_key="your-secret-here"
+// Same key goes into LOG_INGEST_KEY in your app's .env / constants.
+export const ingestLogs = functions.https.onRequest(async (req, res) => {
+  // CORS headers — needed for web app
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
+  if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
+
+  // Verify shared secret
+  const ingestKey = process.env.LOG_INGEST_KEY || functions.config().logging?.ingest_key;
+  if (ingestKey) {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+    if (token !== ingestKey) {
+      res.status(401).send('Unauthorized');
+      return;
+    }
+  }
+
+  const entries: any[] = Array.isArray(req.body) ? req.body : [];
+  if (!entries.length) { res.status(200).send({ ok: true, written: 0 }); return; }
+
+  for (const entry of entries) {
+    const { level = 'info', message = '', ...rest } = entry;
+    const payload = { source: 'client', ...rest };
+
+    switch (level) {
+      case 'error': functions.logger.error(message, payload); break;
+      case 'warn':  functions.logger.warn(message, payload);  break;
+      case 'debug': functions.logger.debug(message, payload); break;
+      default:      functions.logger.info(message, payload);  break;
+    }
+  }
+
+  res.status(200).send({ ok: true, written: entries.length });
 });
 
 // ─── Server-side AES-256 helpers ─────────────────────────────────────────────

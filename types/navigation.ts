@@ -62,6 +62,7 @@ export interface Farmhouse {
   reviews: number;
   bookedDates: string[];
   blockedDates?: string[];
+  coordinates?: { lat: number; lng: number };
   createdAt: any;
   approvedAt?: any;
   // Contact information - added for direct calling feature
@@ -128,9 +129,11 @@ export interface UserProfile {
 export type RootStackParamList = {
   Welcome: undefined;
   Login: undefined;
-  RoleChoice: undefined;
+  RoleSelection: undefined;
 
   // Owner
+  OwnerNavigator: undefined;
+  OwnerHome: undefined;
   MyFarmhouses: undefined;
   FarmhouseDetailOwner: { farmhouseId: string };
   EditFarmhouse: { farmhouse: Farmhouse };
@@ -145,10 +148,7 @@ export type RootStackParamList = {
   FarmAmenitiesGames: undefined;
   FarmRulesRestrictions: undefined;
   FarmKyc: undefined;
-
-  // Admin
-  AdminHome: undefined;
-  AdminEditFarm: { farmId: string };
+  RegistrationFee: undefined;
 
   // User
   UserHome: { screen?: string };

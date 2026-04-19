@@ -4,7 +4,7 @@ import {
   Image, ActivityIndicator, TextInput, RefreshControl, Dimensions, Modal
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, User, Phone, Mail, Tag, X, CheckCircle, Square } from 'lucide-react-native';
+import { ArrowLeft, User, Phone, Mail, Tag, X, CheckCircle, Square, Calendar, Clock, Users } from 'lucide-react-native';
 import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { useTheme } from '../../context/ThemeContext';
@@ -229,7 +229,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
       // Set up automatic cleanup after 2 minutes
       cleanupTimeoutRef.current = setTimeout(() => {
         console.log('⏰ 2 minutes elapsed, cleaning up pending booking...');
-        cleanupPendingBooking(bookingId).catch(error => {
+        cleanupPendingBooking(bookingId!).catch(error => {
           console.error('Failed to auto-cleanup:', error);
         });
       }, 2 * 60 * 1000); // 2 minutes
@@ -418,6 +418,53 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
           <View style={styles.farmhouseInfo}>
             <Text style={[styles.farmhouseName, { color: colors.text }]}>{displayName}</Text>
             <Text style={[styles.farmhouseLocation, { color: colors.placeholder }]}>{displayLocation}</Text>
+          </View>
+        </View>
+
+        <View style={[styles.stayCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Stay Details</Text>
+          <View style={styles.stayDatesRow}>
+            <View style={styles.stayDateBox}>
+              <View style={[styles.stayDateBadge, { backgroundColor: '#10B981' }]}>
+                <Text style={styles.stayDateBadgeText}>CHECK-IN</Text>
+              </View>
+              <Text style={[styles.stayDateText, { color: colors.text }]}>
+                {new Date(startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </Text>
+              <View style={styles.stayTimeRow}>
+                <Clock size={13} color={colors.placeholder} />
+                <Text style={[styles.stayTimeText, { color: colors.placeholder }]}>
+                  {bookingType === 'day-use' ? '9:00 AM' : '12:00 PM'}
+                </Text>
+              </View>
+            </View>
+            <View style={[styles.stayArrow, { backgroundColor: colors.border }]} />
+            <View style={styles.stayDateBox}>
+              <View style={[styles.stayDateBadge, { backgroundColor: '#F59E0B' }]}>
+                <Text style={styles.stayDateBadgeText}>CHECK-OUT</Text>
+              </View>
+              <Text style={[styles.stayDateText, { color: colors.text }]}>
+                {new Date(endDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+              </Text>
+              <View style={styles.stayTimeRow}>
+                <Clock size={13} color={colors.placeholder} />
+                <Text style={[styles.stayTimeText, { color: colors.placeholder }]}>6:00 PM</Text>
+              </View>
+            </View>
+          </View>
+          <View style={[styles.stayMeta, { borderTopColor: colors.border }]}>
+            <View style={styles.stayMetaItem}>
+              <Calendar size={15} color={colors.placeholder} />
+              <Text style={[styles.stayMetaText, { color: colors.placeholder }]}>
+                {bookingType === 'day-use' ? 'Day Use' : `${numberOfNights} night${numberOfNights !== 1 ? 's' : ''}`}
+              </Text>
+            </View>
+            <View style={styles.stayMetaItem}>
+              <Users size={15} color={colors.placeholder} />
+              <Text style={[styles.stayMetaText, { color: colors.placeholder }]}>
+                {guestCount} guest{guestCount !== 1 ? 's' : ''}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -651,6 +698,18 @@ const styles = StyleSheet.create({
   farmhouseInfo: { gap: 4 },
   farmhouseName: { fontSize: 18, fontWeight: '600' },
   farmhouseLocation: { fontSize: 14 },
+  stayCard: { padding: 20, borderRadius: 12, borderWidth: 1, marginBottom: 16 },
+  stayDatesRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  stayDateBox: { flex: 1, alignItems: 'center', gap: 6 },
+  stayDateBadge: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 },
+  stayDateBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '700', letterSpacing: 0.5 },
+  stayDateText: { fontSize: 14, fontWeight: '600', textAlign: 'center' },
+  stayTimeRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  stayTimeText: { fontSize: 12 },
+  stayArrow: { width: 1, height: 60, marginHorizontal: 4 },
+  stayMeta: { flexDirection: 'row', gap: 20, borderTopWidth: 1, paddingTop: 12 },
+  stayMetaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  stayMetaText: { fontSize: 13 },
   billingCard: { padding: 20, borderRadius: 12, borderWidth: 1, marginBottom: 16 },
   sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
   billingRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },

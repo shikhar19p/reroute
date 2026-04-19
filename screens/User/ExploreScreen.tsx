@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet, StatusBar,
   Modal, TextInput, FlatList, Share, ActivityIndicator, RefreshControl,
-  useWindowDimensions,
+  useWindowDimensions, Platform,
 } from 'react-native';
 import AnimatedImage from '../../components/AnimatedImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -677,7 +677,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     minWidth: 0, // Allow shrinking
   },
-  searchInput: { flex: 1, fontSize: 14, minWidth: 0 },
+  searchInput: { flex: 1, fontSize: Platform.OS === 'web' ? 16 : 14, minWidth: 0 },
   iconButton: {
     width: isSmallDevice() ? 40 : 44,
     height: isSmallDevice() ? 40 : 44,

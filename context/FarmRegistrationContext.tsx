@@ -460,4 +460,3 @@ export const useFarmRegistration = () => {
   return context;
 };
 
-export const getInitialFarm = () => createInitialFarm();

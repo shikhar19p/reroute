@@ -1,6 +1,8 @@
 import { initializeApp } from 'firebase/app';
-import { initializeAuth, getReactNativePersistence, getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeAuth, getAuth } from 'firebase/auth';
+// @ts-ignore — getReactNativePersistence is exported at runtime but missing from some type versions
+import { getReactNativePersistence } from 'firebase/auth';
+import { initializeFirestore, persistentLocalCache, memoryLocalCache } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { Platform } from 'react-native';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
@@ -51,5 +53,8 @@ export const auth = Platform.OS === 'web'
   : initializeAuth(app, {
       persistence: getReactNativePersistence(ReactNativeAsyncStorage),
     });
-export const db = getFirestore(app);
+// Persistent cache on web (IndexedDB); memory cache on native (JS SDK lacks RN persistence)
+export const db = initializeFirestore(app, {
+  localCache: Platform.OS === 'web' ? persistentLocalCache() : memoryLocalCache(),
+});
 export const storage = getStorage(app);

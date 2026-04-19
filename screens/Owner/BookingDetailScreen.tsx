@@ -164,8 +164,7 @@ export default function OwnerBookingDetailScreen({ route, navigation }: Props) {
           <View style={styles.infoRow}>
             <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Payment Status</Text>
             <View style={[styles.paymentBadge, {
-              backgroundColor: booking.paymentStatus === 'paid' ? '#10B981' :
-                             booking.paymentStatus === 'failed' ? '#EF4444' : '#F59E0B'
+              backgroundColor: booking.paymentStatus === 'paid' ? '#10B981' : '#F59E0B'
             }]}>
               <Text style={styles.paymentBadgeText}>
                 {(booking.paymentStatus || 'pending').toUpperCase()}

@@ -107,7 +107,7 @@ export async function getMonthAvailability(
     const snapshot = await getDocs(q);
     const bookings = snapshot.docs.map(doc => ({
       id: doc.id,
-      ...doc.data()
+      ...doc.data() as { checkInDate: string; checkOutDate: string },
     }));
 
     // Generate availability for each day

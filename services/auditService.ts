@@ -30,7 +30,11 @@ export type AuditAction =
   | 'favorite_removed'
   | 'security_violation'
   | 'data_export'
-  | 'admin_action';
+  | 'admin_action'
+  | 'admin_created'
+  | 'admin_permissions_updated'
+  | 'admin_revoked'
+  | 'role_switched';
 
 export interface AuditLogEntry {
   id?: string;

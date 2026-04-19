@@ -24,7 +24,6 @@ import { db, storage } from '../../firebaseConfig';
 import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useDialog } from '../../components/CustomDialog';
-// Bank detail encryption/decryption is handled server-side via Cloud Functions
 import { getFunctions, httpsCallable } from 'firebase/functions';
 
 type RootStackParamList = {
@@ -152,21 +151,16 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
     // Rules
     petsNotAllowed: farmhouse.rules?.pets === false,
     additionalRules: rawData.rules?.additionalRules || rawData.rules?.customRules || '',
-    // Bank Details — populated after CF decryption call below
-    accountHolderName: rawData.kyc?.bankDetails?.accountHolderName || '',
-    accountNumber: '',
-    ifscCode: '',
-    branchName: rawData.kyc?.bankDetails?.branchName || '',
     photos: farmhouse.photos || [],
   });
 
-  // Fetch decrypted bank details from server on mount
-  const [bankDetailsLoading, setBankDetailsLoading] = React.useState(true);
-  const originalBankDetails = React.useRef({
+  const [bankDisplay, setBankDisplay] = React.useState({
     accountHolderName: rawData.kyc?.bankDetails?.accountHolderName || '',
     accountNumber: '',
     ifscCode: '',
     branchName: rawData.kyc?.bankDetails?.branchName || '',
+    loaded: false,
+    failed: false,
   });
 
   React.useEffect(() => {
@@ -174,22 +168,18 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
     getBankDetailsFn({ farmhouseId: farmhouse.id })
       .then((result: any) => {
         const bd = result.data?.bankDetails;
-        if (bd) {
-          const accountNumber = bd.accountNumber || '';
-          const ifscCode = bd.ifscCode || '';
-          setFormData(prev => ({ ...prev, accountNumber, ifscCode }));
-          originalBankDetails.current = {
-            accountHolderName: bd.accountHolderName || rawData.kyc?.bankDetails?.accountHolderName || '',
-            accountNumber,
-            ifscCode,
-            branchName: bd.branchName || rawData.kyc?.bankDetails?.branchName || '',
-          };
-        }
+        setBankDisplay({
+          accountHolderName: bd?.accountHolderName || rawData.kyc?.bankDetails?.accountHolderName || '',
+          accountNumber: bd?.accountNumber || '',
+          ifscCode: bd?.ifscCode || '',
+          branchName: bd?.branchName || rawData.kyc?.bankDetails?.branchName || '',
+          loaded: true,
+          failed: false,
+        });
       })
-      .catch((err) => {
-        console.error('Could not load bank details:', err);
-      })
-      .finally(() => setBankDetailsLoading(false));
+      .catch(() => {
+        setBankDisplay(prev => ({ ...prev, loaded: true, failed: true }));
+      });
   }, [farmhouse.id]);
 
   const updateField = (field: string, value: any) => {
@@ -379,15 +369,6 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
     return true;
   };
 
-  const isBankDetailsChanged = () => {
-    return (
-      formData.accountHolderName.trim() !== originalBankDetails.current.accountHolderName ||
-      formData.accountNumber.trim() !== originalBankDetails.current.accountNumber ||
-      formData.ifscCode.trim().toUpperCase() !== originalBankDetails.current.ifscCode.toUpperCase() ||
-      formData.branchName.trim() !== originalBankDetails.current.branchName
-    );
-  };
-
   const handleSave = async () => {
     if (!validateForm()) return;
 
@@ -395,27 +376,6 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
       setLoading(true);
 
       const farmhouseRef = doc(db, 'farmhouses', farmhouse.id);
-
-      const accountNumberTrimmed = formData.accountNumber.trim();
-      const ifscCodeTrimmed = formData.ifscCode.trim().toUpperCase();
-
-      let encryptedAccountNumber = rawData.kyc?.bankDetails?.accountNumber || '';
-      let encryptedIFSC = rawData.kyc?.bankDetails?.ifscCode || '';
-
-      if (accountNumberTrimmed && ifscCodeTrimmed) {
-        const encryptBankDetailsFn = httpsCallable<
-          { accountNumber: string; ifscCode: string },
-          { encryptedAccountNumber: string; encryptedIFSC: string }
-        >(getFunctions(), 'encryptBankDetails');
-        const encResult = await encryptBankDetailsFn({
-          accountNumber: accountNumberTrimmed,
-          ifscCode: ifscCodeTrimmed,
-        });
-        encryptedAccountNumber = encResult.data.encryptedAccountNumber;
-        encryptedIFSC = encResult.data.encryptedIFSC;
-      }
-
-      const bankChanged = isBankDetailsChanged();
 
       const updateData: Record<string, any> = {
         'basicDetails.name': formData.name.trim(),
@@ -458,31 +418,11 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
         // Rules
         'rules.petsNotAllowed': formData.petsNotAllowed,
         'rules.additionalRules': formData.additionalRules.trim(),
-        // Bank Details
-        'kyc.bankDetails.accountHolderName': formData.accountHolderName.trim(),
-        'kyc.bankDetails.accountNumber': encryptedAccountNumber,
-        'kyc.bankDetails.ifscCode': encryptedIFSC,
-        'kyc.bankDetails.branchName': formData.branchName.trim(),
-        'kyc.bankDetails.encrypted': true,
         photoUrls: formData.photos,
         updatedAt: new Date().toISOString(),
       };
 
       await updateDoc(farmhouseRef, updateData);
-
-      // Notify admin if bank details changed
-      if (bankChanged) {
-        try {
-          const functions = getFunctions();
-          const notifyBankUpdate = httpsCallable(functions, 'notifyBankDetailsUpdate');
-          await notifyBankUpdate({
-            farmhouseId: farmhouse.id,
-            farmhouseName: formData.name.trim(),
-          });
-        } catch (emailErr) {
-          console.warn('Bank details notification failed (non-fatal):', emailErr);
-        }
-      }
 
       showDialog({
         title: 'Success',
@@ -827,60 +767,53 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
             </View>
           </View>
 
-          {/* Bank Account Details */}
+          {/* Bank Account Details — read-only */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Bank Account Details</Text>
             <Text style={[styles.bankNote, { color: colors.placeholder }]}>
-              These details are used for payouts. Changes will be notified to admin for verification.
+              Bank details cannot be changed after registration. Contact support to update.
             </Text>
 
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>Account Holder Name</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
-                value={formData.accountHolderName}
-                onChangeText={(text) => updateField('accountHolderName', text)}
-                placeholder="As per bank records"
-                placeholderTextColor={colors.placeholder}
-              />
-            </View>
+            {!bankDisplay.loaded ? (
+              <ActivityIndicator color={colors.buttonBackground} style={{ marginVertical: 12 }} />
+            ) : bankDisplay.failed ? (
+              <Text style={[styles.bankNote, { color: '#EF4444' }]}>
+                Could not load bank details. Please check your connection.
+              </Text>
+            ) : (
+              <>
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.label, { color: colors.text }]}>Account Holder Name</Text>
+                  <View style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                    <Text style={{ color: colors.text, fontSize: 16 }}>{bankDisplay.accountHolderName || '—'}</Text>
+                  </View>
+                </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: colors.text }]}>Account Number</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
-                value={formData.accountNumber}
-                onChangeText={(text) => updateField('accountNumber', text.replace(/[^0-9]/g, ''))}
-                placeholder="Enter account number"
-                placeholderTextColor={colors.placeholder}
-                keyboardType="number-pad"
-              />
-            </View>
+                <View style={styles.inputGroup}>
+                  <Text style={[styles.label, { color: colors.text }]}>Account Number</Text>
+                  <View style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                    <Text style={{ color: colors.text, fontSize: 16 }}>
+                      {bankDisplay.accountNumber ? `••••${bankDisplay.accountNumber.slice(-4)}` : '—'}
+                    </Text>
+                  </View>
+                </View>
 
-            <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                <Text style={[styles.label, { color: colors.text }]}>IFSC Code</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
-                  value={formData.ifscCode}
-                  onChangeText={(text) => updateField('ifscCode', text.toUpperCase())}
-                  placeholder="e.g., SBIN0001234"
-                  placeholderTextColor={colors.placeholder}
-                  autoCapitalize="characters"
-                  maxLength={11}
-                />
-              </View>
-              <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                <Text style={[styles.label, { color: colors.text }]}>Branch Name</Text>
-                <TextInput
-                  style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
-                  value={formData.branchName}
-                  onChangeText={(text) => updateField('branchName', text)}
-                  placeholder="Branch name"
-                  placeholderTextColor={colors.placeholder}
-                />
-              </View>
-            </View>
+                <View style={styles.row}>
+                  <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+                    <Text style={[styles.label, { color: colors.text }]}>IFSC Code</Text>
+                    <View style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                      <Text style={{ color: colors.text, fontSize: 16 }}>{bankDisplay.ifscCode || '—'}</Text>
+                    </View>
+                  </View>
+                  <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+                    <Text style={[styles.label, { color: colors.text }]}>Branch Name</Text>
+                    <View style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                      <Text style={{ color: colors.text, fontSize: 16 }}>{bankDisplay.branchName || '—'}</Text>
+                    </View>
+                  </View>
+                </View>
+              </>
+            )}
           </View>
 
         </ScrollView>

@@ -17,6 +17,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { Farmhouse } from '../types/navigation';
+export type { Farmhouse };
 
 // Helper function to convert a string to Title Case
 const toTitleCase = (str: string): string => {
@@ -41,8 +42,8 @@ export const convertFarmhouseData = (id: string, data: any): Farmhouse => {
     const match = basicDetails.mapLink.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
     if (match) {
       coordinates = {
-        latitude: parseFloat(match[1]),
-        longitude: parseFloat(match[2]),
+        lat: parseFloat(match[1]),
+        lng: parseFloat(match[2]),
       };
     }
   }

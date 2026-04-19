@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,57 +8,162 @@ import {
   StatusBar,
   Dimensions,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ChevronRight } from 'lucide-react-native';
+import * as Google from 'expo-auth-session/providers/google';
+import * as AuthSession from 'expo-auth-session';
+import * as WebBrowser from 'expo-web-browser';
+import Constants from 'expo-constants';
+import { GoogleAuthProvider, signInWithCredential, signInWithPopup } from 'firebase/auth';
+import { auth } from '../firebaseConfig';
+
+WebBrowser.maybeCompleteAuthSession();
 
 const { width, height } = Dimensions.get('window');
 
+const WEB_CLIENT_ID = '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com';
+const isExpoGo = Constants.executionEnvironment === 'storeClient';
+// Expo Go needs the Expo auth proxy URI (fixed, registered in Google Console).
+// Standalone/bare builds use their own scheme — no proxy needed.
+const redirectUri = AuthSession.makeRedirectUri(
+  isExpoGo ? ({ useProxy: true } as any) : {}
+);
+
 export default function WelcomeScreen({ navigation }: any) {
+  const [loading, setLoading] = useState(false);
+  const [signInError, setSignInError] = useState<string | null>(null);
+
+  const [, response, promptAsync] = Google.useAuthRequest({
+    webClientId: WEB_CLIENT_ID,
+    androidClientId: WEB_CLIENT_ID,
+    selectAccount: true,
+    redirectUri,
+  });
+
+  useEffect(() => {
+    if (Platform.OS === 'web' || !isExpoGo || !response) return;
+    if (response.type === 'success') {
+      // Tokens may be in `authentication` (implicit flow) or `params` (code flow)
+      const idToken =
+        response.authentication?.idToken ||
+        (response as any).params?.id_token ||
+        null;
+      const accessToken =
+        response.authentication?.accessToken ||
+        (response as any).params?.access_token ||
+        null;
+
+      if (!idToken && !accessToken) {
+        setSignInError('Google sign-in returned no credentials. Please try again.');
+        setLoading(false);
+        return;
+      }
+      const credential = GoogleAuthProvider.credential(idToken, accessToken);
+      signInWithCredential(auth, credential)
+        .then(() => setLoading(false))
+        .catch((err: any) => {
+          setSignInError(err?.message || 'Sign-in failed. Please try again.');
+          setLoading(false);
+        });
+    } else if (response.type === 'dismiss') {
+      setLoading(false);
+    } else {
+      setSignInError('Google sign-in was cancelled or failed.');
+      setLoading(false);
+    }
+  }, [response]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' && !isExpoGo) {
+      const { GoogleSignin } = require('@react-native-google-signin/google-signin');
+      GoogleSignin.configure({ webClientId: WEB_CLIENT_ID });
+      GoogleSignin.signOut().catch(() => {});
+    }
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    setSignInError(null);
+    setLoading(true);
+    if (Platform.OS === 'web') {
+      try {
+        const provider = new GoogleAuthProvider();
+        await signInWithPopup(auth, provider);
+        setLoading(false);
+      } catch (err: any) {
+        const msg = err?.code === 'auth/popup-blocked'
+          ? 'Pop-up was blocked. Please allow pop-ups for this site and try again.'
+          : err?.message || 'Google sign-in failed.';
+        setSignInError(msg);
+        setLoading(false);
+      }
+    } else if (isExpoGo) {
+      await promptAsync();
+      // credential handling done in the response useEffect above
+    } else {
+      try {
+        const { GoogleSignin } = require('@react-native-google-signin/google-signin');
+        GoogleSignin.configure({ webClientId: WEB_CLIENT_ID });
+        await GoogleSignin.hasPlayServices();
+        const result = await GoogleSignin.signIn();
+        const idToken = result.idToken || result.data?.idToken;
+        if (!idToken) throw new Error('No ID token returned from Google.');
+        const credential = GoogleAuthProvider.credential(idToken);
+        await signInWithCredential(auth, credential);
+        // Keep loading=true — onAuthStateChanged will navigate away automatically
+      } catch (err: any) {
+        if (err?.code !== 'SIGN_IN_CANCELLED') {
+          setSignInError(err?.message || 'Google sign-in failed.');
+        }
+        setLoading(false);
+      }
+    }
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
-      
-      {/* Background Image */}
+
       <ImageBackground
         source={require('../assets/farmhouse-bg.jpg')}
         style={styles.backgroundImage}
         resizeMode="cover"
       >
-        {/* Gradient Overlay */}
         <LinearGradient
           colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.25)']}
           style={styles.gradient}
         >
-          {/* Top Section - 60% */}
           <View style={styles.topSection}>
             <View style={styles.headerContainer}>
-              <Text style={styles.welcomeText}>REROUTE ADVENTURES</Text>
+              <Text style={styles.welcomeText}>REROUTE AVENTURES</Text>
               <Text style={styles.premierText}>PREMIER ESCAPES</Text>
             </View>
           </View>
 
-          {/* Bottom Section - 40% */}
           <View style={styles.bottomSection}>
             <View style={styles.contentCard}>
               <Text style={styles.tagline}>Find your perfect retreat.</Text>
-              
-              <TouchableOpacity
-                style={styles.exploreButton}
-                onPress={() => navigation.navigate('Login')}
-                activeOpacity={0.9}
-              >
-                <Text style={styles.exploreButtonText}>Explore Unique Stays</Text>
-                <ChevronRight size={20} color="#FFF" />
-              </TouchableOpacity>
+
+              {signInError ? (
+                <Text style={styles.errorText}>{signInError}</Text>
+              ) : null}
 
               <TouchableOpacity
-                onPress={() => navigation.navigate('Login')}
-                activeOpacity={0.7}
+                style={[styles.googleButton, loading && styles.googleButtonDisabled]}
+                onPress={handleGoogleSignIn}
+                activeOpacity={0.9}
+                disabled={loading}
               >
-                <Text style={styles.signInText}>
-                  Already have or account? <Text style={styles.signInLink}>Sign in</Text>
-                </Text>
+                {loading ? (
+                  <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                  <>
+                    <Text style={styles.googleIcon}>G</Text>
+                    <Text style={styles.googleButtonText}>Continue with Google</Text>
+                    <ChevronRight size={20} color="#FFF" />
+                  </>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -83,7 +188,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   topSection: {
-    flex: 1.5, // 60% of screen
+    flex: 1.5,
     justifyContent: 'flex-start',
     alignItems: 'center',
     paddingTop: 100,
@@ -117,7 +222,7 @@ const styles = StyleSheet.create({
     }),
   },
   bottomSection: {
-    flex: 1, // 40% of screen
+    flex: 1,
     justifyContent: 'flex-end',
     paddingBottom: 50,
     paddingHorizontal: 20,
@@ -138,11 +243,19 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '400',
     color: '#000',
-    marginBottom: 32,
+    marginBottom: 24,
     textAlign: 'center',
     letterSpacing: 0.5,
   },
-  exploreButton: {
+  errorText: {
+    fontFamily: 'Inter_400Regular',
+    fontSize: 13,
+    color: '#EF4444',
+    textAlign: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 8,
+  },
+  googleButton: {
     backgroundColor: '#D4AF37',
     paddingVertical: 16,
     paddingHorizontal: 32,
@@ -151,32 +264,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 20,
+    gap: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
   },
-  exploreButtonText: {
-    //fontFamily: 'Seasons-Regular',
+  googleButtonDisabled: {
+    opacity: 0.7,
+  },
+  googleIcon: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  googleButtonText: {
     color: '#FFF',
     fontSize: 16,
     fontWeight: '500',
-    marginRight: 6,
     letterSpacing: 0.5,
-  },
-
-  signInText: {
-    //fontFamily: 'Seasons-Light',
-    fontSize: 13,
-    color: '#999',
+    flex: 1,
     textAlign: 'center',
-    letterSpacing: 0.3,
-  },
-  signInLink: {
-    //fontFamily: 'Seasons-Regular',
-    color: '#D4AF37',
-    fontWeight: '500',
   },
 });

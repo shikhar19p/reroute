@@ -58,8 +58,8 @@ export const APP_INFO = {
   
   // Contact Info
   contact: {
-    phone: '+91-XXXXXXXXXX',
-    email: 'support@reroute.app',
+    phone: '+91 82803 53535',
+    email: 'rustiquebyranareddy@gmail.com',
     address: 'Your Company Address Here',
   },
 };

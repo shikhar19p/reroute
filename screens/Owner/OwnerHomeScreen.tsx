@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,14 +6,23 @@ import {
   TouchableOpacity,
   StatusBar,
   ScrollView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { LogOut, Home, PlusCircle, Images, CalendarCheck, Banknote, ShieldCheck } from 'lucide-react-native';
+import { LogOut, Home, PlusCircle, Images, CalendarCheck, Banknote, ShieldCheck, FileText, ChevronRight } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
 import { getResponsivePadding, isSmallDevice } from '../../utils/responsive';
+
+async function storageGet(key: string): Promise<string | null> {
+  if (Platform.OS === 'web') {
+    try { return localStorage.getItem(key); } catch { return null; }
+  }
+  const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+  return AsyncStorage.getItem(key);
+}
 
 type RootStackParamList = {
   OwnerHome: undefined;
@@ -26,6 +35,22 @@ type Props = NativeStackScreenProps<RootStackParamList, 'OwnerHome'>;
 export default function OwnerHomeScreen({ navigation }: Props) {
   const { user, logout } = useAuth();
   const { colors, isDark } = useTheme();
+  const [draftInfo, setDraftInfo] = useState<{ name: string } | null>(null);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    storageGet(`farm_registration_draft_${user.uid}`).then(raw => {
+      if (!raw) return;
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          setDraftInfo({ name: parsed.name || 'Untitled property' });
+        }
+      } catch {
+        setDraftInfo({ name: 'Untitled property' });
+      }
+    });
+  }, [user?.uid]);
 
   const handleAddFarmhouse = () => {
     navigation.navigate('FarmBasicDetails' as never);
@@ -55,6 +80,26 @@ export default function OwnerHomeScreen({ navigation }: Props) {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Draft Banner */}
+        {draftInfo && (
+          <TouchableOpacity
+            style={[styles.draftBanner, { backgroundColor: isDark ? '#1c1a10' : '#FFFBEB', borderColor: '#D4AF37' }]}
+            onPress={handleAddFarmhouse}
+            activeOpacity={0.8}
+          >
+            <View style={styles.draftIconWrap}>
+              <FileText size={22} color="#D4AF37" />
+            </View>
+            <View style={styles.draftText}>
+              <Text style={[styles.draftTitle, { color: colors.text }]}>Continue Draft</Text>
+              <Text style={[styles.draftSub, { color: colors.placeholder }]} numberOfLines={1}>
+                {draftInfo.name}
+              </Text>
+            </View>
+            <ChevronRight size={20} color="#D4AF37" />
+          </TouchableOpacity>
+        )}
+
         {/* Hero Section */}
         <View style={styles.heroSection}>
           <LinearGradient
@@ -196,6 +241,29 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 20,
   },
+  draftBanner: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 4,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  draftIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(212,175,55,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  draftText: { flex: 1 },
+  draftTitle: { fontSize: 15, fontWeight: '600', marginBottom: 2 },
+  draftSub: { fontSize: 13 },
   heroSection: {
     marginHorizontal: 20,
     marginTop: 10,
