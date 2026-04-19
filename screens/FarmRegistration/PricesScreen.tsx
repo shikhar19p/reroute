@@ -40,7 +40,7 @@ const DAY_NAMES = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 export default function PricesScreen({ navigation }: PricesScreenProps) {
   const { farm, setField } = useFarmRegistration();
   const { showDialog } = useDialog();
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [datePickerIndex, setDatePickerIndex] = useState<number | null>(null);
   const [viewDate, setViewDate] = useState(new Date());
 

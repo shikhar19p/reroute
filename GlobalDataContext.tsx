@@ -34,10 +34,10 @@ export interface Booking {
   couponCode?: string | null;
   bookingType: 'dayuse' | 'overnight';
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'draft';
-  paymentStatus: 'pending' | 'paid' | 'refunded';
+  paymentStatus: 'pending' | 'paid' | 'refunded' | 'failed';
   paymentMethod?: string;
   transactionId?: string;
-  createdAt: string;
+  createdAt: any;
   updatedAt?: string;
 }
 
@@ -97,13 +97,13 @@ interface DataState {
 }
 
 interface GlobalDataContextType extends DataState {
-  refreshMyBookings: () => Promise<void>;
-  refreshAvailableFarmhouses: () => Promise<void>;
-  refreshMyFarmhouses: () => Promise<void>;
-  refreshAllBookings: () => Promise<void>;
-  refreshReviews: (farmhouseId?: string) => Promise<void>;
-  refreshCoupons: () => Promise<void>;
-  refreshWishlist: () => Promise<void>;
+  refreshMyBookings: () => void;
+  refreshAvailableFarmhouses: () => void;
+  refreshMyFarmhouses: () => void;
+  refreshAllBookings: () => void;
+  refreshReviews: (farmhouseId?: string) => void;
+  refreshCoupons: () => void;
+  refreshWishlist: () => void;
   refreshAll: () => Promise<void>;
   getFarmhouseById: (id: string) => Farmhouse | undefined;
   getBookingById: (id: string) => Booking | undefined;
@@ -350,7 +350,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     myBookingsLoading: true,
     availableFarmhousesLoading: true,
     myFarmhousesLoading: true,
-    allBookingsLoading: true,
+    allBookingsLoading: false,
     reviewsLoading: false,
     couponsLoading: true,
     wishlistLoading: false,
@@ -370,7 +370,8 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     wishlistError: null,
   });
 
-  const [refreshTriggers, setRefreshTriggers] = useState({
+  // refreshTriggers only needed for manual force-reconnect; onSnapshot handles live updates automatically
+  const [refreshTriggers] = useState({
     myBookings: 0,
     availableFarmhouses: 0,
     myFarmhouses: 0,
@@ -579,39 +580,34 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
 
   // ==================== REFRESH FUNCTIONS ====================
 
+  // onSnapshot listeners are live — "refresh" just clears the refreshing flag.
+  // Data propagates automatically; no need to tear down and recreate listeners.
   const refreshMyBookings = useCallback(() => {
-    setState(prev => ({ ...prev, myBookingsRefreshing: true }));
-    setRefreshTriggers(prev => ({ ...prev, myBookings: prev.myBookings + 1 }));
+    setState(prev => ({ ...prev, myBookingsRefreshing: false }));
   }, []);
 
   const refreshAvailableFarmhouses = useCallback(() => {
-    setState(prev => ({ ...prev, availableFarmhousesRefreshing: true }));
-    setRefreshTriggers(prev => ({ ...prev, availableFarmhouses: prev.availableFarmhouses + 1 }));
+    setState(prev => ({ ...prev, availableFarmhousesRefreshing: false }));
   }, []);
 
   const refreshMyFarmhouses = useCallback(() => {
-    setState(prev => ({ ...prev, myFarmhousesRefreshing: true }));
-    setRefreshTriggers(prev => ({ ...prev, myFarmhouses: prev.myFarmhouses + 1 }));
+    setState(prev => ({ ...prev, myFarmhousesRefreshing: false }));
   }, []);
 
   const refreshAllBookings = useCallback(() => {
-    setState(prev => ({ ...prev, allBookingsRefreshing: true }));
-    setRefreshTriggers(prev => ({ ...prev, allBookings: prev.allBookings + 1 }));
+    setState(prev => ({ ...prev, allBookingsRefreshing: false }));
   }, []);
 
   const refreshReviews = useCallback((_farmhouseId?: string) => {
-    setState(prev => ({ ...prev, reviewsRefreshing: true }));
-    setRefreshTriggers(prev => ({ ...prev, reviews: prev.reviews + 1 }));
+    setState(prev => ({ ...prev, reviewsRefreshing: false }));
   }, []);
 
   const refreshCoupons = useCallback(() => {
-    setState(prev => ({ ...prev, couponsRefreshing: true }));
-    setRefreshTriggers(prev => ({ ...prev, coupons: prev.coupons + 1 }));
+    setState(prev => ({ ...prev, couponsRefreshing: false }));
   }, []);
 
   const refreshWishlist = useCallback(() => {
-    setState(prev => ({ ...prev, wishlistRefreshing: true }));
-    setRefreshTriggers(prev => ({ ...prev, wishlist: prev.wishlist + 1 }));
+    setState(prev => ({ ...prev, wishlistRefreshing: false }));
   }, []);
 
   const refreshAll = useCallback(async () => {

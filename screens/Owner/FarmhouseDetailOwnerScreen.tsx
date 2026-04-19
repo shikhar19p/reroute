@@ -144,11 +144,11 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
   };
 
   const goToBookings = () => {
-    navigation.navigate('OwnerBookings' as never, { farmhouseId } as never);
+    (navigation as any).navigate('OwnerBookings', { farmhouseId });
   };
 
   const goToBlockedDates = () => {
-    navigation.navigate('ManageBlockedDates' as never, { farmhouseId } as never);
+    (navigation as any).navigate('ManageBlockedDates', { farmhouseId });
   };
 
   if (loading) {

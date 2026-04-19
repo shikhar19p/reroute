@@ -28,7 +28,19 @@
       "Bash(grep -v \"//.*[🏡✅❌⚠💰📍⭐📱🔄💳🎯🚀💡🏠📋🔗📅👤🌟🌿🏅📊💸🎪🛎🔒📜🤝🎨📸]\")",
       "Bash(grep -v \"console\\\\.\\\\|//\")",
       "Bash(git merge *)",
-      "Bash(git stash *)"
+      "Bash(git stash *)",
+      "Bash(git ls-tree *)",
+      "Bash(npx expo *)",
+      "Bash(npx firebase-tools *)",
+      "Bash(xargs grep *)",
+      "Bash(grep -E \"\\(package\\\\.json|tsconfig|\\\\.tsx$|\\\\.ts$\\)\")",
+      "Bash(grep -r \"console\\\\.\" /d/reroute --include=\"*.ts\" --include=\"*.tsx\" ! -path \"*/node_modules/*\" ! -path \"*/functions/*\")",
+      "Bash(grep -rE \"^export \\(function|const|interface|type|class\\)\" /d/reroute --include=\"*.ts\" --include=\"*.tsx\" ! -path \"*/node_modules/*\" ! -path \"*/functions/*\")",
+      "Bash(node --stack-size=65536 node_modules/typescript/bin/tsc --noEmit --skipLibCheck)",
+      "Bash(grep -n \"calculateTotalPrice\\\\|totalPrice\\\\|paise\\\\|100$\\\\|\\\\* 100\" D:/reroute/screens/User/FarmhouseDetailScreen.tsx)",
+      "Bash(keytool -list -v -keystore android/app/debug.keystore -alias androiddebugkey -storepass android -keypass android)",
+      "Bash(adb *)",
+      "Bash(./gradlew clean *)"
     ],
     "deny": [],
     "ask": []

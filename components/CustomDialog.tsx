@@ -1,16 +1,17 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, Modal, TouchableOpacity,
-  Animated, StyleSheet as RN,
+  Animated,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 
-type DialogType = 'success' | 'error' | 'warning' | 'confirm';
+type DialogType = 'success' | 'error' | 'warning' | 'confirm' | 'info';
 
 interface DialogButton {
   text: string;
   onPress?: () => void;
   style?: 'default' | 'cancel' | 'destructive';
+  icon?: React.ComponentType<any>;
 }
 
 interface DialogConfig {

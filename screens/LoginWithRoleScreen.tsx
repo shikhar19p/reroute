@@ -35,9 +35,7 @@ const isExpoGo = Constants.executionEnvironment === 'storeClient';
 
 // Use Expo auth proxy in Expo Go so redirect_uri is https://auth.expo.io
 // instead of exp://192.168.x.x:8081 (which Google blocks)
-const redirectUri = isExpoGo
-  ? AuthSession.makeRedirectUri({ useProxy: true })
-  : AuthSession.makeRedirectUri();
+const redirectUri = AuthSession.makeRedirectUri();
 
 export default function LoginWithRoleScreen({ navigation }: any) {
   const { showDialog } = useDialog();
@@ -124,7 +122,7 @@ export default function LoginWithRoleScreen({ navigation }: any) {
     } else if (isExpoGo) {
       // Expo Go: route through Expo auth proxy so redirect_uri is
       // https://auth.expo.io (accepted by Google) not exp://192.168.x.x
-      await promptAsync({ useProxy: true });
+      await promptAsync();
     } else {
       // Native real build: @react-native-google-signin
       try {
@@ -136,7 +134,7 @@ export default function LoginWithRoleScreen({ navigation }: any) {
         if (!idToken) throw new Error('No ID token received');
         const credential = GoogleAuthProvider.credential(idToken);
         await signInWithCredential(auth, credential);
-        setLoading(false);
+        // Keep loading=true — onAuthStateChanged will navigate away automatically
       } catch (err: any) {
         if (err.code === '-5' || err.code === '12501') {
           setError('Google Sign-In cancelled');

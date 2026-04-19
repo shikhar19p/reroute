@@ -110,7 +110,7 @@ export async function scheduleNotification(
         sound: true,
         priority: Notifications.AndroidNotificationPriority.HIGH,
       },
-      trigger: triggerDate,
+      trigger: triggerDate as any,
     });
     return notificationId;
   } catch (error) {
@@ -163,7 +163,7 @@ export async function getUserNotifications(userId: string): Promise<Notification
     return snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
-    } as NotificationData));
+    } as unknown as NotificationData));
   } catch (error) {
     console.error('Error fetching notifications:', error);
     return [];
@@ -313,8 +313,7 @@ export async function sendOwnerBookingNotification(
 export function setupNotificationListeners(
   onNotificationReceived?: (notification: Notifications.Notification) => void,
   onNotificationPressed?: (response: Notifications.NotificationResponse) => void
-): void {
-  // Listener for notifications received while app is foregrounded
+): () => void {
   const receivedSubscription = Notifications.addNotificationReceivedListener((notification) => {
     onNotificationReceived?.(notification);
   });
@@ -323,7 +322,6 @@ export function setupNotificationListeners(
     onNotificationPressed?.(response);
   });
 
-  // Return cleanup function
   return () => {
     receivedSubscription.remove();
     responseSubscription.remove();

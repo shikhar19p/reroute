@@ -2,15 +2,16 @@ const IS_PROD = process.env.ENVIRONMENT === 'production';
 const IS_PREVIEW = process.env.ENVIRONMENT === 'preview';
 
 const getAppName = () => {
-  if (IS_PROD) return 'ReRoute Adventures';
-  if (IS_PREVIEW) return 'ReRoute Adventures (Preview)';
-  return 'ReRoute Adventures (Dev)';
+  if (IS_PROD) return 'ReRoute Aventures';
+  if (IS_PREVIEW) return 'ReRoute Aventures (Preview)';
+  return 'ReRoute Aventures (Dev)';
 };
 
 export default {
   expo: {
     name: getAppName(),
     slug: "reroute",
+    scheme: "com.rerouteaventures.app",
     version: "1.0.0",
     orientation: "portrait",
     icon: "./assets/icon.png",
@@ -37,7 +38,7 @@ export default {
     web: {
       favicon: "./assets/favicon.png",
       bundler: "metro",
-      name: "ReRoute Adventures",
+      name: "ReRoute Aventures",
       shortName: "ReRoute",
     },
     plugins: [

@@ -35,7 +35,7 @@ export interface Booking {
   couponCode?: string | null;
   bookingType: 'dayuse' | 'overnight';
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
-  paymentStatus: 'pending' | 'paid' | 'refunded';
+  paymentStatus: 'pending' | 'paid' | 'refunded' | 'failed';
   paymentMethod?: 'UPI' | 'Credit Card' | 'Debit Card' | 'Net Banking';
   transactionId?: string;
   upiId?: string;

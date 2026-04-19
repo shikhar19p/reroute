@@ -131,7 +131,7 @@ async function initiatePaymentWeb(paymentDetails: PaymentDetails): Promise<Payme
       key: RAZORPAY_KEY_ID,
       amount: paymentDetails.amount,
       currency: paymentDetails.currency,
-      name: 'ReRoute Adventures',
+      name: 'ReRoute Aventures',
       description: paymentDetails.description,
       order_id: paymentDetails.orderId,
       prefill: {
@@ -179,7 +179,7 @@ export async function initiatePayment(paymentDetails: PaymentDetails): Promise<P
       currency: paymentDetails.currency,
       key: RAZORPAY_KEY_ID,
       amount: paymentDetails.amount,
-      name: 'ReRoute Adventures',
+      name: 'ReRoute Aventures',
       order_id: paymentDetails.orderId,
       prefill: {
         email: paymentDetails.customerEmail,

@@ -54,8 +54,8 @@ function buildMapHtml(lat: number, lng: number, isDark: boolean): string {
     scrollWheelZoom:false,boxZoom:false,keyboard:false
   }).setView([${lat},${lng}],15);
 
-  L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{
-    subdomains:['0','1','2','3'],
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
+    subdomains:['a','b','c','d'],
     maxZoom:20
   }).addTo(map);
 
@@ -199,7 +199,7 @@ export default function LocationMapView({ location, mapLink, height = 200 }: Loc
         const query = encodeURIComponent(location);
         const res = await fetch(
           `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1&countrycodes=in`,
-          { headers: { 'User-Agent': 'ReRouteAdventures/1.0' } }
+          { headers: { 'User-Agent': 'RerouteAventures/1.0' } }
         );
         const data = await res.json();
         if (!cancelled && data?.[0]) {
@@ -256,7 +256,7 @@ export default function LocationMapView({ location, mapLink, height = 200 }: Loc
               height: '100%',
               border: 'none',
             } as any,
-            sandbox: 'allow-scripts',
+            sandbox: 'allow-scripts allow-same-origin',
             title: 'Map',
           } as any)}
         </Animated.View>

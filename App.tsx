@@ -385,7 +385,7 @@ function AppNavigator() {
             <Stack.Screen
               name="FarmBasicDetails"
               component={BasicDetailsScreen}
-              options={{ title: 'Basic Details', headerBackTitle: 'Back' }}
+              options={{ headerShown: false }}
             />
             <Stack.Screen
               name="FarmPrices"
@@ -504,8 +504,6 @@ export default function App() {
     }
   }, [isWeb]);
   const [showApp, setShowApp] = React.useState(isWeb);
-  const [appReady, setAppReady] = React.useState(false);
-
   // On web: only load Inter (via CSS in index.html), skip Seasons OTF (not needed on web)
   // On native: load all fonts as before
   const [fontsLoaded] = useFonts(
@@ -527,11 +525,6 @@ export default function App() {
 
   // Track auth loading state to prevent showing app before ready
   const [authInitialized, setAuthInitialized] = React.useState(false);
-
-  // Keep native splash visible until custom splash is ready
-  React.useEffect(() => {
-    setAppReady(true);
-  }, []);
 
   // Hide native splash only after custom splash renders
   const onCustomSplashReady = useCallback(async () => {
