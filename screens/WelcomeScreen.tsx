@@ -160,7 +160,7 @@ export default function WelcomeScreen({ navigation }: any) {
                 ) : (
                   <>
                     <Text style={styles.googleIcon}>G</Text>
-                    <Text style={styles.googleButtonText}>Continue with Google</Text>
+                    <Text style={styles.googleButtonText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>Continue with Google</Text>
                     <ChevronRight size={20} color="#FFF" />
                   </>
                 )}
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
   googleButton: {
     backgroundColor: '#D4AF37',
     paddingVertical: 16,
-    paddingHorizontal: 32,
+    paddingHorizontal: 20,
     borderRadius: 25,
     width: '100%',
     flexDirection: 'row',

@@ -9,7 +9,9 @@
  * - razorpayWebhook        — handle Razorpay webhook events
  */
 
-import * as functions from 'firebase-functions';
+import { logger } from 'firebase-functions';
+import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
+import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import * as admin from 'firebase-admin';
 import Razorpay from 'razorpay';
 import * as crypto from 'crypto';
@@ -32,10 +34,10 @@ const db = admin.firestore();
 let _razorpay: Razorpay | null = null;
 function getRazorpay(): Razorpay {
   if (!_razorpay) {
-    const key_id = process.env.RAZORPAY_KEY_ID || functions.config().razorpay?.key_id;
-    const key_secret = process.env.RAZORPAY_KEY_SECRET || functions.config().razorpay?.key_secret;
+    const key_id = process.env.RAZORPAY_KEY_ID;
+    const key_secret = process.env.RAZORPAY_KEY_SECRET;
     if (!key_id) {
-      throw new functions.https.HttpsError('internal', 'Payment gateway not configured — set RAZORPAY_KEY_ID');
+      throw new HttpsError('internal', 'Payment gateway not configured — set RAZORPAY_KEY_ID');
     }
     _razorpay = new Razorpay({ key_id, key_secret });
   }
@@ -46,26 +48,26 @@ function getRazorpay(): Razorpay {
 // Set these in Firebase Functions config or .env:
 //   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM, ADMIN_EMAIL
 const smtpTransporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || functions.config().smtp?.host || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || functions.config().smtp?.port || '587'),
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: parseInt(process.env.SMTP_PORT || '587'),
   secure: false, // TLS
   auth: {
-    user: process.env.SMTP_USER || functions.config().smtp?.user,
-    pass: process.env.SMTP_PASS || functions.config().smtp?.pass,
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
   },
 });
 
-const FROM_EMAIL = process.env.SMTP_FROM || functions.config().smtp?.from || 'noreply@reroute.app';
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || functions.config().smtp?.admin_email || '';
+const FROM_EMAIL = process.env.SMTP_FROM || 'noreply@reroute.app';
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || '';
 // Bank details update notifications go to this address
-const BANK_UPDATE_EMAIL = process.env.BANK_UPDATE_EMAIL || functions.config().smtp?.bank_update_email || 'rustiquebyranareddy@gmail.com';
+const BANK_UPDATE_EMAIL = process.env.BANK_UPDATE_EMAIL || 'rustiquebyranareddy@gmail.com';
 
 // ─── Email helper ─────────────────────────────────────────────────────────────
 async function sendEmail(to: string | string[], subject: string, html: string): Promise<void> {
   if (!to || (Array.isArray(to) && to.length === 0)) return;
-  const smtpUser = process.env.SMTP_USER || functions.config().smtp?.user;
+  const smtpUser = process.env.SMTP_USER;
   if (!smtpUser) {
-    functions.logger.warn('Email skipped — SMTP_USER not configured. Run: firebase functions:config:set smtp.user="..." smtp.pass="..."', { subject });
+    logger.warn('Email skipped — SMTP_USER not configured. Set SMTP_USER env var.', { subject });
     return;
   }
   try {
@@ -75,10 +77,10 @@ async function sendEmail(to: string | string[], subject: string, html: string): 
       subject,
       html,
     });
-    functions.logger.info('Email sent:', { to, subject });
+    logger.info('Email sent:', { to, subject });
   } catch (err) {
     // Never let email failure crash payment/booking flows
-    functions.logger.error('Email send failed (non-fatal):', { to, subject, err });
+    logger.error('Email send failed (non-fatal):', { to, subject, err });
   }
 }
 
@@ -299,11 +301,14 @@ async function sendBookingConfirmationEmails(bookingId: string, transactionId: s
     if (!bookingDoc.exists) return;
     const b: any = { bookingId, ...bookingDoc.data() };
 
-    const ownerEmail = await getOwnerEmail(b.farmhouseId);
+    // Parallelise farmhouse + owner email fetches — was 3 sequential round-trips, now 1
+    const [farmhouseDoc, ownerEmail] = await Promise.all([
+      b.farmhouseId ? db.collection('farmhouses').doc(b.farmhouseId).get() : Promise.resolve(null),
+      getOwnerEmail(b.farmhouseId),
+    ]);
 
     // Firestore notification for owner (in-app)
-    if (b.farmhouseId) {
-      const farmhouseDoc = await db.collection('farmhouses').doc(b.farmhouseId).get();
+    if (farmhouseDoc?.exists) {
       const ownerId = farmhouseDoc.data()?.ownerId;
       if (ownerId) {
         await db.collection('notifications').add({
@@ -350,27 +355,28 @@ async function sendBookingConfirmationEmails(bookingId: string, transactionId: s
       );
     }
   } catch (err) {
-    functions.logger.error('Error sending booking confirmation emails:', err);
+    logger.error('Error sending booking confirmation emails:', err);
   }
 }
 
 // ─── createOrder ──────────────────────────────────────────────────────────────
-export const createOrder = functions.https.onCall(async (data, context) => {
+// minInstances=1 eliminates cold-start latency on the payment-critical path
+export const createOrder = onCall({ minInstances: 1 }, async (request) => {
   try {
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated to create an order');
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'User must be authenticated to create an order');
     }
 
-    const { amount, currency = 'INR', bookingId, userId } = data;
+    const { amount, currency = 'INR', bookingId, userId } = request.data;
 
     if (!amount || amount <= 0) {
-      throw new functions.https.HttpsError('invalid-argument', 'Invalid amount provided');
+      throw new HttpsError('invalid-argument', 'Invalid amount provided');
     }
     if (!bookingId || !userId) {
-      throw new functions.https.HttpsError('invalid-argument', 'Booking ID and User ID are required');
+      throw new HttpsError('invalid-argument', 'Booking ID and User ID are required');
     }
-    if (context.auth.uid !== userId) {
-      throw new functions.https.HttpsError('permission-denied', 'User can only create orders for their own bookings');
+    if (request.auth.uid !== userId) {
+      throw new HttpsError('permission-denied', 'User can only create orders for their own bookings');
     }
 
     // For real bookings (not registration fees), validate the amount server-side
@@ -379,16 +385,16 @@ export const createOrder = functions.https.onCall(async (data, context) => {
     if (!isRegistrationFee) {
       const bookingDoc = await db.collection('bookings').doc(bookingId).get();
       if (!bookingDoc.exists) {
-        throw new functions.https.HttpsError('not-found', 'Booking not found');
+        throw new HttpsError('not-found', 'Booking not found');
       }
       const bookingData = bookingDoc.data()!;
-      if (bookingData.userId !== context.auth.uid && bookingData.user_id !== context.auth.uid) {
-        throw new functions.https.HttpsError('permission-denied', 'Booking does not belong to this user');
+      if (bookingData.userId !== request.auth.uid && bookingData.user_id !== request.auth.uid) {
+        throw new HttpsError('permission-denied', 'Booking does not belong to this user');
       }
       const expectedAmount = bookingData.totalPrice ?? bookingData.total_amount;
       if (typeof expectedAmount === 'number' && Math.abs(expectedAmount - amount) > 1) {
-        functions.logger.error('Amount mismatch in createOrder', { provided: amount, expected: expectedAmount, bookingId });
-        throw new functions.https.HttpsError('invalid-argument', 'Payment amount does not match booking total');
+        logger.error('Amount mismatch in createOrder', { provided: amount, expected: expectedAmount, bookingId });
+        throw new HttpsError('invalid-argument', 'Payment amount does not match booking total');
       }
     }
 
@@ -404,7 +410,7 @@ export const createOrder = functions.https.onCall(async (data, context) => {
     };
     const order = await rzp.orders.create(orderOptions);
 
-    functions.logger.info('Razorpay order created:', { orderId: order.id, bookingId, amount: amountInPaise });
+    logger.info('Razorpay order created:', { orderId: order.id, bookingId, amount: amountInPaise });
 
     await db.collection('payment_orders').doc(order.id).set({
       orderId: order.id,
@@ -421,30 +427,30 @@ export const createOrder = functions.https.onCall(async (data, context) => {
       orderId: order.id,
       amount: amountInPaise,
       currency,
-      keyId: process.env.RAZORPAY_KEY_ID || functions.config().razorpay?.key_id,
+      keyId: process.env.RAZORPAY_KEY_ID,
     };
   } catch (error: any) {
     const rzpDetail = error?.error?.description || error?.error?.code || error?.message || JSON.stringify(error);
-    functions.logger.error('Error creating Razorpay order:', { rzpDetail, error });
-    if (error instanceof functions.https.HttpsError) throw error;
-    throw new functions.https.HttpsError('internal', 'Failed to create payment order', rzpDetail);
+    logger.error('Error creating Razorpay order:', { rzpDetail, error });
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError('internal', 'Failed to create payment order', rzpDetail);
   }
 });
 
 // ─── verifyPayment ────────────────────────────────────────────────────────────
-export const verifyPayment = functions.https.onCall(async (data, context) => {
+export const verifyPayment = onCall({ minInstances: 1 }, async (request) => {
   try {
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated to verify payment');
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'User must be authenticated to verify payment');
     }
 
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, bookingId } = data;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, bookingId } = request.data;
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      throw new functions.https.HttpsError('invalid-argument', 'Missing required payment verification parameters');
+      throw new HttpsError('invalid-argument', 'Missing required payment verification parameters');
     }
 
-    const secret = process.env.RAZORPAY_KEY_SECRET || functions.config().razorpay?.key_secret;
+    const secret = process.env.RAZORPAY_KEY_SECRET!;
     const generatedSignature = crypto
       .createHmac('sha256', secret)
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
@@ -452,7 +458,7 @@ export const verifyPayment = functions.https.onCall(async (data, context) => {
 
     const isValid = generatedSignature === razorpay_signature;
 
-    functions.logger.info('Payment verification:', { orderId: razorpay_order_id, paymentId: razorpay_payment_id, verified: isValid });
+    logger.info('Payment verification:', { orderId: razorpay_order_id, paymentId: razorpay_payment_id, verified: isValid });
 
     if (!isValid) {
       return { success: true, verified: false, paymentId: razorpay_payment_id };
@@ -464,33 +470,32 @@ export const verifyPayment = functions.https.onCall(async (data, context) => {
     // UPI dismissed, bank timeout). We must reject those cases.
     const rzpPayment = await getRazorpay().payments.fetch(razorpay_payment_id);
     const paymentStatus = rzpPayment.status;
-    functions.logger.info('Razorpay payment status:', { paymentId: razorpay_payment_id, status: paymentStatus });
+    logger.info('Razorpay payment status:', { paymentId: razorpay_payment_id, status: paymentStatus });
 
     if (paymentStatus === 'failed') {
-      throw new functions.https.HttpsError('failed-precondition', 'Payment was not successful — transaction declined or cancelled');
+      throw new HttpsError('failed-precondition', 'Payment was not successful — transaction declined or cancelled');
     }
 
     if (paymentStatus === 'authorized') {
       // Capture the authorized payment (order was created with payment_capture:true
       // but some payment methods land in authorized first)
       await getRazorpay().payments.capture(razorpay_payment_id, rzpPayment.amount, rzpPayment.currency);
-      functions.logger.info('Payment captured:', { paymentId: razorpay_payment_id });
+      logger.info('Payment captured:', { paymentId: razorpay_payment_id });
     } else if (paymentStatus === 'created') {
       // UPI/QR payments can briefly show 'created' right after the user pays,
       // before Razorpay auto-captures. HMAC is valid so the payment is genuine —
       // confirm the booking optimistically. Razorpay will capture async.
-      functions.logger.warn('Payment still in created state after HMAC verification — proceeding for UPI/QR.', { paymentId: razorpay_payment_id });
+      logger.warn('Payment still in created state after HMAC verification — proceeding for UPI/QR.', { paymentId: razorpay_payment_id });
     } else if (paymentStatus !== 'captured') {
       // 'refunded', or any other unexpected state
-      throw new functions.https.HttpsError(
+      throw new HttpsError(
         'failed-precondition',
         `Payment is in an unexpected state: ${paymentStatus}. Cannot confirm booking.`
       );
     }
 
-    // HMAC verified and payment is not failed — safe to confirm the booking.
-    // Use set+merge so this never crashes if the payment_orders doc is missing.
-    await db.collection('payment_orders').doc(razorpay_order_id).set({
+    // Run payment_orders write + booking read in parallel (independent operations)
+    const orderWritePromise = db.collection('payment_orders').doc(razorpay_order_id).set({
       paymentId: razorpay_payment_id,
       signature: razorpay_signature,
       status: 'verified',
@@ -498,13 +503,17 @@ export const verifyPayment = functions.https.onCall(async (data, context) => {
     }, { merge: true });
 
     if (bookingId && !bookingId.startsWith('registration-')) {
-      const bookingDoc = await db.collection('bookings').doc(bookingId).get();
+      const [, bookingDoc] = await Promise.all([
+        orderWritePromise,
+        db.collection('bookings').doc(bookingId).get(),
+      ]);
+
       if (!bookingDoc.exists) {
-        throw new functions.https.HttpsError('not-found', 'Booking not found');
+        throw new HttpsError('not-found', 'Booking not found');
       }
       const bookingData = bookingDoc.data()!;
-      if (bookingData.userId !== context.auth.uid && bookingData.user_id !== context.auth.uid) {
-        throw new functions.https.HttpsError('permission-denied', 'Booking does not belong to this user');
+      if (bookingData.userId !== request.auth.uid && bookingData.user_id !== request.auth.uid) {
+        throw new HttpsError('permission-denied', 'Booking does not belong to this user');
       }
 
       await db.collection('bookings').doc(bookingId).update({
@@ -514,88 +523,90 @@ export const verifyPayment = functions.https.onCall(async (data, context) => {
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-      functions.logger.info('Booking confirmed:', { bookingId, paymentId: razorpay_payment_id });
+      logger.info('Booking confirmed:', { bookingId, paymentId: razorpay_payment_id });
 
       // Send confirmation emails (non-blocking)
       sendBookingConfirmationEmails(bookingId, razorpay_payment_id).catch(() => {});
+    } else {
+      await orderWritePromise;
     }
 
     return { success: true, verified: true, paymentId: razorpay_payment_id };
   } catch (error: any) {
-    functions.logger.error('Error verifying payment:', error);
-    if (error instanceof functions.https.HttpsError) throw error;
-    throw new functions.https.HttpsError('internal', 'Failed to verify payment', error.message);
+    logger.error('Error verifying payment:', error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError('internal', 'Failed to verify payment', error.message);
   }
 });
 
 // ─── processRefund ────────────────────────────────────────────────────────────
-export const processRefund = functions.https.onCall(async (data, context) => {
+export const processRefund = onCall(async (request) => {
   try {
-    if (!context.auth) {
-      throw new functions.https.HttpsError('unauthenticated', 'User must be authenticated to process refund');
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'User must be authenticated to process refund');
     }
 
-    const { paymentId, amount, bookingId, reason = 'Booking cancellation' } = data;
+    const { paymentId, amount, bookingId, reason = 'Booking cancellation' } = request.data;
 
     if (!paymentId || !amount || !bookingId) {
-      throw new functions.https.HttpsError('invalid-argument', 'Payment ID, amount, and booking ID are required');
+      throw new HttpsError('invalid-argument', 'Payment ID, amount, and booking ID are required');
     }
 
     const bookingDoc = await db.collection('bookings').doc(bookingId).get();
     if (!bookingDoc.exists) {
-      throw new functions.https.HttpsError('not-found', 'Booking not found');
+      throw new HttpsError('not-found', 'Booking not found');
     }
 
     const booking = bookingDoc.data();
 
-    const isBookingUser = booking?.userId === context.auth.uid;
+    const isBookingUser = booking?.userId === request.auth.uid;
     let isFarmhouseOwner = false;
     if (!isBookingUser && booking?.farmhouseId) {
       const farmhouseDoc = await db.collection('farmhouses').doc(booking.farmhouseId).get();
-      isFarmhouseOwner = farmhouseDoc.data()?.ownerId === context.auth.uid;
+      isFarmhouseOwner = farmhouseDoc.data()?.ownerId === request.auth.uid;
     }
 
     if (!isBookingUser && !isFarmhouseOwner) {
-      throw new functions.https.HttpsError('permission-denied', 'Unauthorized to process this refund');
+      throw new HttpsError('permission-denied', 'Unauthorized to process this refund');
     }
 
     // Validate the payment ID exists in Razorpay before attempting refund
     if (!paymentId.startsWith('pay_')) {
-      throw new functions.https.HttpsError('invalid-argument', `Invalid Razorpay payment ID: ${paymentId}`);
+      throw new HttpsError('invalid-argument', `Invalid Razorpay payment ID: ${paymentId}`);
     }
 
     // Cap refund at booking total to prevent over-refunds
     const bookingTotal = booking?.totalPrice ?? booking?.total_amount ?? amount;
     const safeAmount = Math.min(amount, bookingTotal);
     if (safeAmount <= 0) {
-      throw new functions.https.HttpsError('invalid-argument', 'Refund amount must be greater than zero');
+      throw new HttpsError('invalid-argument', 'Refund amount must be greater than zero');
     }
 
     const requestedPaise = Math.round(safeAmount * 100);
 
-    functions.logger.info('Processing refund:', { paymentId, bookingId, requestedPaise, reason });
+    logger.info('Processing refund:', { paymentId, bookingId, requestedPaise, reason });
 
     // Fetch payment to verify status and get actual captured amount
     let payment: any;
     try {
       payment = await getRazorpay().payments.fetch(paymentId);
     } catch (fetchErr: any) {
-      functions.logger.error('Could not fetch payment details:', { fetchErr, paymentId });
-      throw new functions.https.HttpsError('not-found', `Payment not found: ${paymentId}`);
+      logger.error('Could not fetch payment details:', { fetchErr, paymentId });
+      throw new HttpsError('not-found', `Payment not found: ${paymentId}`);
     }
 
-    functions.logger.info('Payment status before refund:', { status: payment.status, amount: payment.amount, amountRefunded: payment.amount_refunded, paymentId });
+    logger.info('Payment status before refund:', { status: payment.status, amount: payment.amount, amountRefunded: payment.amount_refunded, paymentId });
 
     // If payment is only authorized (not captured), capture it first
     if (payment.status === 'authorized') {
       try {
         await getRazorpay().payments.capture(paymentId, payment.amount, payment.currency);
-        functions.logger.info('Payment captured before refund:', { paymentId });
+        logger.info('Payment captured before refund:', { paymentId });
         // Re-fetch to get updated amount fields
         payment = await getRazorpay().payments.fetch(paymentId);
       } catch (captureErr: any) {
         // Authorization expired — no money was ever collected, so no refund is needed
-        functions.logger.info('Payment authorization expired — no charge was made, skipping refund:', { paymentId, bookingId });
+        logger.info('Payment authorization expired — no charge was made, skipping refund:', { paymentId, bookingId });
         await db.collection('bookings').doc(bookingId).update({
           refundStatus: 'not_applicable',
           refundNote: 'Payment authorization expired — no charge was made to your account',
@@ -606,7 +617,7 @@ export const processRefund = functions.https.onCall(async (data, context) => {
     }
 
     if (payment.status === 'failed') {
-      throw new functions.https.HttpsError('failed-precondition', 'Cannot refund a failed payment');
+      throw new HttpsError('failed-precondition', 'Cannot refund a failed payment');
     }
 
     // Cap by the actual refundable amount from Razorpay:
@@ -617,10 +628,10 @@ export const processRefund = functions.https.onCall(async (data, context) => {
     const amountInPaise = Math.min(requestedPaise, maxRefundablePaise);
 
     if (amountInPaise <= 0) {
-      throw new functions.https.HttpsError('invalid-argument', 'No refundable amount remaining for this payment');
+      throw new HttpsError('invalid-argument', 'No refundable amount remaining for this payment');
     }
 
-    functions.logger.info('Refund amount resolved:', { requestedPaise, maxRefundablePaise, amountInPaise });
+    logger.info('Refund amount resolved:', { requestedPaise, maxRefundablePaise, amountInPaise });
 
     let refund: any;
     try {
@@ -639,7 +650,7 @@ export const processRefund = functions.https.onCall(async (data, context) => {
         razorpayErr?.message ||
         'Refund request rejected by payment gateway';
 
-      functions.logger.error('Razorpay refund API error:', {
+      logger.error('Razorpay refund API error:', {
         description: rzpMsg,
         statusCode: razorpayErr?.statusCode,
         errorCode: razorpayErr?.error?.code,
@@ -647,20 +658,20 @@ export const processRefund = functions.https.onCall(async (data, context) => {
         paymentId,
         bookingId,
       });
-      throw new functions.https.HttpsError('internal', rzpMsg);
+      throw new HttpsError('internal', rzpMsg);
     }
 
     // Use actual confirmed paise from Razorpay response as source of truth
     const actualRefundPaise: number = refund.amount ?? amountInPaise;
     const actualRefundRupees = actualRefundPaise / 100;
 
-    functions.logger.info('Refund processed:', { refundId: refund.id, paymentId, bookingId, requestedPaise: amountInPaise, actualPaise: actualRefundPaise });
+    logger.info('Refund processed:', { refundId: refund.id, paymentId, bookingId, requestedPaise: amountInPaise, actualPaise: actualRefundPaise });
 
     await db.collection('refunds').add({
       refundId: refund.id,
       paymentId,
       bookingId,
-      userId: context.auth.uid,
+      userId: request.auth.uid,
       amount: actualRefundPaise,
       status: refund.status,
       reason,
@@ -697,48 +708,48 @@ export const processRefund = functions.https.onCall(async (data, context) => {
           );
         }
       } catch (emailErr) {
-        functions.logger.error('Refund email error (non-fatal):', emailErr);
+        logger.error('Refund email error (non-fatal):', emailErr);
       }
     })();
 
     return { success: true, refundId: refund.id, status: refund.status, amount: actualRefundRupees };
   } catch (error: any) {
-    functions.logger.error('Error processing refund:', error);
-    if (error instanceof functions.https.HttpsError) throw error;
-    throw new functions.https.HttpsError('internal', 'Failed to process refund', error.message);
+    logger.error('Error processing refund:', error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError('internal', 'Failed to process refund', error.message);
   }
 });
 
 // ─── notifyBookingCancellation ────────────────────────────────────────────────
 // Call this from the client after a successful cancelBookingWithRefund()
 // to send cancellation emails to user, owner, and admin.
-export const notifyBookingCancellation = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+export const notifyBookingCancellation = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Must be authenticated');
   }
 
-  const { bookingId, refundAmount = 0, refundPercentage = 0, reason = 'Booking cancelled', isOwnerCancellation = false } = data;
+  const { bookingId, refundAmount = 0, refundPercentage = 0, reason = 'Booking cancelled', isOwnerCancellation = false } = request.data;
 
   if (!bookingId) {
-    throw new functions.https.HttpsError('invalid-argument', 'bookingId is required');
+    throw new HttpsError('invalid-argument', 'bookingId is required');
   }
 
   const bookingDoc = await db.collection('bookings').doc(bookingId).get();
   if (!bookingDoc.exists) {
-    throw new functions.https.HttpsError('not-found', 'Booking not found');
+    throw new HttpsError('not-found', 'Booking not found');
   }
 
   const b: any = { id: bookingId, ...bookingDoc.data() };
 
   // Auth check: caller must be the booking user OR farmhouse owner
-  const isBookingUser = b.userId === context.auth.uid;
+  const isBookingUser = b.userId === request.auth.uid;
   let isFarmhouseOwner = false;
   if (!isBookingUser && b.farmhouseId) {
     const fhDoc = await db.collection('farmhouses').doc(b.farmhouseId).get();
-    isFarmhouseOwner = fhDoc.data()?.ownerId === context.auth.uid;
+    isFarmhouseOwner = fhDoc.data()?.ownerId === request.auth.uid;
   }
   if (!isBookingUser && !isFarmhouseOwner) {
-    throw new functions.https.HttpsError('permission-denied', 'Unauthorized');
+    throw new HttpsError('permission-denied', 'Unauthorized');
   }
 
   try {
@@ -786,22 +797,22 @@ export const notifyBookingCancellation = functions.https.onCall(async (data, con
       }
     }
 
-    functions.logger.info('Cancellation emails sent for booking:', bookingId);
+    logger.info('Cancellation emails sent for booking:', bookingId);
     return { success: true };
   } catch (err) {
-    functions.logger.error('Error sending cancellation emails:', err);
+    logger.error('Error sending cancellation emails:', err);
     return { success: false };
   }
 });
 
 // ─── razorpayWebhook ──────────────────────────────────────────────────────────
-export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
+export const razorpayWebhook = onRequest(async (req, res) => {
   try {
     const webhookSignature = req.headers['x-razorpay-signature'] as string;
-    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || functions.config().razorpay?.webhook_secret;
+    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
 
     if (!webhookSecret || webhookSecret === 'whsec_placeholder_update_after_webhook_setup') {
-      functions.logger.error('Webhook secret not configured — rejecting request');
+      logger.error('Webhook secret not configured — rejecting request');
       res.status(500).send('Webhook not configured');
       return;
     } else if (!webhookSignature) {
@@ -813,7 +824,7 @@ export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
         .update(JSON.stringify(req.body))
         .digest('hex');
       if (webhookSignature !== expectedSignature) {
-        functions.logger.error('Webhook signature mismatch');
+        logger.error('Webhook signature mismatch');
         res.status(400).send('Invalid signature');
         return;
       }
@@ -821,7 +832,7 @@ export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
 
     const event = req.body.event;
     const payload = req.body.payload;
-    functions.logger.info('Razorpay webhook:', { event });
+    logger.info('Razorpay webhook:', { event });
 
     switch (event) {
       case 'payment.captured':
@@ -830,7 +841,7 @@ export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
       case 'payment.authorized':
         // Do not confirm booking on authorized — wait for captured (actual debit).
         // With auto-capture (payment_capture:true), captured fires immediately after.
-        functions.logger.info('payment.authorized received — waiting for payment.captured to confirm booking');
+        logger.info('payment.authorized received — waiting for payment.captured to confirm booking');
         break;
       case 'payment.failed':
         await handlePaymentFailure(payload.payment.entity);
@@ -840,12 +851,12 @@ export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
         await handleRefundUpdate(payload.refund.entity);
         break;
       default:
-        functions.logger.info('Unhandled webhook event:', event);
+        logger.info('Unhandled webhook event:', event);
     }
 
     res.status(200).send('OK');
   } catch (error: any) {
-    functions.logger.error('Webhook error:', error);
+    logger.error('Webhook error:', error);
     res.status(500).send('Webhook processing failed');
   }
 });
@@ -858,7 +869,7 @@ async function handlePaymentSuccess(payment: any) {
 
   // Only confirm when money is actually captured — never on authorized alone
   if (payment.status !== 'captured') {
-    functions.logger.warn('handlePaymentSuccess called with non-captured payment, skipping booking confirmation', {
+    logger.warn('handlePaymentSuccess called with non-captured payment, skipping booking confirmation', {
       paymentId,
       status: payment.status,
     });
@@ -881,7 +892,7 @@ async function handlePaymentSuccess(payment: any) {
       transactionId: paymentId,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
-    functions.logger.info('Booking confirmed via webhook:', { bookingId, paymentId });
+    logger.info('Booking confirmed via webhook:', { bookingId, paymentId });
     sendBookingConfirmationEmails(bookingId, paymentId).catch(() => {});
   }
 }
@@ -928,13 +939,13 @@ async function handlePaymentFailure(payment: any) {
         await farmhouseRef.update({
           bookedDates: bookedDates.filter((d: string) => !datesToRemove.has(d)),
         });
-        functions.logger.info('Dates unblocked after payment failure:', { bookingId, farmhouseId: booking.farmhouseId });
+        logger.info('Dates unblocked after payment failure:', { bookingId, farmhouseId: booking.farmhouseId });
       } catch (dateErr: any) {
-        functions.logger.error('Failed to unblock dates after payment failure:', { bookingId, error: dateErr?.message });
+        logger.error('Failed to unblock dates after payment failure:', { bookingId, error: dateErr?.message });
       }
     }
 
-    functions.logger.info('Payment failed via webhook:', { bookingId, error: payment.error_description });
+    logger.info('Payment failed via webhook:', { bookingId, error: payment.error_description });
   }
 }
 
@@ -958,7 +969,7 @@ async function handleRefundUpdate(refund: any) {
         refundStatus,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
-      functions.logger.info('Refund status updated via webhook:', { bookingId, refundId, status });
+      logger.info('Refund status updated via webhook:', { bookingId, refundId, status });
 
       // Send refund processed email
       if (status === 'processed') {
@@ -1071,11 +1082,9 @@ function bankDetailsUpdateEmail(farmhouseName: string, farmhouseId: string, owne
 }
 
 // ─── Firestore trigger: new farmhouse registered ──────────────────────────────
-export const onFarmhouseCreated = functions.firestore
-  .document('farmhouses/{farmhouseId}')
-  .onCreate(async (snap, context) => {
-    const farmhouseId = context.params.farmhouseId;
-    const data = snap.data();
+export const onFarmhouseCreated = onDocumentCreated('farmhouses/{farmhouseId}', async (event) => {
+    const farmhouseId = event.params.farmhouseId;
+    const data = event.data!.data();
 
     const farmhouseName = data.basicDetails?.name || 'Unnamed Property';
     const city = data.basicDetails?.city || '';
@@ -1092,7 +1101,7 @@ export const onFarmhouseCreated = functions.firestore
         ownerName = ownerDoc.data()?.displayName || ownerDoc.data()?.name || 'Unknown';
         ownerEmail = ownerDoc.data()?.email || null;
       } catch (err) {
-        functions.logger.warn('Could not fetch owner details for new listing email:', { ownerId, err });
+        logger.warn('Could not fetch owner details for new listing email:', { ownerId, err });
       }
     }
 
@@ -1114,20 +1123,18 @@ export const onFarmhouseCreated = functions.firestore
       );
     }
 
-    functions.logger.info('New listing emails sent:', { farmhouseId, farmhouseName });
+    logger.info('New listing emails sent:', { farmhouseId, farmhouseName });
   });
 
 // ─── Firestore trigger: approval status changed ───────────────────────────────
-export const onFarmhouseApprovalChanged = functions.firestore
-  .document('farmhouses/{farmhouseId}')
-  .onUpdate(async (change, context) => {
-    const before = change.before.data();
-    const after = change.after.data();
+export const onFarmhouseApprovalChanged = onDocumentUpdated('farmhouses/{farmhouseId}', async (event) => {
+    const before = event.data!.before.data();
+    const after = event.data!.after.data();
 
     // Only fire when status field actually changes
     if (before.status === after.status) return;
 
-    const farmhouseId = context.params.farmhouseId;
+    const farmhouseId = event.params.farmhouseId;
     const farmhouseName = after.basicDetails?.name || 'Unnamed Property';
     const newStatus: string = after.status;
     const ownerId = after.ownerId;
@@ -1140,12 +1147,12 @@ export const onFarmhouseApprovalChanged = functions.firestore
         ownerEmail = ownerDoc.data()?.email || null;
         ownerName = ownerDoc.data()?.displayName || ownerDoc.data()?.name || 'there';
       } catch (err) {
-        functions.logger.warn('Could not fetch owner email for approval notification:', { ownerId, err });
+        logger.warn('Could not fetch owner email for approval notification:', { ownerId, err });
       }
     }
 
     if (!ownerEmail) {
-      functions.logger.warn('No owner email found for approval notification:', { farmhouseId, newStatus });
+      logger.warn('No owner email found for approval notification:', { farmhouseId, newStatus });
       return;
     }
 
@@ -1157,36 +1164,36 @@ export const onFarmhouseApprovalChanged = functions.firestore
       approvalStatusEmail(farmhouseName, ownerName, newStatus, after.rejectionReason)
     );
 
-    functions.logger.info('Approval status email sent:', { farmhouseId, newStatus, ownerEmail });
+    logger.info('Approval status email sent:', { farmhouseId, newStatus, ownerEmail });
   });
 
 // ─── notifyBankDetailsUpdate ──────────────────────────────────────────────────
-export const notifyBankDetailsUpdate = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+export const notifyBankDetailsUpdate = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Must be authenticated');
   }
 
-  const { farmhouseId, farmhouseName } = data;
+  const { farmhouseId, farmhouseName } = request.data;
   if (!farmhouseId) {
-    throw new functions.https.HttpsError('invalid-argument', 'farmhouseId is required');
+    throw new HttpsError('invalid-argument', 'farmhouseId is required');
   }
 
   // Verify caller is the owner of the farmhouse
   const farmDoc = await db.collection('farmhouses').doc(farmhouseId).get();
   if (!farmDoc.exists) {
-    throw new functions.https.HttpsError('not-found', 'Farmhouse not found');
+    throw new HttpsError('not-found', 'Farmhouse not found');
   }
-  if (farmDoc.data()?.ownerId !== context.auth.uid) {
-    throw new functions.https.HttpsError('permission-denied', 'Not authorized');
+  if (farmDoc.data()?.ownerId !== request.auth.uid) {
+    throw new HttpsError('permission-denied', 'Not authorized');
   }
 
   await sendEmail(
     BANK_UPDATE_EMAIL,
     `[Bank Update] Bank Details Changed — ${farmhouseName || farmhouseId}`,
-    bankDetailsUpdateEmail(farmhouseName || 'Unknown Property', farmhouseId, context.auth.uid)
+    bankDetailsUpdateEmail(farmhouseName || 'Unknown Property', farmhouseId, request.auth.uid)
   );
 
-  functions.logger.info('Bank details update email sent:', { farmhouseId, to: BANK_UPDATE_EMAIL });
+  logger.info('Bank details update email sent:', { farmhouseId, to: BANK_UPDATE_EMAIL });
   return { success: true };
 });
 
@@ -1202,7 +1209,7 @@ export const notifyBankDetailsUpdate = functions.https.onCall(async (data, conte
 // Auth: simple shared secret in Authorization header.
 // Set with: firebase functions:config:set logging.ingest_key="your-secret-here"
 // Same key goes into LOG_INGEST_KEY in your app's .env / constants.
-export const ingestLogs = functions.https.onRequest(async (req, res) => {
+export const ingestLogs = onRequest(async (req, res) => {
   // CORS headers — needed for web app
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -1211,7 +1218,7 @@ export const ingestLogs = functions.https.onRequest(async (req, res) => {
   if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
 
   // Verify shared secret
-  const ingestKey = process.env.LOG_INGEST_KEY || functions.config().logging?.ingest_key;
+  const ingestKey = process.env.LOG_INGEST_KEY;
   if (ingestKey) {
     const authHeader = req.headers.authorization || '';
     const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
@@ -1229,10 +1236,10 @@ export const ingestLogs = functions.https.onRequest(async (req, res) => {
     const payload = { source: 'client', ...rest };
 
     switch (level) {
-      case 'error': functions.logger.error(message, payload); break;
-      case 'warn':  functions.logger.warn(message, payload);  break;
-      case 'debug': functions.logger.debug(message, payload); break;
-      default:      functions.logger.info(message, payload);  break;
+      case 'error': logger.error(message, payload); break;
+      case 'warn':  logger.warn(message, payload);  break;
+      case 'debug': logger.debug(message, payload); break;
+      default:      logger.info(message, payload);  break;
     }
   }
 
@@ -1246,7 +1253,7 @@ export const ingestLogs = functions.https.onRequest(async (req, res) => {
 function getServerEncryptionSecret(): string {
   const secret = process.env.ENCRYPTION_SECRET;
   if (!secret || secret.length < 32) {
-    throw new functions.https.HttpsError('internal', 'ENCRYPTION_SECRET not configured on server');
+    throw new HttpsError('internal', 'ENCRYPTION_SECRET not configured on server');
   }
   return secret;
 }
@@ -1284,38 +1291,38 @@ function serverDecrypt(encryptedText: string, userId: string, secret: string): s
 // ─── encryptBankDetails ───────────────────────────────────────────────────────
 // Called by the client before saving KYC data. Encrypts bank details
 // server-side so ENCRYPTION_SECRET never needs to live in the client bundle.
-export const encryptBankDetails = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+export const encryptBankDetails = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Must be authenticated');
   }
-  const { accountNumber, ifscCode } = data;
+  const { accountNumber, ifscCode } = request.data;
   if (!accountNumber || !ifscCode) {
-    throw new functions.https.HttpsError('invalid-argument', 'accountNumber and ifscCode are required');
+    throw new HttpsError('invalid-argument', 'accountNumber and ifscCode are required');
   }
   const secret = getServerEncryptionSecret();
   return {
-    encryptedAccountNumber: serverEncrypt(String(accountNumber).trim(), context.auth.uid, secret),
-    encryptedIFSC: serverEncrypt(String(ifscCode).trim().toUpperCase(), context.auth.uid, secret),
+    encryptedAccountNumber: serverEncrypt(String(accountNumber).trim(), request.auth.uid, secret),
+    encryptedIFSC: serverEncrypt(String(ifscCode).trim().toUpperCase(), request.auth.uid, secret),
   };
 });
 
 // ─── getBankDetails ───────────────────────────────────────────────────────────
 // Returns decrypted bank details only to the farmhouse owner.
-export const getBankDetails = functions.https.onCall(async (data, context) => {
-  if (!context.auth) {
-    throw new functions.https.HttpsError('unauthenticated', 'Must be authenticated');
+export const getBankDetails = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Must be authenticated');
   }
-  const { farmhouseId } = data;
+  const { farmhouseId } = request.data;
   if (!farmhouseId) {
-    throw new functions.https.HttpsError('invalid-argument', 'farmhouseId is required');
+    throw new HttpsError('invalid-argument', 'farmhouseId is required');
   }
   const farmDoc = await db.collection('farmhouses').doc(farmhouseId).get();
   if (!farmDoc.exists) {
-    throw new functions.https.HttpsError('not-found', 'Farmhouse not found');
+    throw new HttpsError('not-found', 'Farmhouse not found');
   }
   const farmData = farmDoc.data()!;
-  if (farmData.ownerId !== context.auth.uid) {
-    throw new functions.https.HttpsError('permission-denied', 'Not authorized');
+  if (farmData.ownerId !== request.auth.uid) {
+    throw new HttpsError('permission-denied', 'Not authorized');
   }
   const bankDetails = farmData.kyc?.bankDetails;
   if (!bankDetails) {
@@ -1330,13 +1337,13 @@ export const getBankDetails = functions.https.onCall(async (data, context) => {
     return {
       bankDetails: {
         ...bankDetails,
-        accountNumber: serverDecrypt(bankDetails.accountNumber, context.auth.uid, secret),
-        ifscCode: serverDecrypt(bankDetails.ifscCode, context.auth.uid, secret),
+        accountNumber: serverDecrypt(bankDetails.accountNumber, request.auth.uid, secret),
+        ifscCode: serverDecrypt(bankDetails.ifscCode, request.auth.uid, secret),
         encrypted: false,
       },
     };
   } catch (err) {
-    functions.logger.error('getBankDetails decryption failed:', { farmhouseId, err });
-    throw new functions.https.HttpsError('internal', 'Failed to decrypt bank details');
+    logger.error('getBankDetails decryption failed:', { farmhouseId, err });
+    throw new HttpsError('internal', 'Failed to decrypt bank details');
   }
 });

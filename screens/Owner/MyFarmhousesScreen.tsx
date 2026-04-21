@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -12,16 +12,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useFocusEffect } from '@react-navigation/native';
-import { useCallback } from 'react';
 import { LogOut, MapPin, Home, ChevronRight } from 'lucide-react-native';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
-import { getFarmhousesByOwner, Farmhouse } from '../../services/farmhouseService';
+import { Farmhouse } from '../../services/farmhouseService';
 import { getResponsivePadding, isSmallDevice } from '../../utils/responsive';
 import { useDialog } from '../../components/CustomDialog';
 import { useFarmRegistration } from '../../context/FarmRegistrationContext';
 import { getStatusColor, getStatusText } from '../../utils/statusColors';
+import { useMyFarmhouses } from '../../GlobalDataContext';
 
 type RootStackParamList = {
   MyFarmhouses: undefined;
@@ -36,45 +35,7 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
   const { colors, isDark } = useTheme();
   const { showDialog } = useDialog();
   const { hasDraft, loadDraft, clearDraft } = useFarmRegistration();
-  const [farmhouses, setFarmhouses] = useState<Farmhouse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  useEffect(() => {
-    loadFarmhouses();
-  }, []);
-
-  // Refresh list whenever screen gets focus
-  useFocusEffect(
-    useCallback(() => {
-      loadFarmhouses();
-    }, [])
-  );
-
-  const loadFarmhouses = async () => {
-    if (!user) return;
-
-    try {
-      setLoading(true);
-      const data = await getFarmhousesByOwner(user.uid);
-      setFarmhouses(data);
-    } catch (error) {
-      console.error('Error loading farmhouses:', error);
-      showDialog({
-        title: 'Error',
-        message: 'Failed to load your farmhouses',
-        type: 'error'
-      });
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadFarmhouses();
-  };
+  const { data: farmhouses, loading, refreshing, refresh: onRefresh } = useMyFarmhouses();
 
   const handleLogout = () => {
     showDialog({

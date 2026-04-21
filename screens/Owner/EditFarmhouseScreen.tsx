@@ -152,6 +152,8 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
     petsNotAllowed: farmhouse.rules?.pets === false,
     additionalRules: rawData.rules?.additionalRules || rawData.rules?.customRules || '',
     photos: farmhouse.photos || [],
+    // Booking window
+    bookingWindowDays: (farmhouse.bookingWindowDays ?? 21).toString(),
   });
 
   const [bankDisplay, setBankDisplay] = React.useState({
@@ -419,6 +421,7 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
         'rules.petsNotAllowed': formData.petsNotAllowed,
         'rules.additionalRules': formData.additionalRules.trim(),
         photoUrls: formData.photos,
+        bookingWindowDays: Math.max(1, Math.min(365, parseInt(formData.bookingWindowDays) || 21)),
         updatedAt: new Date().toISOString(),
       };
 
@@ -704,6 +707,29 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
             ))}
           </View>
 
+          {/* Booking Window */}
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Booking Window</Text>
+            <Text style={[styles.fieldLabel, { color: colors.placeholder, marginBottom: 8 }]}>
+              How many days ahead can guests book? (1–365)
+            </Text>
+            <View style={[styles.inputContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+              <TextInput
+                style={[styles.input, { color: colors.text }]}
+                value={formData.bookingWindowDays}
+                onChangeText={(text) => updateField('bookingWindowDays', text.replace(/[^0-9]/g, ''))}
+                placeholder="21"
+                placeholderTextColor={colors.placeholder}
+                keyboardType="number-pad"
+                maxLength={3}
+              />
+              <Text style={[styles.inputSuffix, { color: colors.placeholder }]}>days</Text>
+            </View>
+            <Text style={[styles.fieldHint, { color: colors.placeholder }]}>
+              Currently: guests can book up to {Math.max(1, Math.min(365, parseInt(formData.bookingWindowDays) || 21))} days from today
+            </Text>
+          </View>
+
           {/* Amenities */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Amenities</Text>
@@ -865,6 +891,10 @@ const styles = StyleSheet.create({
   switchRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1 },
   switchLabel: { fontSize: 16, fontWeight: '500' },
   bankNote: { fontSize: 13, marginBottom: 16, lineHeight: 18 },
+  fieldLabel: { fontSize: 13, marginBottom: 8 },
+  fieldHint: { fontSize: 12, marginTop: 6, lineHeight: 18 },
+  inputContainer: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 4 },
+  inputSuffix: { fontSize: 14, marginLeft: 8 },
   footer: { paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1 },
   saveButton: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   saveButtonText: { fontSize: 16, fontWeight: '600' },

@@ -33,7 +33,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const systemScheme = useColorScheme();
-  const [isDark, setIsDark] = useState(systemScheme === 'dark');
+  const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
     loadThemePreference();
@@ -45,7 +45,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       if (savedTheme !== null) {
         setIsDark(savedTheme === 'dark');
       } else {
-        setIsDark(systemScheme === 'dark');
+        setIsDark(false);
       }
     } catch (error) {
       console.error('Error loading theme:', error);

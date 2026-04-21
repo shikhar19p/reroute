@@ -135,6 +135,42 @@ const ScreenLoader = () => (
   </View>
 );
 
+// Prefetch all lazy chunks in background so first navigation is instant.
+// Called once after app shell mounts — fire-and-forget, no await.
+function prefetchLazyScreens() {
+  if (Platform.OS !== 'web') return;
+  const chunks = [
+    () => import('./screens/User/ExploreScreen'),
+    () => import('./screens/User/FarmhouseDetailScreen'),
+    () => import('./screens/User/BookingConfirmationScreen'),
+    () => import('./screens/User/tabs/BookingsScreen'),
+    () => import('./screens/User/tabs/WishlistScreen'),
+    () => import('./screens/User/tabs/ProfileScreen'),
+    () => import('./screens/User/BookingDetailsScreen'),
+    () => import('./screens/User/AllAmenitiesScreen'),
+    () => import('./screens/User/AllReviewsScreen'),
+    () => import('./screens/User/EditProfileScreen'),
+    () => import('./screens/Owner/MyFarmhousesScreen'),
+    () => import('./screens/Owner/OwnerHomeScreen'),
+    () => import('./screens/Owner/FarmhouseDetailOwnerScreen'),
+    () => import('./screens/Owner/EditFarmhouseScreen'),
+    () => import('./screens/Owner/BookingsListScreen'),
+    () => import('./screens/Owner/BookingDetailScreen'),
+    () => import('./screens/Owner/ManageBlockedDatesScreen'),
+    () => import('./screens/FarmRegistration/BasicDetailsScreen'),
+    () => import('./screens/FarmRegistration/PricesScreen'),
+    () => import('./screens/FarmRegistration/PhotosScreen'),
+    () => import('./screens/FarmRegistration/AmenitiesGamesScreen'),
+    () => import('./screens/FarmRegistration/RulesRestrictionsScreen'),
+    () => import('./screens/FarmRegistration/KycScreen'),
+    () => import('./screens/FarmRegistration/RegistrationFeeScreen'),
+  ];
+  // Stagger slightly so initial render isn't blocked
+  setTimeout(() => {
+    chunks.forEach((load, i) => setTimeout(load, i * 50));
+  }, 500);
+}
+
 // Navigation types
 import { RootStackParamList, TabParamList } from './types/navigation';
 
@@ -142,26 +178,7 @@ import { RootStackParamList, TabParamList } from './types/navigation';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<TabParamList>();
 
-// Component that waits for auth before completing splash
-function AnimatedSplashWithAuth({ message, onReady, onComplete }: {
-  message: string;
-  onReady: () => void;
-  onComplete: () => void;
-}) {
-  return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <SplashWithAuthCheck
-          message={message}
-          onReady={onReady}
-          onComplete={onComplete}
-        />
-      </AuthProvider>
-    </ErrorBoundary>
-  );
-}
-
-// Inner component that has access to auth context
+// Component that has access to auth context
 function SplashWithAuthCheck({ message, onReady, onComplete }: {
   message: string;
   onReady: () => void;
@@ -286,6 +303,11 @@ function UserTabs() {
 // App Navigator
 function AppNavigator() {
   const { user, loading } = useAuth();
+
+  // Prefetch all lazy screen chunks once auth resolves
+  React.useEffect(() => {
+    if (!loading) prefetchLazyScreens();
+  }, [loading]);
 
   // Show a minimal loading indicator while auth initializes
   if (loading) {
@@ -558,20 +580,8 @@ export default function App() {
     }
   }, []);
 
-  // Show custom splash on native only — web goes straight to app
-  if (!showApp && !SKIP_SPLASH && !isWeb) {
-    return (
-      <View style={{ flex: 1, backgroundColor: 'rgb(249, 248, 239)' }}>
-        <AnimatedSplashWithAuth
-          message="Loading..."
-          onReady={onCustomSplashReady}
-          onComplete={() => setShowApp(true)}
-        />
-      </View>
-    );
-  }
-
-  // Show app only after splash completes
+  // Single provider tree — splash and app share the same AuthProvider
+  // so auth state is already resolved when the app screen mounts (no spinner flash)
   return (
     <SafeAreaProvider>
       <ErrorBoundary>
@@ -582,9 +592,19 @@ export default function App() {
                 <ToastProvider>
                   <WishlistProvider>
                     <FarmRegistrationProvider>
-                      <Suspense fallback={<ScreenLoader />}>
-                        <AppNavigator />
-                      </Suspense>
+                      {!showApp && !SKIP_SPLASH && !isWeb ? (
+                        <View style={{ flex: 1, backgroundColor: '#000' }}>
+                          <SplashWithAuthCheck
+                            message="Loading..."
+                            onReady={onCustomSplashReady}
+                            onComplete={() => setShowApp(true)}
+                          />
+                        </View>
+                      ) : (
+                        <Suspense fallback={<ScreenLoader />}>
+                          <AppNavigator />
+                        </Suspense>
+                      )}
                     </FarmRegistrationProvider>
                   </WishlistProvider>
                 </ToastProvider>
