@@ -3,19 +3,14 @@ import {
   View,
   StyleSheet,
   Animated,
-  Dimensions,
   Easing,
-  Image,
   Platform,
+  Text,
+  ImageBackground,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 
-const { width, height } = Dimensions.get('window');
-
-// Calculate zoom scale so logo square fits screen height
-// Logo is 180px, so scale needed is screen_height / 180
-const LOGO_SIZE = 180;
-const ZOOM_SCALE = (height / LOGO_SIZE) * 1.1; // 1.1x extra to ensure full coverage
+const GOLD = 'rgb(212, 175, 55)';
 
 interface AnimatedSplashScreenProps {
   message?: string;
@@ -24,475 +19,182 @@ interface AnimatedSplashScreenProps {
 }
 
 export default function AnimatedSplashScreen({
-  message = 'Loading...',
   onAnimationComplete,
-  onReady
+  onReady,
 }: AnimatedSplashScreenProps) {
-  const [isExiting, setIsExiting] = React.useState(false);
+  const textOpacity = useRef(new Animated.Value(0)).current;
+  const textTranslateY = useRef(new Animated.Value(-10)).current;
 
-  // Animation values
-  const logoScale = useRef(new Animated.Value(0.5)).current;
-  const logoOpacity = useRef(new Animated.Value(0)).current;
-  const logoPulse = useRef(new Animated.Value(1)).current;
-  const decorCircles = useRef(new Animated.Value(0)).current;
-  const containerScale = useRef(new Animated.Value(1)).current;
-  const containerOpacity = useRef(new Animated.Value(1)).current;
-  const blurIntensity = useRef(new Animated.Value(0)).current;
   const dotAnim1 = useRef(new Animated.Value(0)).current;
   const dotAnim2 = useRef(new Animated.Value(0)).current;
   const dotAnim3 = useRef(new Animated.Value(0)).current;
-  const pulseLoop = useRef<any>(null);
+  const dotLoopRef = useRef<any>(null);
 
-  const startExitAnimation = React.useCallback(() => {
-    if (isExiting) return;
-    setIsExiting(true);
-
-    // Stop the pulse loop
-    if (pulseLoop.current) {
-      pulseLoop.current.stop();
-    }
-
-    // Zoom in animation - logo grows until square fills screen height
-    Animated.parallel([
-      Animated.timing(containerScale, {
-        toValue: ZOOM_SCALE,
-        duration: 800,
-        easing: Easing.in(Easing.cubic),
-        useNativeDriver: Platform.OS !== 'web',
-      }),
-      Animated.timing(containerOpacity, {
-        toValue: 0,
-        duration: 800,
-        easing: Easing.in(Easing.ease),
-        useNativeDriver: Platform.OS !== 'web',
-      }),
-      Animated.timing(blurIntensity, {
-        toValue: 50,
-        duration: 800,
-        easing: Easing.in(Easing.ease),
-        useNativeDriver: false, // Blur doesn't support native driver
-      }),
-    ]).start(({ finished }) => {
-      if (finished && onAnimationComplete) {
-        // Delay to ensure logo fully covers screen before showing app
-        setTimeout(() => {
-          onAnimationComplete();
-        }, 100);
-      }
-    });
-  }, [isExiting, onAnimationComplete]);
-
-  // Track if onReady has been called
   const onReadyCalled = useRef(false);
 
   useEffect(() => {
-    // Signal that custom splash is ready - hide native splash (only once)
     if (onReady && !onReadyCalled.current) {
       onReadyCalled.current = true;
-      // Small delay to ensure this component is fully rendered
-      setTimeout(() => {
-        onReady();
-      }, 50);
+      setTimeout(onReady, 50);
     }
 
-    // Logo entrance zoom - comes from small to normal
+    // Fade-in + slide-down entrance
     Animated.parallel([
-      Animated.timing(logoOpacity, {
+      Animated.timing(textOpacity, {
         toValue: 1,
-        duration: 1000,
+        duration: 700,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: Platform.OS !== 'web',
       }),
-      Animated.spring(logoScale, {
-        toValue: 1,
-        tension: 30,
-        friction: 7,
+      Animated.timing(textTranslateY, {
+        toValue: 0,
+        duration: 700,
+        easing: Easing.out(Easing.cubic),
         useNativeDriver: Platform.OS !== 'web',
       }),
     ]).start();
 
-    // Decorative circles fade in
-    Animated.timing(decorCircles, {
-      toValue: 1,
-      duration: 1500,
-      delay: 300,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: Platform.OS !== 'web',
-    }).start();
-
-    // Subtle continuous pulse for premium feel
-    setTimeout(() => {
-      pulseLoop.current = Animated.loop(
-        Animated.sequence([
-          Animated.timing(logoPulse, {
-            toValue: 1.03,
-            duration: 2000,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: Platform.OS !== 'web',
-          }),
-          Animated.timing(logoPulse, {
-            toValue: 1,
-            duration: 2000,
-            easing: Easing.inOut(Easing.ease),
-            useNativeDriver: Platform.OS !== 'web',
-          }),
+    // Dots start after text is visible
+    const dotsTimer = setTimeout(() => {
+      dotLoopRef.current = Animated.loop(
+        Animated.stagger(200, [
+          Animated.sequence([
+            Animated.timing(dotAnim1, { toValue: 1, duration: 400, easing: Easing.inOut(Easing.ease), useNativeDriver: Platform.OS !== 'web' }),
+            Animated.timing(dotAnim1, { toValue: 0, duration: 400, easing: Easing.inOut(Easing.ease), useNativeDriver: Platform.OS !== 'web' }),
+          ]),
+          Animated.sequence([
+            Animated.timing(dotAnim2, { toValue: 1, duration: 400, easing: Easing.inOut(Easing.ease), useNativeDriver: Platform.OS !== 'web' }),
+            Animated.timing(dotAnim2, { toValue: 0, duration: 400, easing: Easing.inOut(Easing.ease), useNativeDriver: Platform.OS !== 'web' }),
+          ]),
+          Animated.sequence([
+            Animated.timing(dotAnim3, { toValue: 1, duration: 400, easing: Easing.inOut(Easing.ease), useNativeDriver: Platform.OS !== 'web' }),
+            Animated.timing(dotAnim3, { toValue: 0, duration: 400, easing: Easing.inOut(Easing.ease), useNativeDriver: Platform.OS !== 'web' }),
+          ]),
         ])
       );
-      pulseLoop.current.start();
-    }, 1000);
+      dotLoopRef.current.start();
+    }, 700);
 
-    // Auto-start exit animation after 2.5 seconds
+    // Fade-out text only — photo stays for seamless transition to WelcomeScreen
     const exitTimer = setTimeout(() => {
-      startExitAnimation();
-    }, 2500);
+      if (dotLoopRef.current) dotLoopRef.current.stop();
+
+      Animated.timing(textOpacity, {
+        toValue: 0,
+        duration: 500,
+        easing: Easing.in(Easing.ease),
+        useNativeDriver: Platform.OS !== 'web',
+      }).start(({ finished }) => {
+        if (finished && onAnimationComplete) onAnimationComplete();
+      });
+    }, 2200);
 
     return () => {
+      clearTimeout(dotsTimer);
       clearTimeout(exitTimer);
-      if (pulseLoop.current) {
-        pulseLoop.current.stop();
-      }
+      if (dotLoopRef.current) dotLoopRef.current.stop();
     };
-  }, [startExitAnimation, onReady]);
+  }, [onReady, onAnimationComplete]);
 
-  useEffect(() => {
-    // Elegant loading dots animation
-    const animateDots = () => {
-      Animated.loop(
-        Animated.stagger(150, [
-          Animated.sequence([
-            Animated.timing(dotAnim1, {
-              toValue: 1,
-              duration: 400,
-              easing: Easing.inOut(Easing.ease),
-              useNativeDriver: Platform.OS !== 'web',
-            }),
-            Animated.timing(dotAnim1, {
-              toValue: 0,
-              duration: 400,
-              easing: Easing.inOut(Easing.ease),
-              useNativeDriver: Platform.OS !== 'web',
-            }),
-          ]),
-          Animated.sequence([
-            Animated.timing(dotAnim2, {
-              toValue: 1,
-              duration: 400,
-              easing: Easing.inOut(Easing.ease),
-              useNativeDriver: Platform.OS !== 'web',
-            }),
-            Animated.timing(dotAnim2, {
-              toValue: 0,
-              duration: 400,
-              easing: Easing.inOut(Easing.ease),
-              useNativeDriver: Platform.OS !== 'web',
-            }),
-          ]),
-          Animated.sequence([
-            Animated.timing(dotAnim3, {
-              toValue: 1,
-              duration: 400,
-              easing: Easing.inOut(Easing.ease),
-              useNativeDriver: Platform.OS !== 'web',
-            }),
-            Animated.timing(dotAnim3, {
-              toValue: 0,
-              duration: 400,
-              easing: Easing.inOut(Easing.ease),
-              useNativeDriver: Platform.OS !== 'web',
-            }),
-          ]),
-        ])
-      ).start();
-    };
-
-    setTimeout(() => animateDots(), 800);
-  }, []);
+  const makeDotStyle = (anim: Animated.Value) => ({
+    opacity: anim.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
+    transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.3] }) }],
+  });
 
   return (
-    <Animated.View
-      style={[
-        styles.container,
-        {
-          opacity: containerOpacity,
-          transform: [{ scale: containerScale }],
-          pointerEvents: isExiting ? 'none' : 'auto',
-        },
-      ]}
+    <ImageBackground
+      source={require('../assets/farmhouse-bg.jpg')}
+      style={styles.container}
+      resizeMode="cover"
     >
-      {/* Decorative circles - varied sizes, positions, and opacities */}
-      {/* Top area circles */}
-      <Animated.View style={[styles.decorCircle, styles.circle1, { opacity: Animated.multiply(decorCircles, 0.6) }]} />
-      <Animated.View style={[styles.decorCircle, styles.circle2, { opacity: Animated.multiply(decorCircles, 1) }]} />
-      <Animated.View style={[styles.decorCircle, styles.circle3, { opacity: Animated.multiply(decorCircles, 0.4) }]} />
+      <LinearGradient
+        colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.25)']}
+        style={StyleSheet.absoluteFill}
+      />
 
-      {/* Right area circles */}
-      <Animated.View style={[styles.decorCircle, styles.circle4, { opacity: Animated.multiply(decorCircles, 0.8) }]} />
-      <Animated.View style={[styles.decorCircle, styles.circle5, { opacity: Animated.multiply(decorCircles, 0.5) }]} />
-      <Animated.View style={[styles.decorCircle, styles.circle6, { opacity: Animated.multiply(decorCircles, 0.7) }]} />
+      <Animated.View
+        style={[
+          styles.textBlock,
+          {
+            opacity: textOpacity,
+            transform: [{ translateY: textTranslateY }],
+          },
+        ]}
+      >
+        <Text style={styles.monogram}>RR</Text>
 
-      {/* Bottom area circles */}
-      <Animated.View style={[styles.decorCircle, styles.circle7, { opacity: Animated.multiply(decorCircles, 0.9) }]} />
-      <Animated.View style={[styles.decorCircle, styles.circle8, { opacity: Animated.multiply(decorCircles, 0.5) }]} />
-      <Animated.View style={[styles.decorCircle, styles.circle9, { opacity: Animated.multiply(decorCircles, 0.6) }]} />
-
-      {/* Left area circles */}
-      <Animated.View style={[styles.decorCircle, styles.circle10, { opacity: Animated.multiply(decorCircles, 0.7) }]} />
-      <Animated.View style={[styles.decorCircle, styles.circle11, { opacity: Animated.multiply(decorCircles, 0.4) }]} />
-      <Animated.View style={[styles.decorCircle, styles.circle12, { opacity: Animated.multiply(decorCircles, 0.8) }]} />
-
-      {/* Main content */}
-      <View style={styles.content}>
-        {/* Logo */}
-        <Animated.View
-          style={[
-            styles.logoContainer,
-            {
-              opacity: logoOpacity,
-              transform: [
-                {
-                  scale: Animated.multiply(logoScale, logoPulse),
-                },
-              ],
-            },
-          ]}
-        >
-          <Image
-            source={require('../assets/icon.png')}
-            style={styles.appIcon}
-            resizeMode="contain"
-          />
-        </Animated.View>
-
-        {/* Blur and white overlay during exit animation */}
-        {isExiting && (
-          <>
-            <Animated.View
-              style={[
-                StyleSheet.absoluteFill,
-                {
-                  opacity: blurIntensity.interpolate({
-                    inputRange: [0, 50],
-                    outputRange: [0, 1],
-                  }),
-                },
-              ]}
-            >
-              <BlurView intensity={50} style={StyleSheet.absoluteFill} tint="light" />
-            </Animated.View>
-            {/* White overlay for smooth transition - fully covers at end */}
-            <Animated.View
-              style={[
-                StyleSheet.absoluteFill,
-                {
-                  backgroundColor: 'rgb(249, 248, 239)',
-                  opacity: blurIntensity.interpolate({
-                    inputRange: [0, 50],
-                    outputRange: [0, 1],
-                  }),
-                },
-              ]}
-            />
-          </>
-        )}
-
-        {/* Loading dots */}
-        <View style={styles.loadingContainer}>
-          <View style={styles.dotsContainer}>
-            <Animated.View
-              style={[
-                styles.dot,
-                {
-                  opacity: dotAnim1.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.3, 1],
-                  }),
-                  transform: [
-                    {
-                      scale: dotAnim1.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.8, 1.2],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            />
-            <Animated.View
-              style={[
-                styles.dot,
-                {
-                  opacity: dotAnim2.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.3, 1],
-                  }),
-                  transform: [
-                    {
-                      scale: dotAnim2.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.8, 1.2],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            />
-            <Animated.View
-              style={[
-                styles.dot,
-                {
-                  opacity: dotAnim3.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.3, 1],
-                  }),
-                  transform: [
-                    {
-                      scale: dotAnim3.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.8, 1.2],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            />
-          </View>
+        <View style={styles.nameRow}>
+          <View style={styles.rule} />
+          <Text style={styles.wordmark}>REROUT AVENTURES</Text>
+          <View style={styles.rule} />
         </View>
-      </View>
-    </Animated.View>
+
+        {/* Dots directly below wordmark */}
+        <View style={styles.dotsRow}>
+          <Animated.View style={[styles.dot, makeDotStyle(dotAnim1)]} />
+          <Animated.View style={[styles.dot, makeDotStyle(dotAnim2)]} />
+          <Animated.View style={[styles.dot, makeDotStyle(dotAnim3)]} />
+        </View>
+      </Animated.View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: 'rgb(249, 248, 239)',
+    width: '100%',
+    height: '100%',
   },
-  decorCircle: {
+  textBlock: {
     position: 'absolute',
-    backgroundColor: 'rgba(244, 173, 50, 0.25)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(244, 173, 50, 0.45)',
+    top: 100,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    paddingHorizontal: 24,
   },
-  // Top area circles
-  circle1: {
-    width: 45,
-    height: 45,
-    borderRadius: 22.5,
-    top: -10,
-    left: '12%',
+  monogram: {
+    fontFamily: 'Seasons-Light',
+    fontSize: 72,
+    fontWeight: '300',
+    color: '#D4AF37',
+    lineHeight: 76,
+    marginBottom: 10,
+    letterSpacing: -2,
   },
-  circle2: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    top: -50,
-    right: '20%',
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    width: '100%',
+    justifyContent: 'center',
   },
-  circle3: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    top: 30,
-    right: 20,
-  },
-  // Right area circles
-  circle4: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    right: -40,
-    top: '18%',
-  },
-  circle5: {
-    width: 55,
-    height: 55,
-    borderRadius: 27.5,
-    right: 15,
-    top: '38%',
-  },
-  circle6: {
-    width: 85,
-    height: 85,
-    borderRadius: 42.5,
-    right: -55,
-    top: '55%',
-  },
-  // Bottom area circles
-  circle7: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    bottom: -60,
-    left: '15%',
-  },
-  circle8: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    bottom: 25,
-    left: '8%',
-  },
-  circle9: {
-    width: 75,
-    height: 75,
-    borderRadius: 37.5,
-    bottom: -25,
-    right: '18%',
-  },
-  // Left area circles
-  circle10: {
-    width: 65,
-    height: 65,
-    borderRadius: 32.5,
-    left: -35,
-    top: '25%',
-  },
-  circle11: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    left: 25,
-    top: '12%',
-  },
-  circle12: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    left: -15,
-    bottom: '28%',
-  },
-  content: {
+  rule: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    maxWidth: 40,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.5)',
   },
-  logoContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: 'rgb(244, 173, 50)',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 20,
-    elevation: 10,
+  wordmark: {
+    fontFamily: 'Seasons-Light',
+    fontSize: 10,
+    fontWeight: '300',
+    letterSpacing: 4,
+    color: 'rgba(255,255,255,0.85)',
+    textTransform: 'uppercase',
   },
-  appIcon: {
-    width: 180,
-    height: 180,
-  },
-  loadingContainer: {
-    marginTop: 50,
-    alignItems: 'center',
-  },
-  dotsContainer: {
+  dotsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
+    gap: 8,
+    marginTop: 20,
   },
   dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgb(244, 173, 50)',
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: GOLD,
   },
 });

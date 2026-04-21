@@ -8,6 +8,7 @@ import {
   onSnapshot,
   enableNetwork,
   disableNetwork,
+  limit,
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
 import { useAuth } from './authContext';
@@ -224,18 +225,19 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
       
       ownerId: data.ownerId || '',
       status: data.status || 'pending',
-      rating: 0,
-      reviews: 0,
+      rating: data.averageRating || data.rating || 0,
+      reviews: data.reviewCount || data.reviews || 0,
       bookedDates: Array.isArray(data.bookedDates) ? data.bookedDates : [],
       blockedDates: Array.isArray(data.blockedDates) ? data.blockedDates : [],
-      
+      bookingWindowDays: typeof data.bookingWindowDays === 'number' ? data.bookingWindowDays : undefined,
+
       coordinates: data.coordinates || undefined,
       createdAt: data.createdAt,
       approvedAt: data.approvedAt,
-      
+
       contactPhone1: data.basicDetails?.contactPhone1,
       contactPhone2: data.basicDetails?.contactPhone2,
-      
+
       basicDetails: data.basicDetails,
       sourceType: 'new',
     };
@@ -288,7 +290,8 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
     reviews: data.reviews || 0,
     bookedDates: Array.isArray(data.bookedDates) ? data.bookedDates : [],
     blockedDates: Array.isArray(data.blockedDates) ? data.blockedDates : [],
-    
+    bookingWindowDays: typeof data.bookingWindowDays === 'number' ? data.bookingWindowDays : undefined,
+
     coordinates: data.coordinates,
     createdAt: data.createdAt,
     approvedAt: data.approvedAt,
@@ -578,6 +581,69 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, [ready, refreshTriggers.coupons]);
 
+  // ==================== OWNER BOOKINGS ====================
+  useEffect(() => {
+    if (!ready) return;
+    if (!user?.uid || user.role !== 'owner') {
+      setState(prev => ({ ...prev, allBookingsForMyFarmhouses: [], allBookingsLoading: false }));
+      return;
+    }
+
+    const farmhouseIds = state.myFarmhouses.map(f => f.id);
+    if (farmhouseIds.length === 0) {
+      setState(prev => ({ ...prev, allBookingsForMyFarmhouses: [], allBookingsLoading: false }));
+      return;
+    }
+
+    setState(prev => ({ ...prev, allBookingsLoading: true, allBookingsError: null }));
+
+    // Firestore 'in' supports up to 30 values; batch if needed
+    const batches = [];
+    for (let i = 0; i < farmhouseIds.length; i += 30) {
+      batches.push(farmhouseIds.slice(i, i + 30));
+    }
+
+    const allBookingsMap = new Map<string, Booking>();
+    const unsubs: (() => void)[] = [];
+    let settledCount = 0;
+
+    batches.forEach(batch => {
+      const q = query(
+        collection(db, 'bookings'),
+        where('farmhouseId', 'in', batch),
+        orderBy('createdAt', 'desc'),
+        limit(500)
+      );
+
+      const unsub = onSnapshot(q, (snapshot) => {
+        snapshot.docs.forEach(doc => {
+          allBookingsMap.set(doc.id, { id: doc.id, ...doc.data() } as Booking);
+        });
+        settledCount++;
+        if (settledCount >= batches.length) {
+          const sorted = Array.from(allBookingsMap.values()).sort((a, b) => {
+            const ta = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
+            const tb = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
+            return tb - ta;
+          });
+          setState(prev => ({
+            ...prev,
+            allBookingsForMyFarmhouses: sorted,
+            allBookingsLoading: false,
+            allBookingsRefreshing: false,
+            allBookingsError: null,
+          }));
+        }
+      }, (error) => {
+        setState(prev => ({ ...prev, allBookingsLoading: false, allBookingsError: error.message }));
+      });
+
+      unsubs.push(unsub);
+    });
+
+    return () => unsubs.forEach(u => u());
+  }, [ready, user?.uid, user?.role, state.myFarmhouses]);
+
   // ==================== REFRESH FUNCTIONS ====================
 
   // onSnapshot listeners are live — "refresh" just clears the refreshing flag.
@@ -753,5 +819,20 @@ export function useCoupons() {
     error: couponsError,
     refreshing: couponsRefreshing,
     refresh: refreshCoupons,
+  };
+}
+
+export function useOwnerBookings(farmhouseId?: string) {
+  const { allBookingsForMyFarmhouses, allBookingsLoading, allBookingsError, allBookingsRefreshing, refreshAllBookings, getFarmhouseBookings } = useGlobalData();
+  const data = useMemo(
+    () => farmhouseId ? getFarmhouseBookings(farmhouseId) : allBookingsForMyFarmhouses,
+    [farmhouseId, allBookingsForMyFarmhouses, getFarmhouseBookings]
+  );
+  return {
+    data,
+    loading: allBookingsLoading,
+    error: allBookingsError,
+    refreshing: allBookingsRefreshing,
+    refresh: refreshAllBookings,
   };
 }

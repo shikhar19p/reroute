@@ -62,6 +62,7 @@ export interface Farmhouse {
   reviews: number;
   bookedDates: string[];
   blockedDates?: string[];
+  bookingWindowDays?: number;
   coordinates?: { lat: number; lng: number };
   createdAt: any;
   approvedAt?: any;

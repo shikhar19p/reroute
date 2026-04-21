@@ -10,7 +10,6 @@
     "web": "expo start --web",
     "web:prod": "expo export --platform web",
     "web:minify": "EXPO_WEB_MINIFY=true expo start --web",
-    "add-dummy-data": "npx tsx scripts/addDummyData.ts",
     "ensure-firebase": "node scripts/ensure-google-services.js"
   },
   "dependencies": {

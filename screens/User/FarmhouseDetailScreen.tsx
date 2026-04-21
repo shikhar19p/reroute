@@ -387,7 +387,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
   const getMaximumDate = () => {
     const now = new Date();
-    now.setDate(now.getDate() + 21);
+    now.setDate(now.getDate() + (farmhouse.bookingWindowDays ?? 21));
     return now.toISOString().split('T')[0];
   };
 
@@ -849,7 +849,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
           <View style={[styles.calendarCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Select Dates</Text>
             <Text style={[styles.calendarInstruction, { color: colors.placeholder }]}>
-              Tap a date for day use, or two dates for an overnight stay. (Max 3 weeks from today)
+              Tap a date for day use, or two dates for an overnight stay. (Max {farmhouse.bookingWindowDays ?? 21} days from today)
             </Text>
             
             <View style={[styles.guestSelector, { borderColor: colors.border }]}>

@@ -69,8 +69,13 @@ export async function createReview(reviewData: Omit<Review, 'id' | 'createdAt' |
       createdAt: serverTimestamp(),
     });
 
-    // Update farmhouse rating
-    await updateFarmhouseRating(reviewData.farmhouseId);
+    // Atomic increment — no need to read all reviews
+    await updateDoc(doc(db, 'farmhouses', reviewData.farmhouseId), {
+      ratingSum: increment(reviewData.rating),
+      reviewCount: increment(1),
+      averageRating: increment(0), // placeholder; computed below
+    });
+    await _recomputeAverageRating(reviewData.farmhouseId);
 
     // Log audit event
     await logAuditEvent(
@@ -201,9 +206,13 @@ export async function updateReview(
       updatedAt: serverTimestamp()
     });
 
-    // Update farmhouse rating if rating changed
+    // Atomic delta — only adjusts by the diff, no bulk read
     if (updates.rating) {
-      await updateFarmhouseRating(reviewData.farmhouseId);
+      const delta = updates.rating - reviewData.rating;
+      await updateDoc(doc(db, 'farmhouses', reviewData.farmhouseId), {
+        ratingSum: increment(delta),
+      });
+      await _recomputeAverageRating(reviewData.farmhouseId);
     }
 
     // Log audit event
@@ -234,11 +243,16 @@ export async function deleteReview(reviewId: string, userId: string): Promise<vo
     }
 
     const farmhouseId = reviewData.farmhouseId;
+    const oldRating = reviewData.rating;
 
     await deleteDoc(reviewRef);
 
-    // Update farmhouse rating
-    await updateFarmhouseRating(farmhouseId);
+    // Atomic decrement — no bulk read
+    await updateDoc(doc(db, 'farmhouses', farmhouseId), {
+      ratingSum: increment(-oldRating),
+      reviewCount: increment(-1),
+    });
+    await _recomputeAverageRating(farmhouseId);
 
     // Log audit event
     await logAuditEvent('review_deleted', userId, 'review', reviewId);
@@ -265,35 +279,23 @@ export async function markReviewHelpful(reviewId: string): Promise<void> {
   }
 }
 
-/**
- * Update farmhouse's average rating
- */
-async function updateFarmhouseRating(farmhouseId: string): Promise<void> {
+// Reads ratingSum+reviewCount (already in the doc), writes averageRating+rating+reviews.
+// One doc read instead of up to 1000 review reads.
+async function _recomputeAverageRating(farmhouseId: string): Promise<void> {
   try {
-    const reviews = await getFarmhouseReviews(farmhouseId, 1000);
-
-    if (reviews.length === 0) {
-      // No reviews, set rating to 0
-      const farmhouseRef = doc(db, 'farmhouses', farmhouseId);
-      await updateDoc(farmhouseRef, {
-        rating: 0,
-        reviews: 0
-      });
-      return;
-    }
-
-    // Calculate average rating
-    const totalRating = reviews.reduce((sum, review) => sum + review.rating, 0);
-    const averageRating = totalRating / reviews.length;
-
-    // Update farmhouse document
-    const farmhouseRef = doc(db, 'farmhouses', farmhouseId);
-    await updateDoc(farmhouseRef, {
-      rating: Math.round(averageRating * 10) / 10, // Round to 1 decimal
-      reviews: reviews.length
+    const snap = await getDoc(doc(db, 'farmhouses', farmhouseId));
+    if (!snap.exists()) return;
+    const d = snap.data();
+    const sum: number = d.ratingSum || 0;
+    const count: number = d.reviewCount || 0;
+    const avg = count > 0 ? Math.round((sum / count) * 10) / 10 : 0;
+    await updateDoc(doc(db, 'farmhouses', farmhouseId), {
+      averageRating: avg,
+      rating: avg,
+      reviews: count,
     });
   } catch (error) {
-    console.error('Error updating farmhouse rating:', error);
+    console.error('Error recomputing average rating:', error);
   }
 }
 

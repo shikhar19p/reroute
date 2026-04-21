@@ -1,7 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { collection, addDoc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
 // Configure notification behavior (skip on web - not supported)
@@ -156,7 +156,9 @@ export async function getUserNotifications(userId: string): Promise<Notification
   try {
     const q = query(
       collection(db, 'notifications'),
-      where('userId', '==', userId)
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc'),
+      limit(50)
     );
 
     const snapshot = await getDocs(q);

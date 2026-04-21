@@ -1,15 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Linking, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../authContext';
-import { getFarmhousesByOwner } from '../../services/farmhouseService';
-import { Booking, getFarmhouseBookings, updateBookingStatus, updatePaymentStatus } from '../../services/bookingService';
+import { Booking, updateBookingStatus, updatePaymentStatus } from '../../services/bookingService';
 import { cancelBookingWithRefund } from '../../services/cancellationService';
 import { useDialog } from '../../components/CustomDialog';
 import { getStatusColor } from '../../utils/statusColors';
 import { parseError } from '../../utils/errorHandler';
+import { useOwnerBookings } from '../../GlobalDataContext';
 
 type RootStackParamList = {
   OwnerBookings: { farmhouseId?: string } | undefined;
@@ -24,51 +24,10 @@ export default function BookingsListScreen({ route, navigation }: Props) {
   const { colors } = useTheme();
   const { user } = useAuth();
   const { showDialog } = useDialog();
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [bookings, setBookings] = useState<Booking[]>([]);
   const [filter, setFilter] = useState<'all' | Booking['status']>('all');
 
   const farmhouseId = route.params?.farmhouseId;
-
-  useEffect(() => {
-    loadBookings();
-  }, [farmhouseId]);
-
-  const loadBookings = async () => {
-    if (!user) return;
-    try {
-      setLoading(true);
-      let results: Booking[] = [];
-      if (farmhouseId) {
-        results = await getFarmhouseBookings(farmhouseId);
-      } else {
-        const farms = await getFarmhousesByOwner(user.uid);
-        for (const farm of farms) {
-          const b = await getFarmhouseBookings(farm.id);
-          results.push(...b);
-        }
-      }
-      // sort by check-in date descending
-      results.sort((a, b) => new Date(b.checkInDate).getTime() - new Date(a.checkInDate).getTime());
-      setBookings(results);
-    } catch (e) {
-      console.error('Error loading bookings', e);
-      showDialog({
-        title: 'Error',
-        message: 'Failed to load bookings',
-        type: 'error'
-      });
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadBookings();
-  };
+  const { data: bookings, loading, refreshing, refresh: onRefresh } = useOwnerBookings(farmhouseId);
 
   const filtered = useMemo(() => {
     if (filter === 'all') return bookings;
@@ -88,12 +47,8 @@ export default function BookingsListScreen({ route, navigation }: Props) {
       buttons: [
         { text: 'Cancel', style: 'cancel' },
         { text: 'OK', style: 'default', onPress: async () => {
-          try { await action(); await loadBookings(); } catch (e) {
-            showDialog({
-              title: 'Error',
-              message: 'Action failed',
-              type: 'error'
-            });
+          try { await action(); } catch (e) {
+            showDialog({ title: 'Error', message: 'Action failed', type: 'error' });
           }
         }}
       ]
@@ -132,10 +87,6 @@ export default function BookingsListScreen({ route, navigation }: Props) {
                 title: 'Booking Cancelled',
                 message: `Booking cancelled successfully.\n\nRefund: ₹${result.refundAmount} (${result.refundPercentage}%)\n${result.message}`,
                 type: 'success',
-                buttons: [{
-                  text: 'OK',
-                  onPress: () => loadBookings()
-                }]
               });
             } catch (error: any) {
               showDialog({
