@@ -40,7 +40,17 @@
       "Bash(grep -n \"calculateTotalPrice\\\\|totalPrice\\\\|paise\\\\|100$\\\\|\\\\* 100\" D:/reroute/screens/User/FarmhouseDetailScreen.tsx)",
       "Bash(keytool -list -v -keystore android/app/debug.keystore -alias androiddebugkey -storepass android -keypass android)",
       "Bash(adb *)",
-      "Bash(./gradlew clean *)"
+      "Bash(./gradlew clean *)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\('expo',{}\\).get\\('web',{}\\)\\)\")",
+      "Bash(npm show *)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(firebase deploy *)",
+      "Bash(firebase functions:list)",
+      "Bash(firebase functions:delete createOrder encryptBankDetails getBankDetails ingestLogs notifyBankDetailsUpdate notifyBookingCancellation onFarmhouseApprovalChanged onFarmhouseCreated processRefund razorpayWebhook verifyPayment --region us-central1 --force)",
+      "Bash(grep -v node_modules echo \"---serviceAccountKey---\" ls -la D:/reroute/serviceAccountKey.json)",
+      "Bash(git push *)",
+      "Bash(grep -E \"\\\\.\\(tsx|ts|jsx|js\\)$\")"
     ],
     "deny": [],
     "ask": []

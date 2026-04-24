@@ -309,11 +309,21 @@ function AppNavigator() {
     if (!loading) prefetchLazyScreens();
   }, [loading]);
 
-  // Show a minimal loading indicator while auth initializes
+  // Hide HTML splash screen once auth resolves (web only)
+  React.useEffect(() => {
+    if (loading || Platform.OS !== 'web') return;
+    const el = document.getElementById('web-splash');
+    if (!el) return;
+    el.classList.add('fade-out');
+    const t = setTimeout(() => el.remove(), 400);
+    return () => clearTimeout(t);
+  }, [loading]);
+
+  // On web the HTML splash covers this; show plain background (no spinner flash)
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="rgb(244, 173, 50)" />
+      <View style={[styles.loadingContainer, Platform.OS === 'web' && { backgroundColor: '#F9F8EF' }]}>
+        {Platform.OS !== 'web' && <ActivityIndicator size="large" color="rgb(244, 173, 50)" />}
       </View>
     );
   }

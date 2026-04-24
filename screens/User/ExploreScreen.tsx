@@ -598,7 +598,7 @@ export default function ExploreScreen({ navigation }: any) {
           activeOpacity={1}
           onPress={() => setShowFilterModal(false)}
         >
-          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={{ width: '100%' }}>
             <View style={[styles.filterModalContent, { backgroundColor: colors.cardBackground }]}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Filters</Text>
 
