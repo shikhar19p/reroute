@@ -14,6 +14,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="preconnect" href="https://firebasestorage.googleapis.com" />
 
+    <!-- Preload background image so it renders instantly on login screen -->
+    <link rel="preload" href="/assets/farmhouse-bg.jpg" as="image" />
+
     <!-- Inter font via CDN with font-display:swap — eliminates JS font blocking (saves ~3000ms) -->
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
@@ -31,7 +34,7 @@
 
       body {
         overflow: hidden;
-        background-color: #F7F7F7;
+        background-color: #F9F8EF;
       }
 
       #root {
@@ -60,12 +63,51 @@
         font-family: 'Inter';
         font-display: swap;
       }
+
+      /* Web splash screen — visible before JS loads and during auth init */
+      #web-splash {
+        position: fixed;
+        inset: 0;
+        background-color: #F9F8EF;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.35s ease;
+      }
+      #web-splash.fade-out {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #web-splash img {
+        width: 96px;
+        height: 96px;
+        border-radius: 20px;
+        object-fit: cover;
+      }
+      #web-splash-title {
+        margin-top: 18px;
+        font-family: 'Inter', sans-serif;
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: 2px;
+        color: #C5A565;
+        text-transform: uppercase;
+      }
     </style>
 
     <link rel="icon" href="/favicon.ico" />
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
+
+    <!-- Splash shown immediately before React mounts -->
+    <div id="web-splash">
+      <img src="/assets/splash-icon.png" alt="ReRoute Adventures" />
+      <div id="web-splash-title">ReRoute Adventures</div>
+    </div>
+
     <div id="root"></div>
   </body>
 </html>

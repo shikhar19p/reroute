@@ -34,6 +34,8 @@ const redirectUri = AuthSession.makeRedirectUri(
 export default function WelcomeScreen({ navigation }: any) {
   const [loading, setLoading] = useState(false);
   const [signInError, setSignInError] = useState<string | null>(null);
+  // On web, hide ImageBackground until fully loaded to prevent top-to-bottom progressive render
+  const [bgReady, setBgReady] = useState(Platform.OS !== 'web');
 
   const [, response, promptAsync] = Google.useAuthRequest({
     webClientId: WEB_CLIENT_ID,
@@ -67,10 +69,9 @@ export default function WelcomeScreen({ navigation }: any) {
           setSignInError(err?.message || 'Sign-in failed. Please try again.');
           setLoading(false);
         });
-    } else if (response.type === 'dismiss') {
+    } else if (response.type === 'dismiss' || response.type === 'cancel') {
       setLoading(false);
     } else {
-      setSignInError('Google sign-in was cancelled or failed.');
       setLoading(false);
     }
   }, [response]);
@@ -113,7 +114,14 @@ export default function WelcomeScreen({ navigation }: any) {
         await signInWithCredential(auth, credential);
         // Keep loading=true — onAuthStateChanged will navigate away automatically
       } catch (err: any) {
-        if (err?.code !== 'SIGN_IN_CANCELLED') {
+        const cancelled =
+          err?.code === 'SIGN_IN_CANCELLED' ||
+          err?.code === -5 ||
+          err?.code === 12501 ||
+          String(err?.code) === '-5' ||
+          String(err?.code) === '12501' ||
+          err?.message?.toLowerCase().includes('cancel');
+        if (!cancelled) {
           setSignInError(err?.message || 'Google sign-in failed.');
         }
         setLoading(false);
@@ -127,8 +135,9 @@ export default function WelcomeScreen({ navigation }: any) {
 
       <ImageBackground
         source={require('../assets/farmhouse-bg.jpg')}
-        style={styles.backgroundImage}
+        style={[styles.backgroundImage, !bgReady && { opacity: 0 }]}
         resizeMode="cover"
+        onLoad={() => setBgReady(true)}
       >
         <LinearGradient
           colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0.25)']}

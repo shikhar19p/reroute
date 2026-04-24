@@ -500,8 +500,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
 
     const q = query(
       collection(db, 'farmhouses'),
-      where('ownerId', '==', user.uid),
-      orderBy('createdAt', 'desc')
+      where('ownerId', '==', user.uid)
     );
 
     const unsubscribe = onSnapshot(
@@ -509,6 +508,11 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
       (snapshot) => {
         try {
           const farmhouses = snapshot.docs.map(doc => transformFarmhouseData(doc));
+          farmhouses.sort((a, b) => {
+            const ta = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
+            const tb = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
+            return tb - ta;
+          });
 
           setState(prev => ({
             ...prev,

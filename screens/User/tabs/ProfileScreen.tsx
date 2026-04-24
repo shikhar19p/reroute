@@ -175,8 +175,6 @@ export default function ProfileScreen({ navigation }: any) {
             </Text>
           </View>
           <Text style={[styles.userName, { color: colors.text }]}>{profile.name}</Text>
-          <Text style={[styles.userDetail, { color: colors.placeholder }]}>{profile.email}</Text>
-          <Text style={[styles.userDetail, { color: colors.placeholder }]}>{profile.phone}</Text>
           <View style={[styles.memberBadge, { backgroundColor: colors.surfaceOverlay }]}>
             <Calendar size={12} color={colors.primary} />
             <Text style={[styles.memberText, { color: colors.primary }]}>Member since {profile.memberSince}</Text>

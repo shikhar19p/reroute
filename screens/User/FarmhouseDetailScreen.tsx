@@ -162,6 +162,14 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     return totalRating / reviews.length;
   }, [reviews]);
 
+  // Sync stored rating with calculated average so list/wishlist screens stay consistent
+  useEffect(() => {
+    if (loadingReviews || reviews.length === 0) return;
+    const avg = parseFloat(averageRating.toFixed(1));
+    if (avg === farmhouse.rating) return;
+    updateDoc(doc(db, 'farmhouses', farmhouse.id), { rating: avg }).catch(() => {});
+  }, [averageRating, farmhouse.id, farmhouse.rating, loadingReviews, reviews.length]);
+
   // ========== PRICING HELPER FUNCTIONS ==========
   
   /** Convert ISO yyyy-mm-dd -> yyyy/mm/dd (with leading zeros) */
@@ -170,10 +178,21 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     return `${y}/${m}/${d}`;
   };
 
-  /** Normalize DB `name` value to comparable form (trim spaces, ensure slashes) */
+  /** Normalize DB `name` value to yyyy/mm/dd. Handles "DD Mon YYYY" (admin format) and "YYYY-MM-DD" / "YYYY/MM/DD". */
   const normalizeCustomName = (name: string | undefined) => {
     if (!name) return null;
-    return name.trim().replace(/-/g, '/');
+    const trimmed = name.trim();
+    const MON: Record<string, string> = {
+      Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
+      Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12',
+    };
+    const ddMonYYYY = trimmed.match(/^(\d{1,2})\s+(\w{3})\s+(\d{4})$/);
+    if (ddMonYYYY) {
+      const [, d, mon, y] = ddMonYYYY;
+      const m = MON[mon];
+      if (m) return `${y}/${m}/${d.padStart(2, '0')}`;
+    }
+    return trimmed.replace(/-/g, '/');
   };
 
   /** Safely parse price strings/numbers to Number, return null if invalid */
@@ -387,7 +406,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
   const getMaximumDate = () => {
     const now = new Date();
-    now.setDate(now.getDate() + (farmhouse.bookingWindowDays ?? 21));
+    now.setDate(now.getDate() + (farmhouse.bookingWindowDays ?? 60));
     return now.toISOString().split('T')[0];
   };
 
@@ -511,8 +530,20 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
         current.setDate(current.getDate() + 1);
       }
     }
+    // Mark custom-priced dates with a gold dot
+    (farmhouse.customPricing || []).forEach(cp => {
+      const rawLabel = cp.label || (cp as any).name;
+      const normalized = normalizeCustomName(rawLabel);
+      if (!normalized) return;
+      // Convert yyyy/mm/dd → yyyy-mm-dd for calendar key
+      const isoKey = normalized.replace(/\//g, '-');
+      if (!marked[isoKey]) {
+        marked[isoKey] = { marked: true, dotColor: '#D4AF37' };
+      }
+    });
+
     return marked;
-  }, [selectedDates, unavailableDates, isDark]);
+  }, [selectedDates, unavailableDates, isDark, farmhouse.customPricing]);
   
   const calculateNights = () => {
     if (!selectedDates.start || !selectedDates.end || selectedDates.start === selectedDates.end) return 0;
@@ -1072,7 +1103,7 @@ const styles = StyleSheet.create({
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   rating: { fontSize: 16, fontWeight: '600' },
   reviews: { fontSize: 14 },
-  contactSection: { marginTop: 28, paddingTop: 20, borderTopWidth: 1 },
+  contactSection: { marginTop: 28, paddingTop: 20 },
   contactLabel: { fontSize: 12, textAlign: 'center', marginBottom: 12, letterSpacing: 0.3 },
   contactRow: { flexDirection: 'row', gap: 10 },
   contactBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 10 },

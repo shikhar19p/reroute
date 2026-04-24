@@ -25,7 +25,7 @@ export default function WishlistScreen({ navigation }: any) {
     if (wishlist.length > 0) {
       try {
         const results = await Promise.all(wishlist.map(id => getFarmhouseById(id)));
-        setWishlistFarmhouses(results.filter((f): f is Farmhouse => f !== null));
+        setWishlistFarmhouses(results.filter((f): f is Farmhouse => f !== null && f.status === 'approved'));
       } catch {
         showDialog({ title: 'Error', message: 'Could not load your wishlist.', type: 'error' });
       }

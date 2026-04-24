@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ImageResizeMode } from 'react-native';
-import { Image } from 'expo-image';
+import { View, Image, StyleSheet, ImageResizeMode } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 
 interface AnimatedImageProps {
@@ -8,13 +7,6 @@ interface AnimatedImageProps {
   style?: any;
   resizeMode?: ImageResizeMode;
 }
-
-const CONTENT_FIT_MAP: Record<string, any> = {
-  cover: 'cover',
-  contain: 'contain',
-  stretch: 'fill',
-  center: 'scale-down',
-};
 
 export default function AnimatedImage({ uri, style, resizeMode = 'cover' }: AnimatedImageProps) {
   const { isDark } = useTheme();
@@ -27,15 +19,14 @@ export default function AnimatedImage({ uri, style, resizeMode = 'cover' }: Anim
   }
 
   return (
-    <Image
-      source={{ uri }}
-      style={[styles.container, style]}
-      contentFit={CONTENT_FIT_MAP[resizeMode] || 'cover'}
-      transition={350}
-      cachePolicy="memory-disk"
-      placeholder={{ color: placeholderBg }}
-      onError={() => setError(true)}
-    />
+    <View style={[styles.container, style, { backgroundColor: placeholderBg }]}>
+      <Image
+        source={{ uri }}
+        style={StyleSheet.absoluteFill}
+        resizeMode={resizeMode}
+        onError={() => setError(true)}
+      />
+    </View>
   );
 }
 
