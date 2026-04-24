@@ -165,14 +165,14 @@ export default function ExploreScreen({ navigation }: any) {
   useEffect(() => {
     if (farmhouses.length === 0) return;
 
-    // Step 1+2: build from doc fields + session cache immediately
+    // Step 1+2: Firestore rating (live via onSnapshot) always wins over session cache
     const initial: Record<string, number> = {};
     farmhouses.forEach(f => {
-      if (sessionRatings[f.id]) {
-        initial[f.id] = sessionRatings[f.id];
-      } else if (f.rating > 0) {
+      if (f.rating > 0) {
         initial[f.id] = f.rating;
         sessionRatings[f.id] = f.rating;
+      } else if (sessionRatings[f.id]) {
+        initial[f.id] = sessionRatings[f.id];
       }
     });
     if (Object.keys(initial).length > 0) setFarmhouseRatings(initial);
