@@ -63,8 +63,8 @@ export const convertFarmhouseData = (id: string, data: any): Farmhouse => {
     occasionalNight: parseInt(pricing.occasionalNight, 10) || 0,
     capacity: parseInt(basicDetails.capacity, 10) || 1,
     bedrooms: parseInt(basicDetails.bedrooms, 10) || 1,
-    rating: data.rating || 4.5,
-    reviews: data.reviews || 10,
+    rating: data.rating ?? 0,
+    reviews: data.reviews || 0,
     photos: data.photoUrls || [],
     amenities: {
       tv: amenitiesData.tv || 0,

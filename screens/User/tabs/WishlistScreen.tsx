@@ -76,7 +76,7 @@ export default function WishlistScreen({ navigation }: any) {
           </Text>
           <View style={styles.ratingRow}>
             <Star size={13} color={colors.rating} fill={colors.rating} />
-            <Text style={[styles.rating, { color: colors.text }]}>{item.rating?.toFixed(1) || '4.5'}</Text>
+            <Text style={[styles.rating, { color: colors.text }]}>{item.rating > 0 ? item.rating.toFixed(1) : 'New'}</Text>
           </View>
         </View>
 

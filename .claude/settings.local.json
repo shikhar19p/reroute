@@ -50,7 +50,13 @@
       "Bash(firebase functions:delete createOrder encryptBankDetails getBankDetails ingestLogs notifyBankDetailsUpdate notifyBookingCancellation onFarmhouseApprovalChanged onFarmhouseCreated processRefund razorpayWebhook verifyPayment --region us-central1 --force)",
       "Bash(grep -v node_modules echo \"---serviceAccountKey---\" ls -la D:/reroute/serviceAccountKey.json)",
       "Bash(git push *)",
-      "Bash(grep -E \"\\\\.\\(tsx|ts|jsx|js\\)$\")"
+      "Bash(grep -E \"\\\\.\\(tsx|ts|jsx|js\\)$\")",
+      "Bash(eas credentials *)",
+      "Bash(keytool -list -v -keystore android/app/release.keystore)",
+      "Bash(keytool -list -v -keystore android/app/release.keystore -storepass android)",
+      "Bash(keytool -list -v -keystore android/app/release.keystore -storepass \"\")",
+      "Bash(keytool -list -v -keystore android/app/release.keystore -storepass reroute)",
+      "Bash(keytool -list -v -keystore android/app/release.keystore -storepass 'Rustique@3535' -alias reroute)"
     ],
     "deny": [],
     "ask": []
