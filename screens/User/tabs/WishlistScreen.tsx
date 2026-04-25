@@ -1,43 +1,27 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { FlatList, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, RefreshControl } from 'react-native';
+import React, { useMemo, useEffect, useState, useCallback } from 'react';
+import { FlatList, StyleSheet, Text, TouchableOpacity, View, RefreshControl } from 'react-native';
 import AnimatedImage from '../../../components/AnimatedImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Heart, MapPin, Users, Star } from 'lucide-react-native';
-import { useFocusEffect } from '@react-navigation/native';
 import { useWishlist } from '../../../context/WishlistContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { useScrollHandler } from '../../../context/TabBarVisibilityContext';
-import { useDialog } from '../../../components/CustomDialog';
-import { getFarmhouseById } from '../../../services/farmhouseService';
 import { Farmhouse } from '../../../types/navigation';
+import { useAvailableFarmhouses } from '../../../GlobalDataContext';
 import { resolveRatings } from '../../../utils/ratingsCache';
 
 export default function WishlistScreen({ navigation }: any) {
   const { colors } = useTheme();
   const { wishlist, removeFromWishlist } = useWishlist();
   const scrollHandler = useScrollHandler();
-  const { showDialog } = useDialog();
-  const [wishlistFarmhouses, setWishlistFarmhouses] = useState<Farmhouse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const { data: allFarmhouses, loading, refreshing, refresh } = useAvailableFarmhouses();
   const [wishlistRatings, setWishlistRatings] = useState<Record<string, number>>({});
 
-  const loadWishlistFarmhouses = useCallback(async () => {
-    setLoading(true);
-    if (wishlist.length > 0) {
-      try {
-        const results = await Promise.all(wishlist.map(id => getFarmhouseById(id)));
-        setWishlistFarmhouses(results.filter((f): f is Farmhouse => f !== null && f.status === 'approved'));
-      } catch {
-        showDialog({ title: 'Error', message: 'Could not load your wishlist.', type: 'error' });
-      }
-    } else {
-      setWishlistFarmhouses([]);
-    }
-    setLoading(false);
-  }, [wishlist, showDialog]);
-
-  useFocusEffect(useCallback(() => { loadWishlistFarmhouses(); }, [loadWishlistFarmhouses]));
+  // Filter from live onSnapshot-backed list — auto-updates when ratings change
+  const wishlistFarmhouses = useMemo(
+    () => allFarmhouses.filter(f => wishlist.includes(f.id)),
+    [allFarmhouses, wishlist]
+  );
 
   useEffect(() => {
     resolveRatings(wishlistFarmhouses, (incoming) => {
@@ -45,11 +29,7 @@ export default function WishlistScreen({ navigation }: any) {
     });
   }, [wishlistFarmhouses]);
 
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await loadWishlistFarmhouses();
-    setRefreshing(false);
-  }, [loadWishlistFarmhouses]);
+  const onRefresh = useCallback(() => { refresh(); }, [refresh]);
 
   const renderItem = ({ item }: { item: Farmhouse }) => (
     <TouchableOpacity
@@ -58,14 +38,8 @@ export default function WishlistScreen({ navigation }: any) {
       activeOpacity={0.8}
     >
       <View style={styles.imageContainer}>
-        <AnimatedImage
-          uri={item.photos?.[0] || ''}
-          style={styles.image}
-        />
-        <TouchableOpacity
-          style={styles.heartButton}
-          onPress={() => removeFromWishlist(item.id)}
-        >
+        <AnimatedImage uri={item.photos?.[0] || ''} style={styles.image} />
+        <TouchableOpacity style={styles.heartButton} onPress={() => removeFromWishlist(item.id)}>
           <Heart size={18} color={colors.favorite} fill={colors.favorite} />
         </TouchableOpacity>
       </View>
@@ -109,28 +83,24 @@ export default function WishlistScreen({ navigation }: any) {
         </Text>
       </View>
 
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.buttonBackground} />
-        </View>
-      ) : (
-        <FlatList
-          data={wishlistFarmhouses}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-          onScroll={scrollHandler.onScroll}
-          scrollEventThrottle={scrollHandler.scrollEventThrottle}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[colors.buttonBackground]}
-              tintColor={colors.buttonBackground}
-            />
-          }
-          ListEmptyComponent={
+      <FlatList
+        data={wishlistFarmhouses}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.list}
+        showsVerticalScrollIndicator={false}
+        onScroll={scrollHandler.onScroll}
+        scrollEventThrottle={scrollHandler.scrollEventThrottle}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[colors.buttonBackground]}
+            tintColor={colors.buttonBackground}
+          />
+        }
+        ListEmptyComponent={
+          loading ? null : (
             <View style={styles.emptyContainer}>
               <Heart size={52} color={colors.placeholder} />
               <Text style={[styles.emptyText, { color: colors.placeholder }]}>
@@ -143,9 +113,9 @@ export default function WishlistScreen({ navigation }: any) {
                 <Text style={[styles.browseButtonText, { color: colors.buttonText }]}>Browse</Text>
               </TouchableOpacity>
             </View>
-          }
-        />
-      )}
+          )
+        }
+      />
     </SafeAreaView>
   );
 }
@@ -182,5 +152,4 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 15, textAlign: 'center' },
   browseButton: { paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8, marginTop: 4 },
   browseButtonText: { fontSize: 15, fontWeight: '600' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 });

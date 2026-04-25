@@ -5,7 +5,7 @@ import {
   useWindowDimensions, Platform,
 } from 'react-native';
 import AnimatedImage from '../../components/AnimatedImage';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Heart, Search, SlidersHorizontal, ArrowUpDown, Bell, Share2, Star, MapPin, LogOut, Calendar, CheckCircle, AlertCircle, Clock } from 'lucide-react-native';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -142,6 +142,7 @@ export default function ExploreScreen({ navigation }: any) {
   const [sortBy, setSortBy] = useState('name');
   const [showSortModal, setShowSortModal] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
+  const insets = useSafeAreaInsets();
   const [filters, setFilters] = useState({
     location: '',
     minPrice: '',
@@ -149,6 +150,8 @@ export default function ExploreScreen({ navigation }: any) {
     minCapacity: '',
     propertyType: '' as '' | 'farmhouse' | 'resort',
   });
+  const filtersActive = filters.location !== '' || filters.minPrice !== '' || filters.maxPrice !== '' || filters.minCapacity !== '' || filters.propertyType !== '';
+  const clearFilters = () => setFilters({ location: '', minPrice: '', maxPrice: '', minCapacity: '', propertyType: '' });
   const [farmhouseRatings, setFarmhouseRatings] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -367,12 +370,21 @@ export default function ExploreScreen({ navigation }: any) {
             <ArrowUpDown size={20} color={colors.text} />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.iconButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+            style={[styles.iconButton, { backgroundColor: filtersActive ? colors.buttonBackground : colors.cardBackground, borderColor: filtersActive ? colors.buttonBackground : colors.border }]}
             onPress={() => setShowFilterModal(true)}
           >
-            <SlidersHorizontal size={20} color={colors.text} />
+            <SlidersHorizontal size={20} color={filtersActive ? colors.buttonText : colors.text} />
           </TouchableOpacity>
         </View>
+
+        {filtersActive && (
+          <View style={[styles.activeFilterRow, { paddingHorizontal: hPad }]}>
+            <Text style={[styles.activeFilterText, { color: colors.placeholder }]}>Filters active</Text>
+            <TouchableOpacity onPress={clearFilters} style={[styles.clearFilterBtn, { borderColor: colors.buttonBackground }]}>
+              <Text style={[styles.clearFilterBtnText, { color: colors.buttonBackground }]}>Clear all</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {loading ? (
           <View style={styles.loadingContainer}>
@@ -521,7 +533,7 @@ export default function ExploreScreen({ navigation }: any) {
           onPress={() => setShowFilterModal(false)}
         >
           <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={{ width: '100%' }}>
-            <View style={[styles.filterModalContent, { backgroundColor: colors.cardBackground }]}>
+            <View style={[styles.filterModalContent, { backgroundColor: colors.cardBackground, paddingBottom: Math.max(insets.bottom, 16) }]}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Filters</Text>
 
               <ScrollView style={styles.filterScrollView} showsVerticalScrollIndicator={false}>
@@ -591,10 +603,7 @@ export default function ExploreScreen({ navigation }: any) {
               <View style={styles.filterButtons}>
                 <TouchableOpacity
                   style={[styles.clearButton, { backgroundColor: colors.border }]}
-                  onPress={() => {
-                    setFilters({ location: '', minPrice: '', maxPrice: '', minCapacity: '', propertyType: '' });
-                    setShowFilterModal(false);
-                  }}
+                  onPress={() => { clearFilters(); setShowFilterModal(false); }}
                 >
                   <Text style={[styles.filterButtonText, { color: colors.text }]}>Clear</Text>
                 </TouchableOpacity>
@@ -702,7 +711,11 @@ const styles = StyleSheet.create({
   filterInput: { height: 45, borderRadius: 8, paddingHorizontal: 12, fontSize: 14, borderWidth: 1 },
   priceRow: { flexDirection: 'row', gap: 10 },
   filterInputHalf: { flex: 1, height: 45, borderRadius: 8, paddingHorizontal: 12, fontSize: 14, borderWidth: 1 },
-  filterButtons: { flexDirection: 'row', gap: 10, marginTop: 20, marginBottom: 10 },
+  activeFilterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 },
+  activeFilterText: { fontSize: 13 },
+  clearFilterBtn: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 4 },
+  clearFilterBtnText: { fontSize: 13, fontWeight: '600' },
+  filterButtons: { flexDirection: 'row', gap: 10, marginTop: 20 },
   clearButton: { flex: 1, padding: 15, borderRadius: 8, alignItems: 'center' },
   applyButton: { flex: 1, padding: 15, borderRadius: 8, alignItems: 'center' },
   filterButtonText: { fontSize: 16, fontWeight: '600' },
