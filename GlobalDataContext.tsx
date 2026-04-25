@@ -238,11 +238,13 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
       contactPhone1: data.basicDetails?.contactPhone1,
       contactPhone2: data.basicDetails?.contactPhone2,
 
+      propertyType: data.propertyType || data.basicDetails?.propertyType || 'farmhouse',
+
       basicDetails: data.basicDetails,
       sourceType: 'new',
     };
-  } 
-  
+  }
+
   // Old structure (flat fields)
   return {
     id: doc.id,
@@ -296,9 +298,11 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
     createdAt: data.createdAt,
     approvedAt: data.approvedAt,
     
+    propertyType: data.propertyType || 'farmhouse',
+
     contactPhone1: data.contactPhone1,
     contactPhone2: data.contactPhone2,
-    
+
     sourceType: 'old',
   };
 };
