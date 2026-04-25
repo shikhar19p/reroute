@@ -10,8 +10,7 @@ import { useScrollHandler } from '../../../context/TabBarVisibilityContext';
 import { useDialog } from '../../../components/CustomDialog';
 import { getFarmhouseById } from '../../../services/farmhouseService';
 import { Farmhouse } from '../../../types/navigation';
-import { collection, getDocs, query, limit as fsLimit } from 'firebase/firestore';
-import { db } from '../../../firebaseConfig';
+import { resolveRatings } from '../../../utils/ratingsCache';
 
 export default function WishlistScreen({ navigation }: any) {
   const { colors } = useTheme();
@@ -41,29 +40,8 @@ export default function WishlistScreen({ navigation }: any) {
   useFocusEffect(useCallback(() => { loadWishlistFarmhouses(); }, [loadWishlistFarmhouses]));
 
   useEffect(() => {
-    if (wishlistFarmhouses.length === 0) return;
-    const initial: Record<string, number> = {};
-    wishlistFarmhouses.forEach(f => { if (f.rating > 0) initial[f.id] = f.rating; });
-    if (Object.keys(initial).length > 0) setWishlistRatings(initial);
-
-    const missing = wishlistFarmhouses.filter(f => !(f.rating > 0));
-    if (missing.length === 0) return;
-    Promise.all(
-      missing.map(async (f) => {
-        try {
-          const snap = await getDocs(query(collection(db, 'farmhouses', f.id, 'reviews'), fsLimit(200)));
-          if (!snap.empty) {
-            let total = 0;
-            snap.forEach(d => { total += d.data().rating || 0; });
-            return [f.id, total / snap.size] as [string, number];
-          }
-        } catch {}
-        return null;
-      })
-    ).then(results => {
-      const fresh: Record<string, number> = {};
-      results.forEach(r => { if (r) fresh[r[0]] = r[1]; });
-      if (Object.keys(fresh).length > 0) setWishlistRatings(prev => ({ ...prev, ...fresh }));
+    resolveRatings(wishlistFarmhouses, (incoming) => {
+      setWishlistRatings(prev => ({ ...prev, ...incoming }));
     });
   }, [wishlistFarmhouses]);
 
