@@ -487,7 +487,7 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
                   </TouchableOpacity>
                 </View>
               ))}
-              {formData.photos.length < 10 && (
+              {formData.photos.length < 30 && (
                 <TouchableOpacity
                   style={[styles.addImageButton, { borderColor: colors.border, backgroundColor: colors.cardBackground }]}
                   onPress={choosePhotoSource}

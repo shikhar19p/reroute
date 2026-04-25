@@ -42,13 +42,13 @@ export default function AnimatedSplashScreen({
     Animated.parallel([
       Animated.timing(textOpacity, {
         toValue: 1,
-        duration: 700,
+        duration: 400,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: Platform.OS !== 'web',
       }),
       Animated.timing(textTranslateY, {
         toValue: 0,
-        duration: 700,
+        duration: 400,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: Platform.OS !== 'web',
       }),
@@ -73,7 +73,7 @@ export default function AnimatedSplashScreen({
         ])
       );
       dotLoopRef.current.start();
-    }, 700);
+    }, 400);
 
     // Fade-out text only — photo stays for seamless transition to WelcomeScreen
     const exitTimer = setTimeout(() => {
@@ -81,13 +81,13 @@ export default function AnimatedSplashScreen({
 
       Animated.timing(textOpacity, {
         toValue: 0,
-        duration: 500,
+        duration: 300,
         easing: Easing.in(Easing.ease),
         useNativeDriver: Platform.OS !== 'web',
       }).start(({ finished }) => {
         if (finished && onAnimationComplete) onAnimationComplete();
       });
-    }, 2200);
+    }, 1400);
 
     return () => {
       clearTimeout(dotsTimer);
