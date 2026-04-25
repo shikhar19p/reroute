@@ -34,7 +34,7 @@ import { AuthProvider, useAuth } from './authContext';
 import { FarmRegistrationProvider } from './context/FarmRegistrationContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { WishlistProvider } from './context/WishlistContext';
-import { GlobalDataProvider } from './GlobalDataContext';
+import { GlobalDataProvider, useMyFarmhouses } from './GlobalDataContext';
 import { ToastProvider } from './components/Toast';
 import { DialogProvider } from './components/CustomDialog';
 import { TabBarVisibilityProvider } from './context/TabBarVisibilityContext';
@@ -220,43 +220,20 @@ function SplashWithAuthCheck({ message, onReady, onComplete }: {
 
 // Wrapper component to check if owner has farmhouses and route accordingly
 function OwnerNavigator({ navigation }: any) {
-  const { user } = useAuth();
-  const [loading, setLoading] = React.useState(true);
+  const { data: myFarmhouses, loading } = useMyFarmhouses();
+  const routed = React.useRef(false);
 
   React.useEffect(() => {
-    checkFarmhouses();
-  }, []);
-
-  const checkFarmhouses = async () => {
-    if (!user?.uid) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const { ownerHasFarmhouses } = await import('./services/farmhouseService');
-      const hasProperties = await ownerHasFarmhouses(user.uid);
-
-      // Navigate to appropriate screen based on farmhouse ownership
-      if (hasProperties) {
-        navigation.replace('MyFarmhouses');
-      } else {
-        navigation.replace('OwnerHome');
-      }
-    } catch (error) {
-      console.error('Error checking farmhouses:', error);
+    if (loading || routed.current) return;
+    routed.current = true;
+    if (myFarmhouses.length > 0) {
+      navigation.replace('MyFarmhouses');
+    } else {
       navigation.replace('OwnerHome');
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [loading, myFarmhouses, navigation]);
 
-  // Return empty view while checking - no loading indicator
-  if (loading) {
-    return <View style={{ flex: 1, backgroundColor: 'rgb(249, 248, 239)' }} />;
-  }
-
-  return null;
+  return <View style={{ flex: 1, backgroundColor: 'rgb(249, 248, 239)' }} />;
 }
 
 // Bottom Tab Navigator for User screens
