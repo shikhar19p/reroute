@@ -71,12 +71,12 @@ service cloud.firestore {
 
     // ========== Bookings Collection ==========
     match /bookings/{bookingId} {
-      // Users can only read their own bookings.
-      // Farmhouse owners can't directly query here — they use Cloud Functions
-      // or list their farmhouse's bookings via a server-side call.
       allow read: if isAuthenticated() && (
         resource.data.userId == request.auth.uid
         || resource.data.user_id == request.auth.uid
+        // Farmhouse owner can read bookings for their property
+        || (resource.data.farmhouseId != null
+            && get(/databases/$(database)/documents/farmhouses/$(resource.data.farmhouseId)).data.ownerId == request.auth.uid)
         || isAdmin()
       );
 
@@ -84,12 +84,14 @@ service cloud.firestore {
         && (request.resource.data.userId == request.auth.uid || request.resource.data.user_id == request.auth.uid);
 
       allow update: if isAuthenticated() && (
-        // Booking owner can update their own booking (except critical financial/identity fields)
+        // Guest can update their own booking (not financial/identity fields)
         ((resource.data.userId == request.auth.uid || resource.data.user_id == request.auth.uid)
          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['farmhouseId', 'farmhouse_id', 'totalPrice', 'total_amount', 'userId', 'user_id']))
+        // Farmhouse owner can cancel bookings for their property
+        || (resource.data.farmhouseId != null
+            && get(/databases/$(database)/documents/farmhouses/$(resource.data.farmhouseId)).data.ownerId == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancellationReason', 'cancelledAt', 'refundAmount', 'refundPercentage', 'processingFee', 'updatedAt']))
         || isAdmin()
-        // Note: payment status updates (paymentStatus, refundStatus, status) must go through
-        // Cloud Functions (verifyPayment, processRefund) which use the Admin SDK.
       );
 
       allow delete: if isAuthenticated() && (

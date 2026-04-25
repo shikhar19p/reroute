@@ -169,22 +169,8 @@ export async function cancelBookingWithRefund(
           );
 
           console.log('✅ Refund processed successfully:', refundResult.refundId);
-
-          // Update booking with refund details.
-          // The Cloud Function returns the Razorpay-confirmed actual amount —
-          // overwrite our pre-computed estimate so the user sees the real figure.
-          const actualRefundAmount: number | undefined = (refundResult as any).amount;
-          const refundStatus =
-            refundResult.status === 'not_applicable' ? 'not_applicable' :
-            refundResult.status === 'processed' ? 'completed' : 'processing';
-          await updateDoc(bookingRef, {
-            refundStatus,
-            refundDate: serverTimestamp(),
-            ...(typeof actualRefundAmount === 'number' && { refundAmount: actualRefundAmount }),
-            ...(refundResult.status === 'not_applicable' && {
-              refundNote: 'Payment authorization expired — no charge was made to your account',
-            }),
-          });
+          // Cloud Function (processRefund) already updates refundStatus/refundAmount/
+          // razorpayRefundId on the booking via Admin SDK — no client-side updateDoc needed.
         } else {
           console.warn('⚠️ No transaction ID found for booking, skipping refund processing');
           // Update refund status to manual review
