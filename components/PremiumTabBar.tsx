@@ -35,7 +35,7 @@ export default function PremiumTabBar({ state, descriptors, navigation }: Bottom
         style={[styles.blurContainer, {
           borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)',
           backgroundColor: Platform.OS === 'web'
-            ? (isDark ? 'rgba(20,20,20,0.85)' : 'rgba(255,255,255,0.85)')
+            ? (isDark ? 'rgba(20,20,20,0.96)' : 'rgba(255,255,255,0.96)')
             : (isDark ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)'),
         }]}
       >
