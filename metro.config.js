@@ -34,6 +34,12 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     return { type: 'empty' };
   }
 
+  // react-native-calendars ships Profiler.js with raw JSX that Metro web can't bundle;
+  // Profiler is never used at runtime so an empty module is safe
+  if (platform === 'web' && moduleName.includes('react-native-calendars') && moduleName.includes('Profiler')) {
+    return { type: 'empty' };
+  }
+
   return context.resolveRequest(context, moduleName, platform);
 };
 
