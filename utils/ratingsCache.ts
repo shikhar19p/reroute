@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { collection, getDocs, query, limit as fsLimit } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
-const CACHE_KEY = 'rr_ratings_v2';
+const CACHE_KEY = 'rr_ratings_v3';
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
 // Process-wide cache — survives re-renders, shared across all screens
@@ -57,11 +57,12 @@ export function resolveRatings(
     });
     if (Object.keys(fromStorage).length > 0) onUpdate(fromStorage);
 
-    if (Date.now() - cached.ts < CACHE_TTL) return;
-
+    // Compute toFetch BEFORE TTL check — items with no cached entry always need fetching
     const toFetch = needFetch.filter(f => !cached.data[f.id]);
     if (toFetch.length === 0) {
-      AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ data: cached.data, ts: Date.now() })).catch(() => {});
+      if (Date.now() - cached.ts >= CACHE_TTL) {
+        AsyncStorage.setItem(CACHE_KEY, JSON.stringify({ data: cached.data, ts: Date.now() })).catch(() => {});
+      }
       return;
     }
 
