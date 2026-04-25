@@ -16,13 +16,7 @@ import { Farmhouse as FarmhouseType } from '../../types/navigation';
 import { useAvailableFarmhouses, useMyBookings } from '../../GlobalDataContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getResponsivePadding, getResponsiveGap, isSmallDevice } from '../../utils/responsive';
-import { collection, getDocs, query as fsQuery, limit as fsLimit } from 'firebase/firestore';
-import { db } from '../../firebaseConfig';
-
-const RATINGS_CACHE_KEY = 'rr_ratings_v2';
-const RATINGS_CACHE_TTL = 60 * 60 * 1000; // 1 hour
-// In-process session cache — survives re-renders, reset on app restart
-const sessionRatings: Record<string, number> = {};
+import { sessionRatings, resolveRatings } from '../../utils/ratingsCache';
 
 // Memoized Farmhouse Card Component for performance
 const FarmhouseCard = React.memo(({
@@ -157,82 +151,10 @@ export default function ExploreScreen({ navigation }: any) {
   });
   const [farmhouseRatings, setFarmhouseRatings] = useState<Record<string, number>>({});
 
-  // Ratings strategy:
-  // 1. Use farmhouse.rating from Firestore doc if present (instant, no extra query)
-  // 2. Fill gaps from session cache (instant)
-  // 3. Fill remaining from AsyncStorage cache with 1hr TTL (instant read)
-  // 4. Background-fetch only missing/stale ratings from reviews subcollection
   useEffect(() => {
-    if (farmhouses.length === 0) return;
-
-    // Step 1+2: Firestore rating (live via onSnapshot) always wins over session cache
-    const initial: Record<string, number> = {};
-    farmhouses.forEach(f => {
-      if (f.rating > 0) {
-        initial[f.id] = f.rating;
-        sessionRatings[f.id] = f.rating;
-      } else if (sessionRatings[f.id]) {
-        initial[f.id] = sessionRatings[f.id];
-      }
+    resolveRatings(farmhouses, (incoming) => {
+      setFarmhouseRatings(prev => ({ ...prev, ...incoming }));
     });
-    if (Object.keys(initial).length > 0) setFarmhouseRatings(initial);
-
-    // Step 3+4: check AsyncStorage, then background-fetch missing ones
-    const needFetch = farmhouses.filter(f => !sessionRatings[f.id]);
-    if (needFetch.length === 0) return;
-
-    AsyncStorage.getItem(RATINGS_CACHE_KEY).then(async (raw) => {
-      let cached: { data: Record<string, number>; ts: number } = { data: {}, ts: 0 };
-      try { if (raw) cached = JSON.parse(raw); } catch {}
-
-      // Apply stored cache immediately
-      const fromStorage: Record<string, number> = {};
-      needFetch.forEach(f => {
-        if (cached.data[f.id]) {
-          fromStorage[f.id] = cached.data[f.id];
-          sessionRatings[f.id] = cached.data[f.id];
-        }
-      });
-      if (Object.keys(fromStorage).length > 0) {
-        setFarmhouseRatings(prev => ({ ...prev, ...fromStorage }));
-      }
-
-      // Skip network fetch if cache is fresh
-      if (Date.now() - cached.ts < RATINGS_CACHE_TTL) return;
-
-      // Background-fetch only truly missing farmhouses
-      const toFetch = needFetch.filter(f => !cached.data[f.id]);
-      if (toFetch.length === 0) {
-        // Refresh timestamp so we don't re-check next time
-        AsyncStorage.setItem(RATINGS_CACHE_KEY, JSON.stringify({ data: cached.data, ts: Date.now() })).catch(() => {});
-        return;
-      }
-
-      const results = await Promise.all(
-        toFetch.map(async (f) => {
-          try {
-            const q = fsQuery(collection(db, 'farmhouses', f.id, 'reviews'), fsLimit(200));
-            const snap = await getDocs(q);
-            if (!snap.empty) {
-              let total = 0;
-              snap.forEach(doc => { total += doc.data().rating || 0; });
-              return [f.id, total / snap.size] as [string, number];
-            }
-          } catch {}
-          return null;
-        })
-      );
-
-      const fresh: Record<string, number> = {};
-      results.forEach(r => { if (r) { fresh[r[0]] = r[1]; sessionRatings[r[0]] = r[1]; } });
-
-      if (Object.keys(fresh).length > 0) {
-        setFarmhouseRatings(prev => ({ ...prev, ...fresh }));
-      }
-
-      const merged = { ...cached.data, ...fresh };
-      AsyncStorage.setItem(RATINGS_CACHE_KEY, JSON.stringify({ data: merged, ts: Date.now() })).catch(() => {});
-    }).catch(() => {});
   }, [farmhouses]);
 
   const toggleWishlist = async (farmhouse: FarmhouseType) => {
