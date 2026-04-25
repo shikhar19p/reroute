@@ -167,8 +167,8 @@ function prefetchLazyScreens() {
   ];
   // Stagger slightly so initial render isn't blocked
   setTimeout(() => {
-    chunks.forEach((load, i) => setTimeout(load, i * 50));
-  }, 500);
+    chunks.forEach((load, i) => setTimeout(load, i * 30));
+  }, 300);
 }
 
 // Navigation types
@@ -186,7 +186,7 @@ function SplashWithAuthCheck({ message, onReady, onComplete }: {
 }) {
   const { loading: authLoading } = useAuth();
   const [animationDone, setAnimationDone] = React.useState(false);
-  const MIN_SPLASH_TIME = 1500; // Minimum 1.5 seconds
+  const MIN_SPLASH_TIME = 800; // Minimum 0.8 seconds
   const [minTimeElapsed, setMinTimeElapsed] = React.useState(false);
   const startTimeRef = React.useRef(Date.now());
 
@@ -205,7 +205,7 @@ function SplashWithAuthCheck({ message, onReady, onComplete }: {
   // Wait for: animation done + auth ready + minimum time
   React.useEffect(() => {
     if (animationDone && !authLoading && minTimeElapsed) {
-      setTimeout(onComplete, 200);
+      onComplete();
     }
   }, [animationDone, authLoading, minTimeElapsed, onComplete]);
 

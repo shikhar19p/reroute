@@ -23,7 +23,7 @@ type PhotosScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, any>;
 };
 
-const MAX_PHOTOS = 10;
+const MAX_PHOTOS = 30;
 const MAX_DIMENSION = 1600;
 
 export default function PhotosScreen({ navigation }: PhotosScreenProps) {
@@ -98,6 +98,8 @@ export default function PhotosScreen({ navigation }: PhotosScreenProps) {
           return;
         }
       }
+
+      const remaining = MAX_PHOTOS - farm.photos.length;
       const result = source === 'camera'
         ? await ImagePicker.launchCameraAsync({
             mediaTypes: ['images'],
@@ -105,15 +107,15 @@ export default function PhotosScreen({ navigation }: PhotosScreenProps) {
           })
         : await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'],
+            allowsMultipleSelection: true,
+            selectionLimit: remaining,
             quality: 1,
           });
 
       if (!result.canceled && result.assets?.length) {
-        const asset = result.assets[0];
-        const processed = await processImage(asset.uri, asset.width || 1000, asset.height || 1000);
-
-        if (processed) {
-          addPhoto(processed);
+        for (const asset of result.assets) {
+          const processed = await processImage(asset.uri, asset.width || 1000, asset.height || 1000);
+          if (processed) addPhoto(processed);
         }
       }
     } catch (error) {
@@ -162,7 +164,7 @@ export default function PhotosScreen({ navigation }: PhotosScreenProps) {
           </View>
         </View>
 
-        <Text style={styles.subtitle}>Add photos to showcase your farmhouse</Text>
+        <Text style={styles.subtitle}>Add photos to showcase your property</Text>
 
         <View style={styles.grid}>
           {farm.photos.map((photo, index) => (

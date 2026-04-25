@@ -23,7 +23,7 @@ type KycScreenProps = {
   navigation: NativeStackNavigationProp<any, any>;
 };
 
-const OWNER_TERMS = `FOR FARMHOUSE OWNERS (HOSTS)
+const OWNER_TERMS = `FOR PROPERTY OWNERS (HOSTS)
 
 1. Listing Accuracy
    • Owners must provide true and accurate details of the property.
@@ -58,7 +58,7 @@ const OWNER_TERMS = `FOR FARMHOUSE OWNERS (HOSTS)
 GENERAL TERMS
 
 1. No Mediation Policy
-   • Reroute acts only as a platform connecting users and farmhouse owners.
+   • Reroute acts only as a platform connecting users and property owners.
    • Reroute will NOT act as a mediator in any disputes between users and owners.
 
 2. No Liability

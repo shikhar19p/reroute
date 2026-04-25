@@ -13,7 +13,7 @@ const positiveIntegerString = z
   .regex(/^[1-9]\d*$/, 'Please enter a valid number (must be greater than 0)');
 
 export const basicSchema = z.object({
-  name: z.string().trim().min(1, 'Farmhouse name is required').regex(/^[a-zA-Z\s]+$/, 'Farmhouse name must contain only alphabets'),
+  name: z.string().trim().min(1, 'Property name is required').regex(/^[a-zA-Z0-9\s\-']+$/, "Property name can contain letters, numbers, spaces, hyphens, and apostrophes"),
   contactPhone1: phoneSchema,
   contactPhone2: optionalPhoneSchema,
   city: z.string().trim().min(1, 'City is required'),
