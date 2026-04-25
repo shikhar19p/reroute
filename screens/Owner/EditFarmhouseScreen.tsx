@@ -152,8 +152,6 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
     petsNotAllowed: farmhouse.rules?.pets === false,
     additionalRules: rawData.rules?.additionalRules || rawData.rules?.customRules || '',
     photos: farmhouse.photos || [],
-    // Booking window
-    bookingWindowDays: (farmhouse.bookingWindowDays ?? 21).toString(),
   });
 
   const [bankDisplay, setBankDisplay] = React.useState({
@@ -421,7 +419,7 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
         'rules.petsNotAllowed': formData.petsNotAllowed,
         'rules.additionalRules': formData.additionalRules.trim(),
         photoUrls: formData.photos,
-        bookingWindowDays: Math.max(1, Math.min(365, parseInt(formData.bookingWindowDays) || 21)),
+        bookingWindowDays: 90,
         updatedAt: new Date().toISOString(),
       };
 
@@ -705,29 +703,6 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
                 </TouchableOpacity>
               </View>
             ))}
-          </View>
-
-          {/* Booking Window */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Booking Window</Text>
-            <Text style={[styles.fieldLabel, { color: colors.placeholder, marginBottom: 8 }]}>
-              How many days ahead can guests book? (1–365)
-            </Text>
-            <View style={[styles.inputContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-              <TextInput
-                style={[styles.input, { color: colors.text }]}
-                value={formData.bookingWindowDays}
-                onChangeText={(text) => updateField('bookingWindowDays', text.replace(/[^0-9]/g, ''))}
-                placeholder="21"
-                placeholderTextColor={colors.placeholder}
-                keyboardType="number-pad"
-                maxLength={3}
-              />
-              <Text style={[styles.inputSuffix, { color: colors.placeholder }]}>days</Text>
-            </View>
-            <Text style={[styles.fieldHint, { color: colors.placeholder }]}>
-              Currently: guests can book up to {Math.max(1, Math.min(365, parseInt(formData.bookingWindowDays) || 21))} days from today
-            </Text>
           </View>
 
           {/* Amenities */}
