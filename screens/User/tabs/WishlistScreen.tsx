@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { FlatList, StyleSheet, Text, TouchableOpacity, View, ActivityIndicator, RefreshControl } from 'react-native';
 import AnimatedImage from '../../../components/AnimatedImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,6 +10,8 @@ import { useScrollHandler } from '../../../context/TabBarVisibilityContext';
 import { useDialog } from '../../../components/CustomDialog';
 import { getFarmhouseById } from '../../../services/farmhouseService';
 import { Farmhouse } from '../../../types/navigation';
+import { collection, getDocs, query, limit as fsLimit } from 'firebase/firestore';
+import { db } from '../../../firebaseConfig';
 
 export default function WishlistScreen({ navigation }: any) {
   const { colors } = useTheme();
@@ -19,6 +21,7 @@ export default function WishlistScreen({ navigation }: any) {
   const [wishlistFarmhouses, setWishlistFarmhouses] = useState<Farmhouse[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [wishlistRatings, setWishlistRatings] = useState<Record<string, number>>({});
 
   const loadWishlistFarmhouses = useCallback(async () => {
     setLoading(true);
@@ -36,6 +39,33 @@ export default function WishlistScreen({ navigation }: any) {
   }, [wishlist, showDialog]);
 
   useFocusEffect(useCallback(() => { loadWishlistFarmhouses(); }, [loadWishlistFarmhouses]));
+
+  useEffect(() => {
+    if (wishlistFarmhouses.length === 0) return;
+    const initial: Record<string, number> = {};
+    wishlistFarmhouses.forEach(f => { if (f.rating > 0) initial[f.id] = f.rating; });
+    if (Object.keys(initial).length > 0) setWishlistRatings(initial);
+
+    const missing = wishlistFarmhouses.filter(f => !(f.rating > 0));
+    if (missing.length === 0) return;
+    Promise.all(
+      missing.map(async (f) => {
+        try {
+          const snap = await getDocs(query(collection(db, 'farmhouses', f.id, 'reviews'), fsLimit(200)));
+          if (!snap.empty) {
+            let total = 0;
+            snap.forEach(d => { total += d.data().rating || 0; });
+            return [f.id, total / snap.size] as [string, number];
+          }
+        } catch {}
+        return null;
+      })
+    ).then(results => {
+      const fresh: Record<string, number> = {};
+      results.forEach(r => { if (r) fresh[r[0]] = r[1]; });
+      if (Object.keys(fresh).length > 0) setWishlistRatings(prev => ({ ...prev, ...fresh }));
+    });
+  }, [wishlistFarmhouses]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -76,7 +106,11 @@ export default function WishlistScreen({ navigation }: any) {
           </Text>
           <View style={styles.ratingRow}>
             <Star size={13} color={colors.rating} fill={colors.rating} />
-            <Text style={[styles.rating, { color: colors.text }]}>{item.rating > 0 ? item.rating.toFixed(1) : 'New'}</Text>
+            <Text style={[styles.rating, { color: colors.text }]}>
+              {(wishlistRatings[item.id] ?? item.rating) > 0
+                ? (wishlistRatings[item.id] ?? item.rating).toFixed(1)
+                : 'New'}
+            </Text>
           </View>
         </View>
 
