@@ -52,9 +52,9 @@ export interface Farmhouse {
     customAmenities?: string;
   };
   rules: {
-    unmarriedCouples?: boolean;
     pets: boolean;
     quietHours?: boolean | string;
+    alcohol?: boolean;
   };
   ownerId: string;
   status: 'pending' | 'approved' | 'rejected';

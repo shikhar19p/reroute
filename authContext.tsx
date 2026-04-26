@@ -104,7 +104,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const hadLocalSession = localSession !== null;
 
       const mergedRoles = firestoreRoles.length > 0 ? firestoreRoles : localRoles;
-      const finalRole = hadLocalSession && localRole ? localRole as 'owner' | 'customer' : undefined;
+      // Only restore role from local session (app reload while logged in).
+      // After logout the session is cleared, so role=undefined → RoleSelection shown.
+      // Never fall back to firestoreRole: user must explicitly choose role each login.
+      const finalRole = (hadLocalSession && localRole)
+        ? (localRole as 'owner' | 'customer')
+        : undefined;
 
       // Create user session
       const userSession: UserSession = {

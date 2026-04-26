@@ -332,14 +332,14 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     const rules = farmhouse.rules;
     if (!rules) return ['House rules will be provided by the owner.'];
     const list: string[] = [];
-    if (!rules.unmarriedCouples) list.push('Unmarried couples not allowed');
-    else list.push('Unmarried couples are welcome');
     if (rules.pets) list.push('Pets allowed');
     else list.push('No pets allowed');
+    if ((rules as any).alcohol === false || (rules as any).alcoholNotAllowed === true) list.push('No alcohol allowed');
     if (rules.quietHours) {
       const quietHoursText = typeof rules.quietHours === 'string' ? rules.quietHours : 'enforced';
       list.push(`Quiet hours: ${quietHoursText}`);
     }
+    if ((rules as any).additionalRules) list.push((rules as any).additionalRules);
     return list;
   }, [farmhouse.rules]);
 
@@ -394,14 +394,23 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     }
   };
 
+  const getISTHour = () => {
+    // IST = UTC+5:30
+    const now = new Date();
+    const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+    const istMs = utcMs + 5.5 * 3600000;
+    return new Date(istMs).getHours();
+  };
+
   const getMinimumDate = () => {
     const now = new Date();
-    if (now.getHours() < 12) {
-      return now.toISOString().split('T')[0];
+    // Block today if it's past 2pm IST
+    if (getISTHour() >= 14) {
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return tomorrow.toISOString().split('T')[0];
     }
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split('T')[0];
+    return now.toISOString().split('T')[0];
   };
 
   const getMaximumDate = () => {
@@ -410,13 +419,17 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     return now.toISOString().split('T')[0];
   };
 
-  const isDateBooked = (dateString: string) => unavailableDates.includes(dateString);
+  const isDateUnavailable = (dateString: string) => {
+    const minDate = getMinimumDate();
+    const maxDate = getMaximumDate();
+    return dateString < minDate || dateString > maxDate || unavailableDates.includes(dateString);
+  };
 
   const handleDateSelect = (day: DateData) => {
     const dateString = day.dateString;
     
     // Check if clicked date is unavailable
-    if (isDateBooked(dateString)) {
+    if (isDateUnavailable(dateString)) {
       showDialog({
         title: 'Unavailable',
         message: 'This date is already booked or blocked.',
@@ -453,7 +466,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
       
       while (current <= end) {
         const checkDateString = current.toISOString().split('T')[0];
-        if (isDateBooked(checkDateString)) {
+        if (isDateUnavailable(checkDateString)) {
           hasConflict = true;
           break;
         }
@@ -482,28 +495,50 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
   const markedDates = useMemo(() => {
     const marked: any = {};
+    const minDate = getMinimumDate();
+    const maxDate = getMaximumDate();
+    const bookedStyle = {
+      disabled: true,
+      disableTouchEvent: true,
+      startingDay: true,
+      endingDay: true,
+      color: isDark ? '#374151' : '#E5E7EB',
+      textColor: isDark ? '#6B7280' : '#9CA3AF',
+    };
+    const outOfWindowStyle = {
+      disabled: true,
+      disableTouchEvent: true,
+      startingDay: true,
+      endingDay: true,
+      color: isDark ? '#1F2937' : '#F9FAFB',
+      textColor: isDark ? '#4B5563' : '#D1D5DB',
+    };
 
-    // Mark unavailable dates
+    // Mark past dates visible in calendar (~3 months back)
+    const pastStart = new Date();
+    pastStart.setMonth(pastStart.getMonth() - 3);
+    const minDateObj = new Date(minDate);
+    let cur = new Date(pastStart);
+    while (cur < minDateObj) {
+      marked[cur.toISOString().split('T')[0]] = outOfWindowStyle;
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    // Mark booked/blocked dates within the window
     unavailableDates.forEach(date => {
-      marked[date] = {
-        disabled: true,
-        disableTouchEvent: true,
-        customStyles: {
-          container: {
-            backgroundColor: isDark ? '#3F1F1F' : '#FEE2E2',
-            borderWidth: 1,
-            borderColor: '#EF4444',
-          },
-          text: {
-            color: '#EF4444',
-            fontWeight: '600',
-            textDecorationLine: 'line-through',
-            textDecorationStyle: 'solid',
-            textDecorationColor: '#EF4444',
-          }
-        }
-      };
+      marked[date] = bookedStyle;
     });
+
+    // Mark dates beyond booking window (~3 months ahead of maxDate)
+    const maxDateObj = new Date(maxDate);
+    const futureEnd = new Date(maxDateObj);
+    futureEnd.setMonth(futureEnd.getMonth() + 3);
+    cur = new Date(maxDateObj);
+    cur.setDate(cur.getDate() + 1);
+    while (cur <= futureEnd) {
+      marked[cur.toISOString().split('T')[0]] = outOfWindowStyle;
+      cur.setDate(cur.getDate() + 1);
+    }
 
     // Mark selected dates
     if (selectedDates.start && selectedDates.end) {
@@ -530,20 +565,12 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
         current.setDate(current.getDate() + 1);
       }
     }
-    // Mark custom-priced dates with a gold dot
-    (farmhouse.customPricing || []).forEach(cp => {
-      const rawLabel = cp.label || (cp as any).name;
-      const normalized = normalizeCustomName(rawLabel);
-      if (!normalized) return;
-      // Convert yyyy/mm/dd → yyyy-mm-dd for calendar key
-      const isoKey = normalized.replace(/\//g, '-');
-      if (!marked[isoKey]) {
-        marked[isoKey] = { marked: true, dotColor: '#D4AF37' };
-      }
-    });
+    // Custom-priced dates: no dot, just available (normal)
+
 
     return marked;
-  }, [selectedDates, unavailableDates, isDark, farmhouse.customPricing]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDates, unavailableDates, isDark, farmhouse.bookingWindowDays]);
   
   const calculateNights = () => {
     if (!selectedDates.start || !selectedDates.end || selectedDates.start === selectedDates.end) return 0;
@@ -619,8 +646,8 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
   const savePhoneAndProceed = async () => {
     const trimmed = phoneInput.trim();
-    if (!trimmed || trimmed.length < 10) {
-      showDialog({ title: 'Invalid Number', message: 'Enter a valid 10-digit phone number.', type: 'warning' });
+    if (!trimmed || !/^[6-9]\d{9}$/.test(trimmed)) {
+      showDialog({ title: 'Invalid Number', message: 'Enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.', type: 'warning' });
       return;
     }
     if (!user) return;
@@ -919,15 +946,20 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
               minDate={getMinimumDate()}
               maxDate={getMaximumDate()}
               markingType={'period'}
+              renderArrow={(direction) =>
+                direction === 'left'
+                  ? <ChevronLeft size={22} color={isDark ? '#D4AF37' : '#B8860B'} />
+                  : <ChevronRight size={22} color={isDark ? '#D4AF37' : '#B8860B'} />
+              }
               theme={{
                 backgroundColor: colors.cardBackground,
                 calendarBackground: colors.cardBackground,
                 textSectionTitleColor: colors.text,
                 dayTextColor: colors.text,
-                todayTextColor: colors.buttonBackground,
+                todayTextColor: '#D4AF37',
                 monthTextColor: colors.text,
-                arrowColor: colors.buttonBackground,
-                textDisabledColor: '#999999',
+                arrowColor: isDark ? '#D4AF37' : '#B8860B',
+                textDisabledColor: isDark ? '#4A4A4A' : '#C8C8C8',
               }}
             />
 
@@ -1029,7 +1061,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
               value={phoneInput}
               onChangeText={setPhoneInput}
               keyboardType="phone-pad"
-              maxLength={15}
+              maxLength={10}
             />
             <TouchableOpacity
               style={[styles.phoneModalBtn, { backgroundColor: colors.buttonBackground, opacity: savingPhone ? 0.7 : 1 }]}

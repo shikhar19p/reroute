@@ -192,6 +192,7 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
     },
     rules: {
       petsNotAllowed: farmData.rules.petsNotAllowed,
+      alcoholNotAllowed: farmData.rules.alcoholNotAllowed || false,
       customRules: farmData.rules.customRules || null,
     },
     kyc: {

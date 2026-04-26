@@ -12,8 +12,9 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { LogOut, MapPin, Home, ChevronRight } from 'lucide-react-native';
+import { LogOut, MapPin, Home, ChevronRight, Compass, Bell } from 'lucide-react-native';
 import { useAuth } from '../../authContext';
+import { useOwnerBookings } from '../../GlobalDataContext';
 import { useTheme } from '../../context/ThemeContext';
 import { Farmhouse } from '../../services/farmhouseService';
 import { getResponsivePadding, isSmallDevice } from '../../utils/responsive';
@@ -31,11 +32,13 @@ type RootStackParamList = {
 type Props = NativeStackScreenProps<RootStackParamList, 'MyFarmhouses'>;
 
 export default function MyFarmhousesScreen({ navigation }: Props) {
-  const { user, logout } = useAuth();
+  const { user, logout, switchRole } = useAuth();
   const { colors, isDark } = useTheme();
   const { showDialog } = useDialog();
   const { hasDraft, loadDraft, clearDraft } = useFarmRegistration();
   const { data: farmhouses, loading, refreshing, refresh: onRefresh } = useMyFarmhouses();
+  const { data: ownerBookings } = useOwnerBookings();
+  const pendingCount = ownerBookings.filter(b => b.status === 'pending').length;
 
   const handleLogout = () => {
     showDialog({
@@ -137,12 +140,32 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <Text style={[styles.headerTitle, { color: colors.text }]}>My Farmhouses</Text>
-          <TouchableOpacity
-            style={[styles.logoutButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
-            onPress={handleLogout}
-          >
-            <LogOut size={20} color="#EF4444" />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={[styles.switchButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+              onPress={() => switchRole('customer')}
+            >
+              <Compass size={16} color={colors.primary} />
+              <Text style={[styles.switchButtonText, { color: colors.primary }]}>Explorer</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.iconButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+              onPress={() => navigation.navigate('OwnerNotifications' as never)}
+            >
+              <Bell size={20} color={colors.text} />
+              {pendingCount > 0 && (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{pendingCount > 9 ? '9+' : pendingCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.iconButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+              onPress={handleLogout}
+            >
+              <LogOut size={20} color="#EF4444" />
+            </TouchableOpacity>
+          </View>
         </View>
         <View style={styles.headerRow}>
           <Text style={[styles.headerSubtitle, { color: colors.placeholder }]}>
@@ -270,15 +293,15 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   addIconButton: {
-    width: isSmallDevice() ? 44 : 48,
-    height: isSmallDevice() ? 44 : 48,
-    borderRadius: isSmallDevice() ? 22 : 24,
+    width: isSmallDevice() ? 32 : 36,
+    height: isSmallDevice() ? 32 : 36,
+    borderRadius: isSmallDevice() ? 16 : 18,
     justifyContent: 'center',
     alignItems: 'center',
-    flexShrink: 0, // Prevent shrinking
+    flexShrink: 0,
   },
   addIcon: {
-    fontSize: isSmallDevice() ? 24 : 28,
+    fontSize: isSmallDevice() ? 20 : 22,
     fontWeight: '300',
   },
   smallPillButton: {
@@ -291,7 +314,25 @@ const styles = StyleSheet.create({
     flexShrink: 0, // Prevent shrinking
   },
   smallPillText: { fontSize: isSmallDevice() ? 11 : 12, fontWeight: '700' },
-  logoutButton: {
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  switchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    height: isSmallDevice() ? 40 : 44,
+    borderRadius: isSmallDevice() ? 20 : 22,
+    borderWidth: 1,
+  },
+  switchButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  iconButton: {
     width: isSmallDevice() ? 40 : 44,
     height: isSmallDevice() ? 40 : 44,
     borderRadius: isSmallDevice() ? 20 : 22,
@@ -299,6 +340,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     flexShrink: 0,
+  },
+  badge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    color: '#FFF',
+    fontSize: 9,
+    fontWeight: '700',
   },
   draftBanner: {
     flexDirection: 'row',

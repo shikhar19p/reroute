@@ -68,6 +68,7 @@ interface Amenities {
 
 interface Rules {
   petsNotAllowed: boolean;
+  alcoholNotAllowed: boolean;
   customRules: string;
 }
 
@@ -199,6 +200,7 @@ const createInitialFarm = (): Farm => ({
   },
   rules: {
     petsNotAllowed: false,
+    alcoholNotAllowed: false,
     customRules: '',
   },
   kyc: {

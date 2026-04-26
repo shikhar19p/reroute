@@ -139,6 +139,16 @@ export default function AmenitiesGamesScreen({ navigation }: AmenitiesGamesScree
               />
             </View>
 
+            <View style={styles.ruleRow}>
+              <Text style={styles.ruleLabel}>Alcohol not allowed</Text>
+              <Switch
+                value={(farm.rules as any).alcoholNotAllowed ?? false}
+                onValueChange={(value) => handleToggle(['rules', 'alcoholNotAllowed'], value)}
+                trackColor={{ false: '#E5E7EB', true: '#EF4444' }}
+                thumbColor={(farm.rules as any).alcoholNotAllowed ? '#FFFFFF' : '#F5F5F5'}
+              />
+            </View>
+
             <View style={styles.fieldContainer}>
               <Text style={styles.fieldLabel}>Additional Rules (Optional)</Text>
               <TextInput

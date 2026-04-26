@@ -15,6 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
 import { getResponsivePadding, isSmallDevice } from '../../utils/responsive';
+import { useMyFarmhouses } from '../../GlobalDataContext';
 
 async function storageGet(key: string): Promise<string | null> {
   if (Platform.OS === 'web') {
@@ -36,6 +37,14 @@ export default function OwnerHomeScreen({ navigation }: Props) {
   const { user, logout } = useAuth();
   const { colors, isDark } = useTheme();
   const [draftInfo, setDraftInfo] = useState<{ name: string } | null>(null);
+  const { data: myFarmhouses, loading: farmhousesLoading } = useMyFarmhouses();
+
+  // If farmhouses arrive after this screen mounts (late Firestore cache → server update), redirect
+  useEffect(() => {
+    if (!farmhousesLoading && myFarmhouses.length > 0) {
+      navigation.replace('MyFarmhouses' as never);
+    }
+  }, [farmhousesLoading, myFarmhouses, navigation]);
 
   useEffect(() => {
     if (!user?.uid) return;

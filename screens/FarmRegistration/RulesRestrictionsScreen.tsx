@@ -87,6 +87,19 @@ export default function RulesRestrictionsScreen({ navigation }: RulesRestriction
             )}
           </View>
 
+          <View style={styles.ruleRow}>
+            <Text style={styles.ruleLabel}>Alcohol allowed?</Text>
+            {(rules as any).alcoholNotAllowed ? (
+              <View style={styles.noIcon}>
+                <Text style={styles.noText}>No</Text>
+              </View>
+            ) : (
+              <View style={styles.yesIcon}>
+                <Text style={styles.yesText}>Yes</Text>
+              </View>
+            )}
+          </View>
+
           {rules.customRules ? (
             <View style={styles.infoBox}>
               <Text style={styles.infoLabel}>Additional Rules:</Text>
