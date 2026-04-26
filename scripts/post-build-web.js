@@ -24,6 +24,15 @@ for (const file of staticFiles) {
   }
 }
 
+// Copy splash-icon.png to dist/assets/ (not picked up by Expo bundler since only in HTML)
+const splashSrc = path.join(__dirname, '..', 'assets', 'splash-icon.png');
+const splashDest = path.join(DIST, 'assets', 'splash-icon.png');
+if (fs.existsSync(splashSrc)) {
+  fs.mkdirSync(path.join(DIST, 'assets'), { recursive: true });
+  fs.copyFileSync(splashSrc, splashDest);
+  console.log('Copied splash-icon.png → dist/assets/');
+}
+
 // --- 2. Patch dist/index.html ---
 const indexPath = path.join(DIST, 'index.html');
 if (!fs.existsSync(indexPath)) {
