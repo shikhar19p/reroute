@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,16 +10,22 @@ import {
   Dimensions,
   Linking,
   RefreshControl,
+  TextInput,
+  Modal,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useFocusEffect } from '@react-navigation/native';
-import { useCallback } from 'react';
-import { ArrowLeft, Edit, MapPin, Users, Home, Star } from 'lucide-react-native';
+import { ArrowLeft, Edit, MapPin, Users, Home, Star, Plus, Trash2, Calendar, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
-import { getFarmhouseById, Farmhouse } from '../../services/farmhouseService';
+import { Farmhouse } from '../../services/farmhouseService';
 import { useDialog } from '../../components/CustomDialog';
 import { getStatusColor, getStatusText } from '../../utils/statusColors';
+import { useMyFarmhouses } from '../../GlobalDataContext';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../firebaseConfig';
+
+const MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 const { width } = Dimensions.get('window');
 
@@ -35,54 +41,109 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
   const { farmhouseId } = route.params;
   const { colors, isDark } = useTheme();
   const { showDialog } = useDialog();
-  const [farmhouse, setFarmhouse] = useState<Farmhouse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const { data: myFarmhouses, loading, refreshing, refresh: onRefresh } = useMyFarmhouses();
+  const farmhouse = myFarmhouses.find(f => f.id === farmhouseId) || null;
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [showAddSpecialDate, setShowAddSpecialDate] = useState(false);
+  const [newDateLabel, setNewDateLabel] = useState('');
+  const [newDatePrice, setNewDatePrice] = useState('');
+  const [savingSpecialDate, setSavingSpecialDate] = useState(false);
+  const [calendarVisible, setCalendarVisible] = useState(false);
+  const [calendarViewDate, setCalendarViewDate] = useState(new Date());
 
-  useEffect(() => {
-    loadFarmhouse();
-  }, [farmhouseId]);
+  const handleDateSelect = (day: number) => {
+    const selected = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth(), day);
+    const formatted = `${day} ${MONTH_SHORT[selected.getMonth()]} ${selected.getFullYear()}`;
+    setNewDateLabel(formatted);
+    setCalendarVisible(false);
+  };
 
-  // Reload when screen regains focus to reflect edits
-  useFocusEffect(
-    useCallback(() => {
-      loadFarmhouse();
-    }, [farmhouseId])
-  );
-
-  const loadFarmhouse = async () => {
+  const saveSpecialDate = async () => {
+    if (!newDateLabel || !newDatePrice || !farmhouse) return;
+    setSavingSpecialDate(true);
     try {
-      setLoading(true);
-      const data = await getFarmhouseById(farmhouseId);
-      if (data) {
-        setFarmhouse(data);
-      } else {
-        showDialog({
-          title: 'Error',
-          message: 'Farmhouse not found',
-          type: 'error'
-        });
-        navigation.goBack();
-      }
-    } catch (error) {
-      console.error('Error loading farmhouse:', error);
-      showDialog({
-        title: 'Error',
-        message: 'Failed to load farmhouse details',
-        type: 'error'
+      const existing = farmhouse.customPricing || [];
+      const newEntry = { name: newDateLabel, price: parseInt(newDatePrice) || 0 };
+      const updated = [...existing.map(cp => ({ name: cp.label, price: cp.price })), newEntry];
+      await updateDoc(doc(db, 'farmhouses', farmhouse.id), {
+        'pricing.customPricing': updated,
       });
-      navigation.goBack();
+      setNewDateLabel('');
+      setNewDatePrice('');
+      setShowAddSpecialDate(false);
+    } catch (e) {
+      console.error('Failed to save special date:', e);
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      setSavingSpecialDate(false);
     }
   };
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await loadFarmhouse();
+  const removeSpecialDate = async (index: number) => {
+    if (!farmhouse) return;
+    const existing = farmhouse.customPricing || [];
+    const updated = existing
+      .filter((_, i) => i !== index)
+      .map(cp => ({ name: cp.label, price: cp.price }));
+    try {
+      await updateDoc(doc(db, 'farmhouses', farmhouse.id), {
+        'pricing.customPricing': updated,
+      });
+    } catch (e) {
+      console.error('Failed to remove special date:', e);
+    }
   };
+
+  const renderCalendarModal = () => {
+    const year = calendarViewDate.getFullYear();
+    const month = calendarViewDate.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const firstDay = new Date(year, month, 1).getDay();
+    const cells: (number | null)[] = [];
+    for (let i = 0; i < firstDay; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+    while (cells.length % 7 !== 0) cells.push(null);
+    const rows: (number | null)[][] = [];
+    for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
+    return (
+      <Modal visible={calendarVisible} transparent animationType="fade">
+        <TouchableOpacity style={styles.calModalOverlay} activeOpacity={1} onPress={() => setCalendarVisible(false)}>
+          <View style={[styles.calModalBox, { backgroundColor: colors.cardBackground }]}>
+            <View style={styles.calHeader}>
+              <TouchableOpacity onPress={() => setCalendarViewDate(new Date(year, month - 1, 1))}>
+                <ChevronLeft size={20} color={colors.text} />
+              </TouchableOpacity>
+              <Text style={[styles.calMonthTitle, { color: colors.text }]}>
+                {MONTH_SHORT[month]} {year}
+              </Text>
+              <TouchableOpacity onPress={() => setCalendarViewDate(new Date(year, month + 1, 1))}>
+                <ChevronRight size={20} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.calDayRow}>
+              {['S','M','T','W','T','F','S'].map((d, i) => (
+                <Text key={i} style={[styles.calDayLabel, { color: colors.placeholder }]}>{d}</Text>
+              ))}
+            </View>
+            {rows.map((row, ri) => (
+              <View key={ri} style={styles.calDayRow}>
+                {row.map((day, di) => (
+                  <TouchableOpacity
+                    key={di}
+                    style={[styles.calDayCell, day ? { backgroundColor: colors.buttonBackground + '15' } : {}]}
+                    onPress={() => day && handleDateSelect(day)}
+                    disabled={!day}
+                  >
+                    <Text style={[styles.calDayNum, { color: day ? colors.text : 'transparent' }]}>{day || ''}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    );
+  };
+
 
   const amenitiesList = useMemo(() => {
     if (!farmhouse) return [];
@@ -115,10 +176,12 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
 
   const rulesList = useMemo(() => {
     if (!farmhouse) return [];
-    const rules = farmhouse.rules;
+    const rules = farmhouse.rules as any;
     const list: string[] = [];
     if (rules.pets) list.push('Pets allowed');
-    if (!rules.pets) list.push('No pets allowed');
+    else list.push('No pets allowed');
+    if (rules.alcohol === false || rules.alcoholNotAllowed === true) list.push('No alcohol allowed');
+    if (rules.additionalRules) list.push(rules.additionalRules);
     return list;
   }, [farmhouse?.rules]);
 
@@ -299,17 +362,63 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
             </View>
 
             {/* Custom Pricing */}
-            {farmhouse.customPricing && farmhouse.customPricing.length > 0 && (
-              <>
-                <Text style={[styles.priceCategoryTitle, { color: colors.text, marginTop: 16 }]}>Special Occasions</Text>
-                {farmhouse.customPricing.map((custom, index) => (
-                  <View key={index} style={[styles.customPriceRow, { borderColor: colors.border }]}>
-                    <Text style={[styles.customPriceLabel, { color: colors.text }]}>{custom.label}</Text>
-                    <Text style={[styles.customPriceValue, { color: colors.buttonBackground }]}>₹{custom.price}</Text>
-                  </View>
-                ))}
-              </>
+            <View style={styles.specialOccasionsHeader}>
+              <Text style={[styles.priceCategoryTitle, { color: colors.text, marginTop: 16 }]}>Special Occasions</Text>
+              <TouchableOpacity
+                style={[styles.addSpecialBtn, { backgroundColor: colors.buttonBackground }]}
+                onPress={() => setShowAddSpecialDate(v => !v)}
+              >
+                <Plus size={14} color={colors.buttonText} />
+                <Text style={[styles.addSpecialBtnText, { color: colors.buttonText }]}>Add</Text>
+              </TouchableOpacity>
+            </View>
+
+            {farmhouse.customPricing && farmhouse.customPricing.map((custom, index) => (
+              <View key={index} style={[styles.customPriceRow, { borderColor: colors.border }]}>
+                <Text style={[styles.customPriceLabel, { color: colors.text }]}>{custom.label}</Text>
+                <View style={styles.customPriceRight}>
+                  <Text style={[styles.customPriceValue, { color: colors.buttonBackground }]}>₹{custom.price}</Text>
+                  <TouchableOpacity onPress={() => removeSpecialDate(index)} style={styles.removeSpecialBtn}>
+                    <Trash2 size={14} color="#ef4444" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+
+            {showAddSpecialDate && (
+              <View style={[styles.addSpecialForm, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                <TouchableOpacity
+                  style={[styles.datePickerBtn, { borderColor: colors.border, backgroundColor: colors.background }]}
+                  onPress={() => { setCalendarViewDate(new Date()); setCalendarVisible(true); }}
+                >
+                  <Calendar size={14} color={newDateLabel ? colors.text : colors.placeholder} />
+                  <Text style={[styles.datePickerText, { color: newDateLabel ? colors.text : colors.placeholder }]}>
+                    {newDateLabel || 'Select date'}
+                  </Text>
+                </TouchableOpacity>
+                <View style={styles.addSpecialRow}>
+                  <TextInput
+                    style={[styles.specialPriceInput, { borderColor: colors.border, color: colors.text, backgroundColor: colors.background }]}
+                    value={newDatePrice}
+                    onChangeText={(t) => setNewDatePrice(t.replace(/[^0-9]/g, ''))}
+                    placeholder="₹ Price"
+                    placeholderTextColor={colors.placeholder}
+                    keyboardType="number-pad"
+                  />
+                  <TouchableOpacity
+                    style={[styles.saveSpecialBtn, { backgroundColor: !newDateLabel || !newDatePrice ? colors.border : colors.buttonBackground, opacity: savingSpecialDate ? 0.6 : 1 }]}
+                    onPress={saveSpecialDate}
+                    disabled={!newDateLabel || !newDatePrice || savingSpecialDate}
+                  >
+                    {savingSpecialDate
+                      ? <ActivityIndicator size="small" color="#fff" />
+                      : <Text style={{ color: colors.buttonText, fontWeight: '600', fontSize: 13 }}>Save</Text>
+                    }
+                  </TouchableOpacity>
+                </View>
+              </View>
             )}
+            {renderCalendarModal()}
           </View>
 
           {/* Amenities */}
@@ -581,6 +690,118 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     fontWeight: '800',
+  },
+  specialOccasionsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 16,
+  },
+  addSpecialBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  addSpecialBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  customPriceRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  removeSpecialBtn: {
+    padding: 4,
+  },
+  addSpecialForm: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 8,
+    gap: 8,
+  },
+  datePickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  datePickerText: {
+    fontSize: 14,
+  },
+  addSpecialRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  specialPriceInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+  },
+  saveSpecialBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  calModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  calModalBox: {
+    borderRadius: 16,
+    padding: 16,
+    width: 300,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  calHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  calMonthTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  calDayRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 4,
+  },
+  calDayLabel: {
+    width: 36,
+    textAlign: 'center',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  calDayCell: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  calDayNum: {
+    fontSize: 14,
   },
   customPriceRow: {
     flexDirection: 'row',

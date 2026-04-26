@@ -123,6 +123,9 @@ const OwnerBookingDetailScreen = Platform.OS === 'web'
 const ManageBlockedDatesScreen = Platform.OS === 'web'
   ? React.lazy(() => import('./screens/Owner/ManageBlockedDatesScreen'))
   : require('./screens/Owner/ManageBlockedDatesScreen').default;
+const OwnerNotificationsScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/Owner/OwnerNotificationsScreen'))
+  : require('./screens/Owner/OwnerNotificationsScreen').default;
 
 // Components
 import PremiumTabBar from './components/PremiumTabBar';
@@ -221,17 +224,19 @@ function SplashWithAuthCheck({ message, onReady, onComplete }: {
 // Wrapper component to check if owner has farmhouses and route accordingly
 function OwnerNavigator({ navigation }: any) {
   const { data: myFarmhouses, loading } = useMyFarmhouses();
+  const { user } = useAuth();
   const routed = React.useRef(false);
 
   React.useEffect(() => {
-    if (loading || routed.current) return;
+    // Route on first snapshot (cache OK); OwnerHomeScreen handles late server arrival
+    if (!user?.uid || loading || routed.current) return;
     routed.current = true;
     if (myFarmhouses.length > 0) {
       navigation.replace('MyFarmhouses');
     } else {
       navigation.replace('OwnerHome');
     }
-  }, [loading, myFarmhouses, navigation]);
+  }, [user?.uid, loading, myFarmhouses, navigation]);
 
   return <View style={{ flex: 1, backgroundColor: 'rgb(249, 248, 239)' }} />;
 }
@@ -387,6 +392,11 @@ function AppNavigator() {
             <Stack.Screen
               name="ManageBlockedDates"
               component={ManageBlockedDatesScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="OwnerNotifications"
+              component={OwnerNotificationsScreen}
               options={{ headerShown: false }}
             />
 
@@ -549,12 +559,11 @@ export default function App() {
   // See: https://docs.expo.dev/push-notifications/fcm-credentials/
   // For development, push notifications will gracefully fail if FCM is not set up
   useEffect(() => {
-    // Run in background without blocking
+    // Push notifications: native only — web requires user gesture, never request on page load
+    if (Platform.OS === 'web') return;
     setTimeout(() => {
-      registerForPushNotifications().catch(() => {
-        // Push notifications unavailable — not critical
-      });
-    }, 5000); // Delay by 5 seconds to not block startup
+      registerForPushNotifications().catch(() => {});
+    }, 5000);
   }, []);
 
   // DEV MODE: Skip splash for faster development
@@ -581,11 +590,13 @@ export default function App() {
                     <FarmRegistrationProvider>
                       {!showApp && !SKIP_SPLASH && !isWeb ? (
                         <View style={{ flex: 1, backgroundColor: '#000' }}>
-                          <SplashWithAuthCheck
-                            message="Loading..."
-                            onReady={onCustomSplashReady}
-                            onComplete={() => setShowApp(true)}
-                          />
+                          {fontsLoaded && (
+                            <SplashWithAuthCheck
+                              message="Loading..."
+                              onReady={onCustomSplashReady}
+                              onComplete={() => setShowApp(true)}
+                            />
+                          )}
                         </View>
                       ) : (
                         <Suspense fallback={<ScreenLoader />}>

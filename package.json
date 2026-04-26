@@ -8,7 +8,7 @@
     "android:release": "node scripts/ensure-google-services.js && cd android && .\\gradlew.bat assembleRelease",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "web:prod": "expo export --platform web",
+    "web:prod": "expo export --platform web --output-dir dist && node scripts/post-build-web.js",
     "web:minify": "EXPO_WEB_MINIFY=true expo start --web",
     "ensure-firebase": "node scripts/ensure-google-services.js"
   },

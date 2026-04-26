@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet, StatusBar,
   Modal, TextInput, FlatList, Share, ActivityIndicator, RefreshControl,
@@ -17,6 +17,8 @@ import { useAvailableFarmhouses, useMyBookings } from '../../GlobalDataContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getResponsivePadding, getResponsiveGap, isSmallDevice } from '../../utils/responsive';
 import { sessionRatings, resolveRatings } from '../../utils/ratingsCache';
+import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { db } from '../../firebaseConfig';
 
 // Memoized Farmhouse Card Component for performance
 const FarmhouseCard = React.memo(({
@@ -149,9 +151,29 @@ export default function ExploreScreen({ navigation }: any) {
     maxPrice: '',
     minCapacity: '',
     propertyType: '' as '' | 'farmhouse' | 'resort',
+    checkIn: '',
+    checkOut: '',
   });
-  const filtersActive = filters.location !== '' || filters.minPrice !== '' || filters.maxPrice !== '' || filters.minCapacity !== '' || filters.propertyType !== '';
-  const clearFilters = () => setFilters({ location: '', minPrice: '', maxPrice: '', minCapacity: '', propertyType: '' });
+  const filtersActive = filters.location !== '' || filters.minPrice !== '' || filters.maxPrice !== '' || filters.minCapacity !== '' || filters.propertyType !== '' || filters.checkIn !== '';
+  const clearFilters = () => setFilters({ location: '', minPrice: '', maxPrice: '', minCapacity: '', propertyType: '', checkIn: '', checkOut: '' });
+
+  const [adminNotifications, setAdminNotifications] = useState<any[]>([]);
+
+  const fetchAdminNotifications = useCallback(async () => {
+    if (!user) return;
+    try {
+      const q = query(
+        collection(db, 'notifications'),
+        where('userId', '==', user.uid),
+        orderBy('createdAt', 'desc'),
+        limit(20)
+      );
+      const snap = await getDocs(q);
+      setAdminNotifications(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch {}
+  }, [user]);
+
+  useEffect(() => { fetchAdminNotifications(); }, [fetchAdminNotifications]);
   const [farmhouseRatings, setFarmhouseRatings] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -218,7 +240,7 @@ export default function ExploreScreen({ navigation }: any) {
   };
 
   const notificationItems = useMemo(() => {
-    return [...myBookings]
+    const bookingItems = [...myBookings]
       .sort((a, b) => {
         const tA = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
         const tB = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
@@ -239,9 +261,34 @@ export default function ExploreScreen({ navigation }: any) {
           b.status === 'cancelled' ? '#EF4444' :
           b.status === 'completed' ? '#3B82F6' : '#F59E0B';
         const icon = b.status === 'cancelled' ? 'alert' : b.status === 'confirmed' || b.status === 'completed' ? 'check' : 'clock';
-        return { ...b, statusLabel, statusColor, icon };
+        const ts = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
+        return { ...b, statusLabel, statusColor, icon, _ts: ts, _isAdmin: false };
       });
-  }, [myBookings, clearedBefore]);
+
+    const adminItems = adminNotifications
+      .filter(n => {
+        const t = n.createdAt?.toMillis ? n.createdAt.toMillis() : new Date(n.createdAt || 0).getTime();
+        return t > clearedBefore;
+      })
+      .map(n => {
+        const ts = n.createdAt?.toMillis ? n.createdAt.toMillis() : new Date(n.createdAt || 0).getTime();
+        return {
+          id: n.id,
+          statusLabel: n.title || 'Notification',
+          statusColor: '#6366F1',
+          icon: 'bell' as 'check' | 'alert' | 'clock' | 'bell',
+          farmhouseName: n.body || '',
+          checkInDate: '',
+          checkOutDate: '',
+          _ts: ts,
+          _isAdmin: true,
+        };
+      });
+
+    return [...bookingItems, ...adminItems]
+      .sort((a, b) => b._ts - a._ts)
+      .slice(0, 30);
+  }, [myBookings, clearedBefore, adminNotifications]);
 
   const filteredAndSortedFarmhouses = useMemo(() => {
     let result = [...farmhouses];
@@ -274,6 +321,20 @@ export default function ExploreScreen({ navigation }: any) {
 
     if (filters.propertyType) {
       result = result.filter(f => (f.propertyType || 'farmhouse') === filters.propertyType);
+    }
+
+    if (filters.checkIn && filters.checkOut && filters.checkIn <= filters.checkOut) {
+      result = result.filter(f => {
+        const booked = new Set([...(f.bookedDates || []), ...(f.blockedDates || [])]);
+        const start = new Date(filters.checkIn);
+        const end = new Date(filters.checkOut);
+        let cur = new Date(start);
+        while (cur <= end) {
+          if (booked.has(cur.toISOString().split('T')[0])) return false;
+          cur.setDate(cur.getDate() + 1);
+        }
+        return true;
+      });
     }
 
     switch (sortBy) {
@@ -452,12 +513,13 @@ export default function ExploreScreen({ navigation }: any) {
                     <TouchableOpacity
                       key={item.id}
                       style={[styles.notifItem, { borderColor: colors.border }]}
-                      onPress={() => { setShowNotificationsModal(false); navigation.navigate('BookingDetails', { bookingId: item.id }); }}
+                      onPress={() => { setShowNotificationsModal(false); if (!(item as any)._isAdmin) navigation.navigate('BookingDetails', { bookingId: item.id }); }}
                       activeOpacity={0.7}
                     >
                       <View style={[styles.notifIcon, { backgroundColor: item.statusColor + '22' }]}>
                         {item.icon === 'check' ? <CheckCircle size={18} color={item.statusColor} /> :
                          item.icon === 'alert' ? <AlertCircle size={18} color={item.statusColor} /> :
+                         item.icon === 'bell' ? <Bell size={18} color={item.statusColor} /> :
                          <Clock size={18} color={item.statusColor} />}
                       </View>
                       <View style={{ flex: 1 }}>
@@ -575,6 +637,26 @@ export default function ExploreScreen({ navigation }: any) {
                   value={filters.minCapacity}
                   onChangeText={(text) => setFilters({...filters, minCapacity: text.replace(/[^0-9]/g, '')})}
                 />
+
+                <Text style={[styles.filterLabel, { color: colors.text }]}>Availability (YYYY-MM-DD)</Text>
+                <View style={styles.priceRow}>
+                  <TextInput
+                    style={[styles.filterInputHalf, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+                    placeholder="Check-in"
+                    placeholderTextColor={colors.placeholder}
+                    value={filters.checkIn}
+                    onChangeText={(text) => setFilters({ ...filters, checkIn: text })}
+                    maxLength={10}
+                  />
+                  <TextInput
+                    style={[styles.filterInputHalf, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+                    placeholder="Check-out"
+                    placeholderTextColor={colors.placeholder}
+                    value={filters.checkOut}
+                    onChangeText={(text) => setFilters({ ...filters, checkOut: text })}
+                    maxLength={10}
+                  />
+                </View>
 
                 <Text style={[styles.filterLabel, { color: colors.text }]}>Property Type</Text>
                 <View style={styles.typeFilterRow}>

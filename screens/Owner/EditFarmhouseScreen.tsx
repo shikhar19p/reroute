@@ -417,6 +417,7 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
         'amenities.additionalAmenities': formData.additionalAmenities.trim(),
         // Rules
         'rules.petsNotAllowed': formData.petsNotAllowed,
+        'rules.alcoholNotAllowed': (formData as any).alcoholNotAllowed ?? false,
         'rules.additionalRules': formData.additionalRules.trim(),
         photoUrls: formData.photos,
         bookingWindowDays: 90,
@@ -751,6 +752,16 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
                 onValueChange={(value) => updateField('petsNotAllowed', value)}
                 trackColor={{ false: colors.border, true: colors.buttonBackground }}
                 thumbColor={formData.petsNotAllowed ? '#FFFFFF' : '#F5F5F5'}
+              />
+            </View>
+
+            <View style={[styles.switchRow, { borderColor: colors.border }]}>
+              <Text style={[styles.switchLabel, { color: colors.text }]}>Alcohol Not Allowed</Text>
+              <Switch
+                value={(formData as any).alcoholNotAllowed ?? false}
+                onValueChange={(value) => updateField('alcoholNotAllowed' as any, value)}
+                trackColor={{ false: colors.border, true: colors.buttonBackground }}
+                thumbColor={(formData as any).alcoholNotAllowed ? '#FFFFFF' : '#F5F5F5'}
               />
             </View>
 

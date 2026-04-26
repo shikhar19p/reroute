@@ -1273,8 +1273,10 @@ function serverEncrypt(plainText: string, userId: string, secret: string): strin
   return `enc_v2_${iv.toString('hex')}:${encrypted}`;
 }
 
-function serverDecrypt(encryptedText: string, userId: string, secret: string): string {
-  const key = serverDeriveKey(userId, secret);
+// Legacy key used in older app builds before ENCRYPTION_SECRET was configured
+const LEGACY_FALLBACK_KEY = 'reroute-encryption-key-2024-CHANGE-IN-PRODUCTION';
+
+function serverDecryptWithKey(encryptedText: string, key: Buffer): string {
   if (encryptedText.startsWith('enc_v2_')) {
     const payload = encryptedText.slice('enc_v2_'.length);
     const colonIdx = payload.indexOf(':');
@@ -1285,7 +1287,34 @@ function serverDecrypt(encryptedText: string, userId: string, secret: string): s
     decrypted += decipher.final('utf8');
     return decrypted;
   }
+  if (encryptedText.startsWith('enc_v1_')) {
+    // Legacy passphrase-based AES — key is used as hex string passphrase
+    const keyHex = key.toString('hex');
+    const ciphertext = encryptedText.slice('enc_v1_'.length);
+    // CryptoJS passphrase AES: decrypt using the hex key as passphrase
+    const CryptoJS = require('crypto-js');
+    const decrypted = CryptoJS.AES.decrypt(ciphertext, keyHex);
+    const plainText = decrypted.toString(CryptoJS.enc.Utf8);
+    if (plainText) return plainText;
+    throw new Error('enc_v1_ decryption produced empty output');
+  }
   throw new Error('Unknown encryption format');
+}
+
+function serverDecrypt(encryptedText: string, userId: string, secret: string): string {
+  return serverDecryptWithKey(encryptedText, serverDeriveKey(userId, secret));
+}
+
+function serverDecryptAnyKey(encryptedText: string, userId: string, primarySecret: string): string {
+  // Try primary secret first
+  try {
+    return serverDecrypt(encryptedText, userId, primarySecret);
+  } catch (_) {}
+  // Fall back to legacy key (older app builds)
+  try {
+    return serverDecryptWithKey(encryptedText, serverDeriveKey(userId, LEGACY_FALLBACK_KEY));
+  } catch (_) {}
+  throw new Error('Decryption failed with all known keys');
 }
 
 // ─── encryptBankDetails ───────────────────────────────────────────────────────
@@ -1321,7 +1350,8 @@ export const getBankDetails = onCall(async (request) => {
     throw new HttpsError('not-found', 'Farmhouse not found');
   }
   const farmData = farmDoc.data()!;
-  if (farmData.ownerId !== request.auth.uid) {
+  const farmOwnerId = farmData.ownerId || farmData.owner_id;
+  if (farmOwnerId !== request.auth.uid) {
     throw new HttpsError('permission-denied', 'Not authorized');
   }
   const bankDetails = farmData.kyc?.bankDetails;
@@ -1337,8 +1367,8 @@ export const getBankDetails = onCall(async (request) => {
     return {
       bankDetails: {
         ...bankDetails,
-        accountNumber: serverDecrypt(bankDetails.accountNumber, request.auth.uid, secret),
-        ifscCode: serverDecrypt(bankDetails.ifscCode, request.auth.uid, secret),
+        accountNumber: serverDecryptAnyKey(bankDetails.accountNumber, request.auth.uid, secret),
+        ifscCode: serverDecryptAnyKey(bankDetails.ifscCode, request.auth.uid, secret),
         encrypted: false,
       },
     };

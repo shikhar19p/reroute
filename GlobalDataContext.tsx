@@ -77,6 +77,7 @@ interface DataState {
   myBookingsLoading: boolean;
   availableFarmhousesLoading: boolean;
   myFarmhousesLoading: boolean;
+  myFarmhousesServerConfirmed: boolean;
   allBookingsLoading: boolean;
   reviewsLoading: boolean;
   couponsLoading: boolean;
@@ -151,9 +152,9 @@ const createDefaultFarmhouse = (id: string): Farmhouse => {
       pool: false,
     },
     rules: {
-      unmarriedCouples: false,
       pets: false,
       quietHours: false,
+      alcohol: false,
     },
     ownerId: '',
     status: 'pending',
@@ -218,11 +219,12 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
       },
       
       rules: {
-        unmarriedCouples: !data.rules?.unmarriedNotAllowed,
         pets: !data.rules?.petsNotAllowed,
         quietHours: data.rules?.quietHours || false,
+        alcohol: !data.rules?.alcoholNotAllowed,
+        additionalRules: data.rules?.additionalRules || '',
       },
-      
+
       ownerId: data.ownerId || '',
       status: data.status || 'pending',
       rating: data.averageRating || data.rating || 0,
@@ -280,10 +282,14 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
       pool: false,
     },
     
-    rules: data.rules || {
-      unmarriedCouples: false,
+    rules: data.rules ? {
+      ...data.rules,
+      additionalRules: data.rules.additionalRules || '',
+    } : {
       pets: false,
       quietHours: false,
+      alcohol: false,
+      additionalRules: '',
     },
     
     ownerId: data.ownerId || '',
@@ -357,6 +363,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     myBookingsLoading: true,
     availableFarmhousesLoading: true,
     myFarmhousesLoading: true,
+    myFarmhousesServerConfirmed: false,
     allBookingsLoading: false,
     reviewsLoading: false,
     couponsLoading: true,
@@ -493,14 +500,14 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
   }, [ready, refreshTriggers.availableFarmhouses]);
 
   // ==================== MY FARMHOUSES (OWNER) ====================
+  // No `ready` gate here — owner-specific query, not LCP-critical; start immediately
   useEffect(() => {
-    if (!ready) return;
-    if (!user?.uid || user.role !== 'owner') {
-      setState(prev => ({ ...prev, myFarmhouses: [], myFarmhousesLoading: false }));
+    if (!user?.uid) {
+      setState(prev => ({ ...prev, myFarmhouses: [], myFarmhousesLoading: false, myFarmhousesServerConfirmed: false }));
       return;
     }
 
-    setState(prev => ({ ...prev, myFarmhousesLoading: true, myFarmhousesError: null }));
+    setState(prev => ({ ...prev, myFarmhousesLoading: true, myFarmhousesError: null, myFarmhousesServerConfirmed: false }));
 
     const q = query(
       collection(db, 'farmhouses'),
@@ -509,7 +516,9 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
 
     const unsubscribe = onSnapshot(
       q,
+      { includeMetadataChanges: true },
       (snapshot) => {
+        const fromCache = snapshot.metadata.fromCache;
         try {
           const farmhouses = snapshot.docs.map(doc => transformFarmhouseData(doc));
           farmhouses.sort((a, b) => {
@@ -521,7 +530,9 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
           setState(prev => ({
             ...prev,
             myFarmhouses: farmhouses,
-            myFarmhousesLoading: false,
+            // Still "loading" if only cache data so far and list is empty — wait for server
+            myFarmhousesLoading: fromCache && farmhouses.length === 0,
+            myFarmhousesServerConfirmed: !fromCache,
             myFarmhousesRefreshing: false,
             myFarmhousesError: null,
           }));
@@ -530,6 +541,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
           setState(prev => ({
             ...prev,
             myFarmhousesLoading: false,
+            myFarmhousesServerConfirmed: !fromCache,
             myFarmhousesRefreshing: false,
             myFarmhousesError: error.message,
           }));
@@ -540,6 +552,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
         setState(prev => ({
           ...prev,
           myFarmhousesLoading: false,
+          myFarmhousesServerConfirmed: true,
           myFarmhousesRefreshing: false,
           myFarmhousesError: error.message,
         }));
@@ -547,7 +560,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     );
 
     return () => unsubscribe();
-  }, [ready, user?.uid, user?.role, refreshTriggers.myFarmhouses]);
+  }, [user?.uid, refreshTriggers.myFarmhouses]);
 
   // ==================== COUPONS ====================
   useEffect(() => {
@@ -592,7 +605,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
   // ==================== OWNER BOOKINGS ====================
   useEffect(() => {
     if (!ready) return;
-    if (!user?.uid || user.role !== 'owner') {
+    if (!user?.uid) {
       setState(prev => ({ ...prev, allBookingsForMyFarmhouses: [], allBookingsLoading: false }));
       return;
     }
@@ -650,7 +663,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     });
 
     return () => unsubs.forEach(u => u());
-  }, [ready, user?.uid, user?.role, state.myFarmhouses]);
+  }, [ready, user?.uid, state.myFarmhouses]);
 
   // ==================== REFRESH FUNCTIONS ====================
 
@@ -809,10 +822,11 @@ export function useAvailableFarmhouses() {
 }
 
 export function useMyFarmhouses() {
-  const { myFarmhouses, myFarmhousesLoading, myFarmhousesError, myFarmhousesRefreshing, refreshMyFarmhouses } = useGlobalData();
+  const { myFarmhouses, myFarmhousesLoading, myFarmhousesError, myFarmhousesRefreshing, myFarmhousesServerConfirmed, refreshMyFarmhouses } = useGlobalData();
   return {
     data: myFarmhouses,
     loading: myFarmhousesLoading,
+    serverConfirmed: myFarmhousesServerConfirmed,
     error: myFarmhousesError,
     refreshing: myFarmhousesRefreshing,
     refresh: refreshMyFarmhouses,

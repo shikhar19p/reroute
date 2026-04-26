@@ -11,7 +11,7 @@ import { useAuth } from '../../../authContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { useScrollHandler } from '../../../context/TabBarVisibilityContext';
 import { useDialog } from '../../../components/CustomDialog';
-import { Calendar, MapPin, Heart, ChevronRight, LogOut } from 'lucide-react-native';
+import { Calendar, MapPin, Heart, ChevronRight, LogOut, Home } from 'lucide-react-native';
 
 interface UserProfile {
   name: string;
@@ -29,7 +29,7 @@ interface UserProfile {
 }
 
 export default function ProfileScreen({ navigation }: any) {
-  const { user, logout } = useAuth();
+  const { user, logout, switchRole } = useAuth();
   const { colors, isDark, toggleTheme } = useTheme();
   const scrollHandler = useScrollHandler();
   const { showDialog } = useDialog();
@@ -219,6 +219,14 @@ export default function ProfileScreen({ navigation }: any) {
               thumbColor={isDark ? '#FFFFFF' : '#F5F5F5'}
             />
           </View>
+
+          {user?.roles?.includes('owner') && (
+            <MenuItem
+              title="Switch to Owner Dashboard"
+              onPress={() => switchRole('owner')}
+              right={<Home size={18} color={colors.primary} />}
+            />
+          )}
 
           <MenuItem
             title="Logout"

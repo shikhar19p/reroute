@@ -75,19 +75,10 @@ export default function AnimatedSplashScreen({
       dotLoopRef.current.start();
     }, 400);
 
-    // Fade-out text only — photo stays for seamless transition to WelcomeScreen
+    // Signal animation ready after dots start — keep text visible until parent unmounts
     const exitTimer = setTimeout(() => {
-      if (dotLoopRef.current) dotLoopRef.current.stop();
-
-      Animated.timing(textOpacity, {
-        toValue: 0,
-        duration: 300,
-        easing: Easing.in(Easing.ease),
-        useNativeDriver: Platform.OS !== 'web',
-      }).start(({ finished }) => {
-        if (finished && onAnimationComplete) onAnimationComplete();
-      });
-    }, 1400);
+      if (onAnimationComplete) onAnimationComplete();
+    }, 1200);
 
     return () => {
       clearTimeout(dotsTimer);
