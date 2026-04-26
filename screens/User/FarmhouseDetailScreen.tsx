@@ -495,8 +495,6 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
   const markedDates = useMemo(() => {
     const marked: any = {};
-    const minDate = getMinimumDate();
-    const maxDate = getMaximumDate();
     const bookedStyle = {
       disabled: true,
       disableTouchEvent: true,
@@ -505,40 +503,11 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
       color: isDark ? '#374151' : '#E5E7EB',
       textColor: isDark ? '#6B7280' : '#9CA3AF',
     };
-    const outOfWindowStyle = {
-      disabled: true,
-      disableTouchEvent: true,
-      startingDay: true,
-      endingDay: true,
-      color: isDark ? '#1F2937' : '#F9FAFB',
-      textColor: isDark ? '#4B5563' : '#D1D5DB',
-    };
 
-    // Mark past dates visible in calendar (~3 months back)
-    const pastStart = new Date();
-    pastStart.setMonth(pastStart.getMonth() - 3);
-    const minDateObj = new Date(minDate);
-    let cur = new Date(pastStart);
-    while (cur < minDateObj) {
-      marked[cur.toISOString().split('T')[0]] = outOfWindowStyle;
-      cur.setDate(cur.getDate() + 1);
-    }
-
-    // Mark booked/blocked dates within the window
+    // Only mark truly booked/blocked dates — calendar handles out-of-window via minDate/maxDate
     unavailableDates.forEach(date => {
       marked[date] = bookedStyle;
     });
-
-    // Mark dates beyond booking window (~3 months ahead of maxDate)
-    const maxDateObj = new Date(maxDate);
-    const futureEnd = new Date(maxDateObj);
-    futureEnd.setMonth(futureEnd.getMonth() + 3);
-    cur = new Date(maxDateObj);
-    cur.setDate(cur.getDate() + 1);
-    while (cur <= futureEnd) {
-      marked[cur.toISOString().split('T')[0]] = outOfWindowStyle;
-      cur.setDate(cur.getDate() + 1);
-    }
 
     // Mark selected dates
     if (selectedDates.start && selectedDates.end) {

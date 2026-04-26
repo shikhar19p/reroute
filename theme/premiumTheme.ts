@@ -80,7 +80,7 @@ export const premiumLightTheme: PremiumTheme = {
 
     text:          '#111111',
     textSecondary: '#555555',
-    placeholder:   '#999999',
+    placeholder:   '#767676',
     textInverse:   '#FFFFFF',
 
     border:  '#E8E8E8',
