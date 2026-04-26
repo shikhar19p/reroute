@@ -68,9 +68,9 @@ const META_INJECT = `
 
   <!-- Performance hints -->
   <link rel="preconnect" href="https://firebasestorage.googleapis.com" crossorigin />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com" />
-  <link rel="dns-prefetch" href="https://firestore.googleapis.com" />
+  <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin />
+  <link rel="preconnect" href="https://www.googleapis.com" crossorigin />
+  <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin />
   <link rel="preload" href="/assets/farmhouse-bg.jpg" as="image" />
 
   <!-- Canonical -->
