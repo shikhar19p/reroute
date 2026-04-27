@@ -1,10 +1,10 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  ActivityIndicator, RefreshControl,
+  ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Bell, Calendar, CheckCircle, XCircle, Clock } from 'lucide-react-native';
+import { ArrowLeft, Bell, Calendar, CheckCircle, XCircle, Clock, Trash2 } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useOwnerBookings } from '../../GlobalDataContext';
 import { useAuth } from '../../authContext';
@@ -30,9 +30,19 @@ function formatDate(dateStr: string): string {
   }
 }
 
-function timeAgo(dateStr: string): string {
+function toDate(val: any): Date | null {
+  if (!val) return null;
+  if (val?.toDate) return val.toDate(); // Firestore Timestamp
+  if (typeof val === 'number') return new Date(val);
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function timeAgo(val: any): string {
   try {
-    const diff = Date.now() - new Date(dateStr).getTime();
+    const d = toDate(val);
+    if (!d) return '';
+    const diff = Date.now() - d.getTime();
     const mins = Math.floor(diff / 60000);
     if (mins < 60) return `${mins}m ago`;
     const hrs = Math.floor(mins / 60);
@@ -77,6 +87,7 @@ export default function OwnerNotificationsScreen({ navigation }: any) {
   const { user } = useAuth();
   const { data: bookings, loading, refreshing, refresh: onRefresh } = useOwnerBookings();
   const [adminNotifications, setAdminNotifications] = useState<any[]>([]);
+  const [clearedIds, setClearedIds] = useState<Set<string>>(new Set());
 
   const fetchAdminNotifications = useCallback(async () => {
     if (!user) return;
@@ -94,11 +105,12 @@ export default function OwnerNotificationsScreen({ navigation }: any) {
 
   useEffect(() => { fetchAdminNotifications(); }, [fetchAdminNotifications]);
 
-  const notifications: NotificationItem[] = useMemo(() => {
+  const allNotifications: NotificationItem[] = useMemo(() => {
     const bookingItems = [...bookings]
+      .filter(b => b.paymentStatus !== 'failed') // exclude failed payments entirely
       .sort((a, b) => {
-        const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        const ta = toDate((a as any).createdAt)?.getTime() ?? 0;
+        const tb = toDate((b as any).createdAt)?.getTime() ?? 0;
         return tb - ta;
       })
       .map(b => {
@@ -123,11 +135,30 @@ export default function OwnerNotificationsScreen({ navigation }: any) {
     }));
 
     return [...bookingItems, ...adminItems].sort((a, b) => {
-      const ta = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-      const tb = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      const ta = toDate(a.timestamp)?.getTime() ?? 0;
+      const tb = toDate(b.timestamp)?.getTime() ?? 0;
       return tb - ta;
     });
   }, [bookings, adminNotifications]);
+
+  const notifications = useMemo(
+    () => allNotifications.filter(n => !clearedIds.has(n.id)),
+    [allNotifications, clearedIds]
+  );
+
+  const handleClearAll = useCallback(() => {
+    Alert.alert('Clear Notifications', 'Remove all notifications from this view?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Clear All', style: 'destructive',
+        onPress: () => setClearedIds(prev => {
+          const next = new Set(prev);
+          notifications.forEach(n => next.add(n.id));
+          return next;
+        }),
+      },
+    ]);
+  }, [notifications]);
 
   const renderItem = ({ item }: { item: NotificationItem }) => {
     const cfg = TYPE_CONFIG[item.type];
@@ -184,7 +215,13 @@ export default function OwnerNotificationsScreen({ navigation }: any) {
           <ArrowLeft size={22} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Notifications</Text>
-        <View style={{ width: 40 }} />
+        {notifications.length > 0 ? (
+          <TouchableOpacity onPress={handleClearAll} style={styles.clearBtn}>
+            <Trash2 size={18} color={colors.placeholder} />
+          </TouchableOpacity>
+        ) : (
+          <View style={{ width: 40 }} />
+        )}
       </View>
 
       {loading ? (
@@ -225,6 +262,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   backBtn: { padding: 8 },
+  clearBtn: { padding: 8, width: 40, alignItems: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '700' },
   list: { padding: 16, gap: 12 },
   card: {

@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import AnimatedImage from '../../components/AnimatedImage';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Heart, Search, SlidersHorizontal, ArrowUpDown, Bell, Share2, Star, MapPin, LogOut, Calendar, CheckCircle, AlertCircle, Clock } from 'lucide-react-native';
+import { Heart, Search, SlidersHorizontal, ArrowUpDown, Bell, Share2, Star, MapPin, LogOut, Calendar, CheckCircle, AlertCircle, Clock, Building2 } from 'lucide-react-native';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
@@ -109,7 +109,7 @@ const CONTENT_MAX_WIDTH = 1440;
 const GRID_BREAKPOINTS = { md: 768, lg: 1200, xl: 1440 };
 
 export default function ExploreScreen({ navigation }: any) {
-  const { user, logout } = useAuth();
+  const { user, logout, switchRole } = useAuth();
   const { colors, isDark } = useTheme();
   const { width: windowWidth } = useWindowDimensions();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
@@ -121,12 +121,26 @@ export default function ExploreScreen({ navigation }: any) {
   const { data: myBookings } = useMyBookings();
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [clearedBefore, setClearedBefore] = useState(0);
+  const [isOwnerWithFarms, setIsOwnerWithFarms] = useState(false);
 
   useEffect(() => {
     AsyncStorage.getItem('notifications_cleared_at').then(val => {
       if (val) setClearedBefore(parseInt(val, 10));
     }).catch(() => {});
   }, []);
+
+  // Check if this customer-mode user is also an owner with any farmhouses
+  useEffect(() => {
+    if (!user?.uid || !user?.roles?.includes('owner')) {
+      setIsOwnerWithFarms(false);
+      return;
+    }
+    getDocs(query(
+      collection(db, 'farmhouses'),
+      where('ownerId', '==', user.uid),
+      limit(1)
+    )).then(snap => setIsOwnerWithFarms(!snap.empty)).catch(() => {});
+  }, [user?.uid, user?.roles]);
 
   // Responsive grid layout
   const numColumns = useMemo(() => {
@@ -399,6 +413,15 @@ export default function ExploreScreen({ navigation }: any) {
             </Text>
           </View>
           <View style={styles.headerActions}>
+            {isOwnerWithFarms && (
+              <TouchableOpacity
+                onPress={() => switchRole('owner')}
+                style={styles.notificationButton}
+                accessibilityLabel="Switch to owner view"
+              >
+                <Building2 size={22} color={colors.text} />
+              </TouchableOpacity>
+            )}
             <TouchableOpacity onPress={handleNotifications} style={styles.notificationButton}>
               {notificationItems.length > 0 && (
                 <View style={styles.notificationBadge}>

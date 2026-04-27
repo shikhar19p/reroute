@@ -56,11 +56,6 @@ const BookingCard = React.memo(({
           <CreditCard size={16} color={colors.buttonBackground} />
           <Text style={[styles.totalAmount, { color: colors.buttonBackground }]}>₹{item.totalPrice}</Text>
         </View>
-        <View style={[styles.paymentBadge, { backgroundColor: item.paymentStatus === 'paid' ? '#E8F5E9' : '#FFF3E0' }]}>
-          <Text style={[styles.paymentText, { color: item.paymentStatus === 'paid' ? '#4CAF50' : '#FF9800' }]}>
-            {item.paymentStatus === 'paid' ? '✓ Paid' : 'Pending'}
-          </Text>
-        </View>
       </View>
 
       <View style={styles.actionRow}>
@@ -354,8 +349,6 @@ const styles = StyleSheet.create({
   amountRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, marginBottom: 12 },
   priceContainer: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   totalAmount: { fontSize: 18, fontWeight: 'bold' },
-  paymentBadge: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12 },
-  paymentText: { fontSize: 12, fontWeight: '600' },
   actionRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
   viewButton: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
   cancelButton: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center', borderWidth: 1.5 },

@@ -404,8 +404,8 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
   const getMinimumDate = () => {
     const now = new Date();
-    // Block today if it's past 2pm IST
-    if (getISTHour() >= 14) {
+    // Block today if it's past 9am IST
+    if (getISTHour() >= 9) {
       const tomorrow = new Date(now);
       tomorrow.setDate(tomorrow.getDate() + 1);
       return tomorrow.toISOString().split('T')[0];
@@ -504,8 +504,11 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
       textColor: isDark ? '#6B7280' : '#9CA3AF',
     };
 
-    // Only mark truly booked/blocked dates — calendar handles out-of-window via minDate/maxDate
+    // Only mark future booked/blocked dates — past dates are outside the booking window
+    // and should not show the grey circle (calendar already disables them via minDate)
+    const today = new Date().toISOString().split('T')[0];
     unavailableDates.forEach(date => {
+      if (date < today) return;
       marked[date] = bookedStyle;
     });
 

@@ -336,13 +336,16 @@ export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) 
     }
   }, [user, getDraftKey]);
 
-  // Auto-save draft when farm data changes (debounced)
+  // Auto-save draft when farm data changes (debounced).
+  // Only save when there is actual user-entered data — avoids spurious draft detection on fresh mount.
   useEffect(() => {
     if (!isInitialized) return;
+    const hasData = farm.name.trim() || farm.contactPhone1.trim() || farm.city.trim();
+    if (!hasData) return;
 
     const timeoutId = setTimeout(() => {
       saveDraft();
-    }, 1000); // Save 1 second after last change
+    }, 1000);
 
     return () => clearTimeout(timeoutId);
   }, [farm, saveDraft, isInitialized]);

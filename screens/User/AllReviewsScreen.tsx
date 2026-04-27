@@ -170,8 +170,11 @@ export default function AllReviewsScreen({ route, navigation }: Props) {
           <ArrowLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>Reviews</Text>
-        <TouchableOpacity onPress={() => setShowAddReview(true)} style={styles.addButton}>
-          <Plus size={24} color={colors.buttonBackground} />
+        <TouchableOpacity
+          onPress={() => setShowAddReview(true)}
+          style={[styles.addButton, { borderColor: colors.buttonBackground }]}
+        >
+          <Plus size={20} color={colors.buttonBackground} />
         </TouchableOpacity>
       </View>
 
@@ -295,7 +298,14 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: 1 },
   backButton: { padding: 4 },
-  addButton: { padding: 4 },
+  addButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   title: { fontSize: 20, fontWeight: 'bold' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   summary: { padding: 20, alignItems: 'center', marginVertical: 16, marginHorizontal: 20, borderRadius: 12 },

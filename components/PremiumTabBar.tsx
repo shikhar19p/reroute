@@ -30,13 +30,11 @@ export default function PremiumTabBar({ state, descriptors, navigation }: Bottom
   return (
     <Animated.View style={[styles.container, { transform: [{ translateY }] }]}>
       <BlurView
-        intensity={Platform.OS === 'web' ? 0 : 100}
+        intensity={Platform.OS === 'web' ? 0 : 80}
         tint={isDark ? 'dark' : 'light'}
         style={[styles.blurContainer, {
-          borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : 'rgba(0, 0, 0, 0.1)',
-          backgroundColor: Platform.OS === 'web'
-            ? (isDark ? 'rgba(20,20,20,0.96)' : 'rgba(255,255,255,0.96)')
-            : (isDark ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)'),
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.22)' : 'rgba(0, 0, 0, 0.18)',
+          backgroundColor: isDark ? 'rgba(18, 18, 18, 0.92)' : 'rgba(252, 250, 245, 0.94)',
         }]}
       >
         <View style={styles.tabBar}>
@@ -91,13 +89,14 @@ export default function PremiumTabBar({ state, descriptors, navigation }: Bottom
                     transform: [{ scale: 1.1 }],
                   }
                 ]}>
-                  {getTabIcon(route.name, isFocused, isFocused ? colors.primary : colors.textSecondary)}
+                  {getTabIcon(route.name, isFocused, isFocused ? colors.primary : (isDark ? '#9CA3AF' : '#4B5563'))}
                 </View>
                 <Text
                   style={[
                     styles.tabLabel,
                     {
-                      color: isFocused ? colors.primary : colors.textSecondary,
+                      color: isFocused ? colors.primary : (isDark ? '#9CA3AF' : '#4B5563'),
+                      fontWeight: isFocused ? '600' : '400',
                     }
                   ]}
                 >
@@ -123,10 +122,10 @@ const styles = StyleSheet.create({
     right: 20,
     borderRadius: 28,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.28,
+    shadowRadius: 20,
+    elevation: 16,
   },
   blurContainer: {
     borderRadius: 28,

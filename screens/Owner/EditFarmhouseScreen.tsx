@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Trash2, Plus, X, Camera, ImageIcon, Calendar } from 'lucide-react-native';
+import { Trash2, Plus, X, Camera, ImageIcon, Calendar, ArrowLeft } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { Farmhouse } from '../../services/farmhouseService';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -96,6 +96,7 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [datePickerIndex, setDatePickerIndex] = useState<number | null>(null);
   const [viewDate, setViewDate] = useState(new Date());
+  const initialFormData = React.useRef<typeof formData | null>(null);
 
   const rawData = farmhouse as any;
 
@@ -162,6 +163,28 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
     loaded: false,
     failed: false,
   });
+
+  // Capture initial form state once on mount
+  React.useEffect(() => {
+    initialFormData.current = JSON.parse(JSON.stringify(formData));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const hasChanges = () =>
+    initialFormData.current !== null &&
+    JSON.stringify(formData) !== JSON.stringify(initialFormData.current);
+
+  const handleDiscard = () => {
+    if (!hasChanges()) { navigation.goBack(); return; }
+    showDialog({
+      title: 'Discard Changes',
+      message: 'You have unsaved changes. Discard them?',
+      type: 'warning',
+      buttons: [
+        { text: 'Keep Editing', style: 'cancel' },
+        { text: 'Discard', style: 'destructive', onPress: () => navigation.goBack() },
+      ],
+    });
+  };
 
   React.useEffect(() => {
     const getBankDetailsFn = httpsCallable(getFunctions(), 'getBankDetails');
@@ -462,6 +485,16 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
         </Pressable>
       </Modal>
 
+      <View style={[styles.screenHeader, { borderBottomColor: colors.border }]}>
+        <TouchableOpacity onPress={handleDiscard} style={styles.backBtn}>
+          <ArrowLeft size={22} color={colors.text} />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Edit Farmhouse</Text>
+          <Text style={[styles.headerSubtitle, { color: colors.placeholder }]}>Update your farmhouse details</Text>
+        </View>
+      </View>
+
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           style={styles.scrollView}
@@ -469,10 +502,6 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.headerSection}>
-            <Text style={[styles.headerTitle, { color: colors.text }]}>Edit Farmhouse</Text>
-            <Text style={[styles.headerSubtitle, { color: colors.placeholder }]}>Update your farmhouse details</Text>
-          </View>
 
           {/* Images Section */}
           <View style={styles.section}>
@@ -832,6 +861,13 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
 
         <View style={[styles.footer, { backgroundColor: colors.cardBackground, borderTopColor: colors.border }]}>
           <TouchableOpacity
+            style={[styles.discardButton, { borderColor: colors.border }]}
+            onPress={handleDiscard}
+            disabled={loading}
+          >
+            <Text style={[styles.discardButtonText, { color: colors.text }]}>Discard</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
             style={[styles.saveButton, { backgroundColor: colors.buttonBackground, opacity: loading ? 0.6 : 1 }]}
             onPress={handleSave}
             disabled={loading}
@@ -850,11 +886,12 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  screenHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, gap: 12 },
+  backBtn: { padding: 6 },
   scrollView: { flex: 1 },
   scrollContent: { paddingHorizontal: 20, paddingBottom: 16 },
-  headerSection: { paddingVertical: 20 },
-  headerTitle: { fontSize: 28, fontWeight: 'bold', marginBottom: 4 },
-  headerSubtitle: { fontSize: 14 },
+  headerTitle: { fontSize: 20, fontWeight: '700', marginBottom: 2 },
+  headerSubtitle: { fontSize: 13 },
   section: { marginTop: 24 },
   sectionTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
   inputGroup: { marginBottom: 16 },
@@ -881,8 +918,10 @@ const styles = StyleSheet.create({
   fieldHint: { fontSize: 12, marginTop: 6, lineHeight: 18 },
   inputContainer: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 4 },
   inputSuffix: { fontSize: 14, marginLeft: 8 },
-  footer: { paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1 },
-  saveButton: { paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  footer: { flexDirection: 'row', gap: 12, paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1 },
+  discardButton: { flex: 1, paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  discardButtonText: { fontSize: 16, fontWeight: '600' },
+  saveButton: { flex: 2, paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   saveButtonText: { fontSize: 16, fontWeight: '600' },
   imagesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   imageContainer: { width: 100, height: 100, position: 'relative' },

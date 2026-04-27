@@ -32,17 +32,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+    let loadingResolved = false;
+
+    // First caller wins — idempotent, prevents double setLoading(false)
+    const resolveLoading = () => {
+      if (!loadingResolved && mounted) {
+        loadingResolved = true;
+        setLoading(false);
+      }
+    };
 
     const loadingTimeout = setTimeout(() => {
       if (mounted) {
         console.warn('Auth initialization timeout - Firebase did not respond');
-        setLoading(false);
+        resolveLoading();
       }
     }, 15000);
 
+    // Fast path: cached session → show app immediately, Firebase verifies in background
     loadSession()
       .then((session) => {
-        if (session && mounted) setUser(session);
+        if (session && mounted) {
+          setUser(session);
+          resolveLoading();
+        }
       })
       .catch((err) => {
         console.error('Failed to restore session:', err);
@@ -68,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
         }
       } finally {
-        if (mounted) setLoading(false);
+        resolveLoading();
       }
     });
 
@@ -139,33 +152,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const switchRole = async (newRole: 'owner' | 'customer') => {
     if (!user) return;
 
-    try {
-      const userRoles = user.roles || [];
-      if (!userRoles.includes(newRole)) {
-        userRoles.push(newRole);
-      }
-
-      const updatedSession: UserSession = {
-        ...user,
-        role: newRole,
-        roles: userRoles,
-      };
-
-      try {
-        await setDoc(doc(db, 'users', user.uid), {
-          role: newRole,
-          roles: userRoles,
-        }, { merge: true });
-      } catch (err) {
-        console.warn('Could not update role in Firestore:', err);
-      }
-
-      await saveSession(updatedSession);
-      setUser(updatedSession);
-    } catch (err: any) {
-      console.error('Error switching role:', err);
-      setError('Failed to switch role');
+    const userRoles = [...(user.roles || [])];
+    if (!userRoles.includes(newRole)) {
+      userRoles.push(newRole);
     }
+
+    const updatedSession: UserSession = {
+      ...user,
+      role: newRole,
+      roles: userRoles,
+    };
+
+    // Update local state immediately so GlobalDataContext reacts before navigation
+    await saveSession(updatedSession);
+    setUser(updatedSession);
+
+    // Firestore write in background — non-blocking
+    setDoc(doc(db, 'users', user.uid), {
+      role: newRole,
+      roles: userRoles,
+    }, { merge: true }).catch(err => console.warn('Could not update role in Firestore:', err));
   };
 
   const logout = async () => {
