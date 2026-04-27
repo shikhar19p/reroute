@@ -3,7 +3,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFarmRegistration } from '../../context/FarmRegistrationContext';
-import { Check } from 'lucide-react-native';
+import { ArrowLeft, Check } from 'lucide-react-native';
 
 type RootStackParamList = {
   FarmKyc: undefined;
@@ -47,7 +47,14 @@ export default function RulesRestrictionsScreen({ navigation }: RulesRestriction
   );
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <ArrowLeft size={22} color="#1F2937" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Rules & Review</Text>
+        <View style={{ width: 38 }} />
+      </View>
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Amenities & Facilities</Text>
@@ -134,6 +141,18 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E7EB',
+  },
+  backBtn: { padding: 8 },
+  headerTitle: { fontSize: 17, fontWeight: '600', color: '#1F2937' },
   container: {
     flex: 1,
   },

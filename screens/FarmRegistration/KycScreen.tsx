@@ -14,7 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as DocumentPicker from 'expo-document-picker';
-import { Upload, CheckSquare, Square } from 'lucide-react-native';
+import { ArrowLeft, Upload, CheckSquare, Square } from 'lucide-react-native';
 import { kycSchema } from '../../utils/validation';
 import { useFarmRegistration } from '../../context/FarmRegistrationContext';
 import { useDialog } from '../../components/CustomDialog';
@@ -150,7 +150,14 @@ export default function KycScreen({ navigation }: KycScreenProps) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right', 'bottom']}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <ArrowLeft size={22} color="#1F2937" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>KYC Verification</Text>
+        <View style={{ width: 38 }} />
+      </View>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -161,7 +168,6 @@ export default function KycScreen({ navigation }: KycScreenProps) {
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.mainTitle}>KYC Verification</Text>
           <Text style={styles.subtitle}>Complete KYC to verify your farmhouse</Text>
 
           {/* Person 1 Contact */}
@@ -595,6 +601,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#E5E7EB',
+  },
+  backBtn: { padding: 8 },
+  headerTitle: { fontSize: 17, fontWeight: '600', color: '#1F2937' },
   container: {
     flex: 1,
   },

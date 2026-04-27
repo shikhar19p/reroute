@@ -12,10 +12,9 @@ import { useDialog } from '../components/CustomDialog';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useAuth } from '../authContext';
-import { saveSession } from '../sessionManager';
 
 export default function RoleSelectionScreen({ navigation }: any) {
-  const { user, logout } = useAuth();
+  const { user, logout, switchRole } = useAuth();
   const { showDialog } = useDialog();
   const [loading, setLoading] = useState(false);
   const [selectedRole, setSelectedRole] = useState<'customer' | 'owner' | null>(null);
@@ -68,25 +67,18 @@ export default function RoleSelectionScreen({ navigation }: any) {
     setSelectedRole(role);
     setLoading(true);
 
-    const userRoles = [...(user.roles || [])];
-    if (!userRoles.includes(role)) userRoles.push(role);
+    // switchRole: saves session + calls setUser immediately, Firestore write is background.
+    // setUser must happen before navigation so GlobalDataContext reacts to role change.
+    await switchRole(role);
 
-    // Save session locally (fast) — don't block navigation on Firestore
-    saveSession({ ...user, role, roles: userRoles }).catch(() => {});
-
-    // Firestore write in background — non-blocking
+    // Write displayName/photoURL to Firestore in background (role/roles handled by switchRole)
     const userDocRef = doc(db, 'users', user.uid);
     setDoc(userDocRef, {
-      uid: user.uid,
-      email: user.email,
-      displayName: user.displayName,
-      photoURL: user.photoURL,
-      role,
-      roles: userRoles,
+      displayName: user.displayName ?? null,
+      photoURL: user.photoURL ?? null,
       updatedAt: new Date().toISOString(),
-    }, { merge: true }).catch((e: any) => console.warn('Could not save role to Firestore:', e.message));
+    }, { merge: true }).catch((e: any) => console.warn('Could not update profile in Firestore:', e.message));
 
-    // Navigate immediately — no waiting for network
     if (role === 'customer') {
       navigation.replace('UserHome');
     } else {

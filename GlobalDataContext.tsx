@@ -398,7 +398,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
   // ==================== MY BOOKINGS ====================
   useEffect(() => {
     if (!ready) return;
-    if (!user?.uid) {
+    if (!user?.uid || user.role !== 'customer') {
       setState(prev => ({ ...prev, myBookings: [], myBookingsLoading: false }));
       return;
     }
@@ -439,11 +439,15 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     );
 
     return () => unsubscribe();
-  }, [ready, user?.uid, refreshTriggers.myBookings]);
+  }, [ready, user?.uid, user?.role, refreshTriggers.myBookings]);
 
   // ==================== AVAILABLE FARMHOUSES ====================
   useEffect(() => {
     if (!ready) return;
+    if (!user || user.role !== 'customer') {
+      setState(prev => ({ ...prev, availableFarmhouses: [], availableFarmhousesLoading: false }));
+      return;
+    }
     setState(prev => ({
       ...prev,
       availableFarmhousesLoading: true,
@@ -497,13 +501,13 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     );
 
     return () => unsubscribe();
-  }, [ready, refreshTriggers.availableFarmhouses]);
+  }, [ready, user?.uid, user?.role, refreshTriggers.availableFarmhouses]);
 
   // ==================== MY FARMHOUSES (OWNER) ====================
-  // No `ready` gate here — owner-specific query, not LCP-critical; start immediately
   useEffect(() => {
-    if (!user?.uid) {
-      setState(prev => ({ ...prev, myFarmhouses: [], myFarmhousesLoading: false, myFarmhousesServerConfirmed: false }));
+    if (!user?.uid || user.role !== 'owner') {
+      // Keep loading:true so OwnerNavigator never sees an empty+ready state during role transition
+      setState(prev => ({ ...prev, myFarmhouses: [], myFarmhousesLoading: true, myFarmhousesServerConfirmed: false }));
       return;
     }
 
@@ -560,11 +564,15 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     );
 
     return () => unsubscribe();
-  }, [user?.uid, refreshTriggers.myFarmhouses]);
+  }, [user?.uid, user?.role, refreshTriggers.myFarmhouses]);
 
   // ==================== COUPONS ====================
   useEffect(() => {
     if (!ready) return;
+    if (!user || user.role !== 'customer') {
+      setState(prev => ({ ...prev, coupons: [], couponsLoading: false }));
+      return;
+    }
     setState(prev => ({ ...prev, couponsLoading: true, couponsError: null }));
 
     const q = query(
@@ -600,12 +608,12 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     );
 
     return () => unsubscribe();
-  }, [ready, refreshTriggers.coupons]);
+  }, [ready, user?.uid, user?.role, refreshTriggers.coupons]);
 
   // ==================== OWNER BOOKINGS ====================
   useEffect(() => {
     if (!ready) return;
-    if (!user?.uid) {
+    if (!user?.uid || user.role !== 'owner') {
       setState(prev => ({ ...prev, allBookingsForMyFarmhouses: [], allBookingsLoading: false }));
       return;
     }
@@ -663,7 +671,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     });
 
     return () => unsubs.forEach(u => u());
-  }, [ready, user?.uid, state.myFarmhouses]);
+  }, [ready, user?.uid, user?.role, state.myFarmhouses]);
 
   // ==================== REFRESH FUNCTIONS ====================
 

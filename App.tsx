@@ -12,6 +12,7 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Font from 'expo-font';
 import Constants from 'expo-constants';
 
 // Configure Google Sign-In only in real native builds.
@@ -223,22 +224,26 @@ function SplashWithAuthCheck({ message, onReady, onComplete }: {
 
 // Wrapper component to check if owner has farmhouses and route accordingly
 function OwnerNavigator({ navigation }: any) {
-  const { data: myFarmhouses, loading } = useMyFarmhouses();
+  const { data: myFarmhouses, loading, serverConfirmed } = useMyFarmhouses();
   const { user } = useAuth();
   const routed = React.useRef(false);
 
   React.useEffect(() => {
-    // Route on first snapshot (cache OK); OwnerHomeScreen handles late server arrival
-    if (!user?.uid || loading || routed.current) return;
+    // Wait for server-confirmed data — never route on stale cache or empty loading state
+    if (!user?.uid || loading || !serverConfirmed || routed.current) return;
     routed.current = true;
     if (myFarmhouses.length > 0) {
       navigation.replace('MyFarmhouses');
     } else {
       navigation.replace('OwnerHome');
     }
-  }, [user?.uid, loading, myFarmhouses, navigation]);
+  }, [user?.uid, loading, serverConfirmed, myFarmhouses, navigation]);
 
-  return <View style={{ flex: 1, backgroundColor: 'rgb(249, 248, 239)' }} />;
+  return (
+    <View style={{ flex: 1, backgroundColor: 'rgb(249, 248, 239)', justifyContent: 'center', alignItems: 'center' }}>
+      <ActivityIndicator size="large" color="#D4AF37" />
+    </View>
+  );
 }
 
 // Bottom Tab Navigator for User screens
@@ -424,12 +429,12 @@ function AppNavigator() {
             <Stack.Screen
               name="FarmRulesRestrictions"
               component={RulesRestrictionsScreen}
-              options={{ title: 'Rules & Review' }}
+              options={{ headerShown: false }}
             />
             <Stack.Screen
               name="FarmKyc"
               component={KycScreen}
-              options={{ title: 'KYC Verification' }}
+              options={{ headerShown: false }}
             />
             <Stack.Screen
               name="RegistrationFee"
@@ -523,24 +528,26 @@ export default function App() {
     }
   }, [isWeb]);
   const [showApp, setShowApp] = React.useState(isWeb);
-  // On web: only load Inter (via CSS in index.html), skip Seasons OTF (not needed on web)
-  // On native: load all fonts as before
+  // Only Seasons-Light needed for splash monogram — load it eagerly.
+  // All other fonts load in background so they're ready before first app screen.
   const [fontsLoaded] = useFonts(
-    isWeb
-      ? {}
-      : {
-          Inter_400Regular,
-          Inter_500Medium,
-          Inter_600SemiBold,
-          Inter_700Bold,
-          'Seasons-Regular': require('./assets/fonts/Fontspring-DEMO-theseasons-reg.otf'),
-          'Seasons-Light': require('./assets/fonts/Fontspring-DEMO-theseasons-lt.otf'),
-          'Seasons-Bold': require('./assets/fonts/Fontspring-DEMO-theseasons-bd.otf'),
-          'Seasons-Italic': require('./assets/fonts/Fontspring-DEMO-theseasons-it.otf'),
-          'Seasons-LightItalic': require('./assets/fonts/Fontspring-DEMO-theseasons-ltit.otf'),
-          'Seasons-BoldItalic': require('./assets/fonts/Fontspring-DEMO-theseasons-bdit.otf'),
-        }
+    isWeb ? {} : { 'Seasons-Light': require('./assets/fonts/Fontspring-DEMO-theseasons-lt.otf') }
   );
+
+  useEffect(() => {
+    if (isWeb) return;
+    Font.loadAsync({
+      Inter_400Regular,
+      Inter_500Medium,
+      Inter_600SemiBold,
+      Inter_700Bold,
+      'Seasons-Regular': require('./assets/fonts/Fontspring-DEMO-theseasons-reg.otf'),
+      'Seasons-Bold': require('./assets/fonts/Fontspring-DEMO-theseasons-bd.otf'),
+      'Seasons-Italic': require('./assets/fonts/Fontspring-DEMO-theseasons-it.otf'),
+      'Seasons-LightItalic': require('./assets/fonts/Fontspring-DEMO-theseasons-ltit.otf'),
+      'Seasons-BoldItalic': require('./assets/fonts/Fontspring-DEMO-theseasons-bdit.otf'),
+    }).catch(() => {});
+  }, []);
 
   // Track auth loading state to prevent showing app before ready
   const [authInitialized, setAuthInitialized] = React.useState(false);

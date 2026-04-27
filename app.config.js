@@ -18,8 +18,6 @@ export default {
     userInterfaceStyle: "light",
     newArchEnabled: false,
     splash: {
-      image: "./assets/splash-icon.png",
-      resizeMode: "contain",
       backgroundColor: "#F9F8EF"
     },
     ios: {

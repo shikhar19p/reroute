@@ -33,6 +33,24 @@ export default function EditProfileScreen({ route, navigation }: Props) {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
+  const initialFormData = React.useRef({ ...formData });
+
+  const hasChanges = () =>
+    JSON.stringify(formData) !== JSON.stringify(initialFormData.current);
+
+  const handleDiscard = () => {
+    if (!hasChanges()) { navigation.goBack(); return; }
+    showDialog({
+      title: 'Discard Changes',
+      message: 'You have unsaved changes. Discard them?',
+      type: 'warning',
+      buttons: [
+        { text: 'Keep Editing', style: 'cancel' },
+        { text: 'Discard', style: 'destructive', onPress: () => navigation.goBack() },
+      ],
+    });
+  };
+
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {};
 
@@ -111,7 +129,7 @@ export default function EditProfileScreen({ route, navigation }: Props) {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity onPress={handleDiscard} style={styles.backButton}>
           <ArrowLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Edit Profile</Text>
@@ -245,9 +263,9 @@ export default function EditProfileScreen({ route, navigation }: Props) {
       </KeyboardAvoidingView>
 
       <View style={[styles.bottomBar, { backgroundColor: colors.cardBackground, borderTopColor: colors.border }]}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.cancelButton, { backgroundColor: colors.border }]}
-          onPress={() => navigation.goBack()}
+          onPress={handleDiscard}
         >
           <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
         </TouchableOpacity>
