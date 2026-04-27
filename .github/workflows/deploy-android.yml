@@ -2,7 +2,7 @@ name: Build & Submit Android to Play Store
 
 on:
   push:
-    branches: [master]
+    branches: [master, main]
 
 jobs:
   build-and-submit:
