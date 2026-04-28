@@ -198,7 +198,6 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
     setLoadingMessage('Creating booking...');
     cleanupDoneRef.current = false;
     let bookingId: string | null = null;
-    let paymentId: string | null = null;
 
     try {
       // Step 1: Create booking with pending status
@@ -250,38 +249,19 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
 
       console.log('✅ Payment successful:', paymentResponse);
 
-      // Step 3: Save payment record to Firestore
-      paymentId = await savePaymentRecord(
-        bookingId,
-        user.uid,
-        finalPrice * 100, // amount in paise
-        'INR',
-        paymentResponse
-      );
-
-      // Step 4: Update coupon usage and user stats
-      if (appliedCoupon) {
-        const couponRef = doc(db, 'coupons', appliedCoupon.id);
-        await updateDoc(couponRef, {
-          current_uses: increment(1)
-        });
-      }
-
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, {
-        totalBookings: increment(1)
-      });
-
-      // Clear cleanup timeout and bookingId since payment succeeded
+      // Clear cleanup timeout and bookingId immediately — payment verified, booking confirmed
       if (cleanupTimeoutRef.current) {
         clearTimeout(cleanupTimeoutRef.current);
         cleanupTimeoutRef.current = null;
       }
+      cleanupDoneRef.current = true;
       currentBookingIdRef.current = null;
       setCurrentBookingId(null);
 
       setLoading(false);
       setLoadingMessage('');
+
+      // Show success immediately — booking is confirmed server-side
       showDialog({
         title: 'Booking confirmed',
         message: `₹${finalPrice} paid. You're all set for ${farmhouseDetails?.name || farmhouseName}.`,
@@ -301,6 +281,23 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
           })
         }]
       });
+
+      // Fire-and-forget: post-payment record keeping (non-blocking, failures don't affect UX)
+      savePaymentRecord(
+        bookingId,
+        user.uid,
+        finalPrice * 100,
+        'INR',
+        paymentResponse
+      ).catch(err => console.error('savePaymentRecord failed (non-critical):', err));
+
+      if (appliedCoupon) {
+        const couponRef = doc(db, 'coupons', appliedCoupon.id);
+        updateDoc(couponRef, { current_uses: increment(1) }).catch(() => {});
+      }
+
+      const userRef = doc(db, 'users', user.uid);
+      updateDoc(userRef, { totalBookings: increment(1) }).catch(() => {});
     } catch (error: any) {
       setLoading(false);
       setLoadingMessage('');
@@ -434,7 +431,9 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
               <View style={styles.stayTimeRow}>
                 <Clock size={13} color={colors.placeholder} />
                 <Text style={[styles.stayTimeText, { color: colors.placeholder }]}>
-                  {bookingType === 'day-use' ? '9:00 AM' : '12:00 PM'}
+                  {bookingType === 'day-use'
+                    ? (farmhouseDetails?.timing?.dayUseCheckIn || '9:00 AM')
+                    : (farmhouseDetails?.timing?.nightCheckIn || '12:00 PM')}
                 </Text>
               </View>
             </View>
@@ -448,7 +447,11 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
               </Text>
               <View style={styles.stayTimeRow}>
                 <Clock size={13} color={colors.placeholder} />
-                <Text style={[styles.stayTimeText, { color: colors.placeholder }]}>6:00 PM</Text>
+                <Text style={[styles.stayTimeText, { color: colors.placeholder }]}>
+                  {bookingType === 'day-use'
+                    ? (farmhouseDetails?.timing?.dayUseCheckOut || '6:00 PM')
+                    : (farmhouseDetails?.timing?.nightCheckOut || '11:00 AM')}
+                </Text>
               </View>
             </View>
           </View>

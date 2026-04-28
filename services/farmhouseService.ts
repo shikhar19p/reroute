@@ -103,6 +103,13 @@ export const convertFarmhouseData = (id: string, data: any): Farmhouse => {
     mapLink: basicDetails.mapLink || '',
     coordinates: coordinates,
     extraGuestPrice: parseInt(pricing.extraGuestPrice, 10) || 500,
+    maxGuests: parseInt(basicDetails.maxGuests || data.maxGuests, 10) || 0,
+    timing: data.timing ? {
+      dayUseCheckIn: data.timing.dayUseCheckIn || '9:00 AM',
+      dayUseCheckOut: data.timing.dayUseCheckOut || '6:00 PM',
+      nightCheckIn: data.timing.nightCheckIn || '12:00 PM',
+      nightCheckOut: data.timing.nightCheckOut || '11:00 AM',
+    } : undefined,
     ownerId: data.ownerId || '',
     status: data.status || 'pending',
     createdAt: data.createdAt || null,

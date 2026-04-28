@@ -58,6 +58,12 @@ interface Farmhouse {
   capacity: string;
   bedrooms: string;
   photoUrls: string[];
+  timing?: {
+    dayUseCheckIn: string;
+    dayUseCheckOut: string;
+    nightCheckIn: string;
+    nightCheckOut: string;
+  };
   amenities: {
     pool?: boolean;
     bonfire?: number;
@@ -168,6 +174,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
             capacity: String(basicDetails.capacity || farmhouseData?.capacity || '0'),
             bedrooms: String(basicDetails.bedrooms || farmhouseData?.bedrooms || '0'),
             photoUrls: Array.isArray(farmhouseData?.photoUrls) ? farmhouseData.photoUrls : [],
+            timing: farmhouseData?.timing || undefined,
             amenities: farmhouseData?.amenities || {},
             rules: farmhouseData?.rules || {},
           } as Farmhouse);
@@ -436,7 +443,9 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
               <View style={styles.timeRow}>
                 <Clock size={14} color={colors.placeholder} />
                 <Text style={[styles.timeText, { color: colors.placeholder }]}>
-                  {booking.bookingType === 'dayuse' ? '9:00 AM' : '12:00 PM'}
+                  {booking.bookingType === 'dayuse'
+                    ? (farmhouse?.timing?.dayUseCheckIn || '9:00 AM')
+                    : (farmhouse?.timing?.nightCheckIn || '12:00 PM')}
                 </Text>
               </View>
             </View>
@@ -450,7 +459,11 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
               <Text style={[styles.dateText, { color: colors.text }]}>{formatDate(booking.checkOutDate)}</Text>
               <View style={styles.timeRow}>
                 <Clock size={14} color={colors.placeholder} />
-                <Text style={[styles.timeText, { color: colors.placeholder }]}>6:00 PM</Text>
+                <Text style={[styles.timeText, { color: colors.placeholder }]}>
+                  {booking.bookingType === 'dayuse'
+                    ? (farmhouse?.timing?.dayUseCheckOut || '6:00 PM')
+                    : (farmhouse?.timing?.nightCheckOut || '11:00 AM')}
+                </Text>
               </View>
             </View>
           </View>

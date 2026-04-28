@@ -13,7 +13,14 @@ import {
   Image,
   Modal,
   Pressable,
+  FlatList,
 } from 'react-native';
+
+const TIME_OPTIONS = [
+  '6:00 AM','7:00 AM','8:00 AM','9:00 AM','10:00 AM','11:00 AM',
+  '12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM',
+  '6:00 PM','7:00 PM','8:00 PM','9:00 PM','10:00 PM','11:00 PM','12:00 AM',
+];
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Trash2, Plus, X, Camera, ImageIcon, Calendar, ArrowLeft } from 'lucide-react-native';
@@ -96,6 +103,7 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [datePickerIndex, setDatePickerIndex] = useState<number | null>(null);
   const [viewDate, setViewDate] = useState(new Date());
+  const [timePickerField, setTimePickerField] = useState<string | null>(null);
   const initialFormData = React.useRef<typeof formData | null>(null);
 
   const rawData = farmhouse as any;
@@ -121,6 +129,12 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
     weeklyNight: farmhouse.weeklyNight.toString(),
     weekendDay: farmhouse.weekendDay.toString(),
     weekendNight: farmhouse.weekendNight.toString(),
+    extraGuestPrice: (rawData.pricing?.extraGuestPrice || farmhouse.extraGuestPrice || 500).toString(),
+    maxGuests: (rawData.pricing?.maxGuests || farmhouse.maxGuests || rawData.basicDetails?.maxGuests || 0).toString(),
+    dayUseCheckIn: rawData.timing?.dayUseCheckIn || farmhouse.timing?.dayUseCheckIn || '9:00 AM',
+    dayUseCheckOut: rawData.timing?.dayUseCheckOut || farmhouse.timing?.dayUseCheckOut || '6:00 PM',
+    nightCheckIn: rawData.timing?.nightCheckIn || farmhouse.timing?.nightCheckIn || '12:00 PM',
+    nightCheckOut: rawData.timing?.nightCheckOut || farmhouse.timing?.nightCheckOut || '11:00 AM',
     customPricing: (farmhouse.customPricing || []).map((cp: any) => ({
       label: cp.label || '',
       price: cp.price || 0,
@@ -413,7 +427,13 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
         'pricing.weeklyNight': formData.weeklyNight,
         'pricing.weekendDay': formData.weekendDay,
         'pricing.weekendNight': formData.weekendNight,
+        'pricing.extraGuestPrice': parseInt(formData.extraGuestPrice) || 0,
+        'pricing.maxGuests': parseInt(formData.maxGuests) || 0,
         'pricing.customPricing': formData.customPricing.map((cp: any) => ({ name: cp.label, price: cp.price })),
+        'timing.dayUseCheckIn': formData.dayUseCheckIn,
+        'timing.dayUseCheckOut': formData.dayUseCheckOut,
+        'timing.nightCheckIn': formData.nightCheckIn,
+        'timing.nightCheckOut': formData.nightCheckOut,
         // Amenities
         'amenities.wifi': formData.wifi,
         'amenities.ac': formData.ac,
@@ -481,6 +501,37 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
               </TouchableOpacity>
             </View>
             {renderCalendar()}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Time Picker Modal */}
+      <Modal visible={timePickerField !== null} transparent animationType="fade" onRequestClose={() => setTimePickerField(null)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setTimePickerField(null)}>
+          <Pressable style={styles.calendarModal} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.calendarModalHeader}>
+              <Text style={styles.calendarModalTitle}>Select Time</Text>
+              <TouchableOpacity onPress={() => setTimePickerField(null)}>
+                <Text style={{ fontSize: 20, color: '#374151' }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={TIME_OPTIONS}
+              keyExtractor={(item) => item}
+              style={{ maxHeight: 300 }}
+              renderItem={({ item }) => {
+                const current = (formData as any)[timePickerField!];
+                const isSelected = current === item;
+                return (
+                  <TouchableOpacity
+                    style={[{ paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#F3F4F6' }, isSelected && { backgroundColor: '#ECFDF5' }]}
+                    onPress={() => { updateField(timePickerField!, item); setTimePickerField(null); }}
+                  >
+                    <Text style={{ fontSize: 16, color: isSelected ? '#4CAF50' : '#374151', fontWeight: isSelected ? '700' : '400' }}>{item}</Text>
+                  </TouchableOpacity>
+                );
+              }}
+            />
           </Pressable>
         </Pressable>
       </Modal>
@@ -687,6 +738,81 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
                   placeholderTextColor={colors.placeholder}
                   keyboardType="number-pad"
                 />
+              </View>
+            </View>
+
+            <Text style={[styles.priceCategory, { color: colors.text, marginTop: 16 }]}>Guest Limits & Extra Charges</Text>
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+                <Text style={[styles.label, { color: colors.text }]}>Max Guests Allowed</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
+                  value={formData.maxGuests}
+                  onChangeText={(text) => updateField('maxGuests', text.replace(/[^0-9]/g, ''))}
+                  placeholder="0"
+                  placeholderTextColor={colors.placeholder}
+                  keyboardType="number-pad"
+                />
+              </View>
+              <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+                <Text style={[styles.label, { color: colors.text }]}>Extra Guest Price (₹)</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
+                  value={formData.extraGuestPrice}
+                  onChangeText={(text) => updateField('extraGuestPrice', text.replace(/[^0-9]/g, ''))}
+                  placeholder="0"
+                  placeholderTextColor={colors.placeholder}
+                  keyboardType="number-pad"
+                />
+              </View>
+            </View>
+
+            <Text style={[styles.priceCategory, { color: colors.text, marginTop: 8 }]}>Check-in & Check-out Times</Text>
+            <Text style={[styles.label, { color: colors.placeholder, fontSize: 12, marginBottom: 8 }]}>Day Use</Text>
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+                <Text style={[styles.label, { color: colors.text }]}>Check-in</Text>
+                <TouchableOpacity
+                  style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 8 }]}
+                  onPress={() => setTimePickerField('dayUseCheckIn')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ color: colors.text, fontSize: 15 }}>{formData.dayUseCheckIn}</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+                <Text style={[styles.label, { color: colors.text }]}>Check-out</Text>
+                <TouchableOpacity
+                  style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 8 }]}
+                  onPress={() => setTimePickerField('dayUseCheckOut')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ color: colors.text, fontSize: 15 }}>{formData.dayUseCheckOut}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <Text style={[styles.label, { color: colors.placeholder, fontSize: 12, marginBottom: 8 }]}>Overnight Stay</Text>
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+                <Text style={[styles.label, { color: colors.text }]}>Check-in</Text>
+                <TouchableOpacity
+                  style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 8 }]}
+                  onPress={() => setTimePickerField('nightCheckIn')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ color: colors.text, fontSize: 15 }}>{formData.nightCheckIn}</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+                <Text style={[styles.label, { color: colors.text }]}>Check-out</Text>
+                <TouchableOpacity
+                  style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 8 }]}
+                  onPress={() => setTimePickerField('nightCheckOut')}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ color: colors.text, fontSize: 15 }}>{formData.nightCheckOut}</Text>
+                </TouchableOpacity>
               </View>
             </View>
 

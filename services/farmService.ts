@@ -159,10 +159,18 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
       weeklyNight: parseInt(farmData.pricing.weeklyNight) || 0,
       weekendDay: parseInt(farmData.pricing.weekendDay) || 0,
       weekendNight: parseInt(farmData.pricing.weekendNight) || 0,
+      extraGuestPrice: parseInt(farmData.pricing.extraGuestPrice) || 0,
+      maxGuests: parseInt(farmData.pricing.maxGuests) || 0,
       customPricing: farmData.pricing.customPricing?.map((cp: any) => ({
         name: cp.name || '',
         price: parseInt(cp.price) || 0
       })) || [],
+    },
+    timing: {
+      dayUseCheckIn: farmData.pricing.dayUseCheckIn || '9:00 AM',
+      dayUseCheckOut: farmData.pricing.dayUseCheckOut || '6:00 PM',
+      nightCheckIn: farmData.pricing.nightCheckIn || '12:00 PM',
+      nightCheckOut: farmData.pricing.nightCheckOut || '11:00 AM',
     },
     photoUrls,
     amenities: {

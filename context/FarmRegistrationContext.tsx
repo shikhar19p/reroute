@@ -116,6 +116,12 @@ interface Pricing {
   weeklyNight: string;
   weekendDay: string;
   weekendNight: string;
+  extraGuestPrice: string;
+  maxGuests: string;
+  dayUseCheckIn: string;
+  dayUseCheckOut: string;
+  nightCheckIn: string;
+  nightCheckOut: string;
   customPricing: CustomPricing[];
 }
 
@@ -170,6 +176,12 @@ const createInitialFarm = (): Farm => ({
     weeklyNight: '',
     weekendDay: '',
     weekendNight: '',
+    extraGuestPrice: '',
+    maxGuests: '',
+    dayUseCheckIn: '9:00 AM',
+    dayUseCheckOut: '6:00 PM',
+    nightCheckIn: '12:00 PM',
+    nightCheckOut: '11:00 AM',
     customPricing: [],
   },
   photos: [],
