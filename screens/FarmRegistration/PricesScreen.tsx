@@ -10,13 +10,20 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Plus, Calendar } from 'lucide-react-native';
+import { Plus, Calendar, Clock } from 'lucide-react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { pricesSchema } from '../../utils/validation';
 import { useFarmRegistration } from '../../context/FarmRegistrationContext';
 import { useDialog } from '../../components/CustomDialog';
+
+const TIME_OPTIONS = [
+  '6:00 AM','7:00 AM','8:00 AM','9:00 AM','10:00 AM','11:00 AM',
+  '12:00 PM','1:00 PM','2:00 PM','3:00 PM','4:00 PM','5:00 PM',
+  '6:00 PM','7:00 PM','8:00 PM','9:00 PM','10:00 PM','11:00 PM','12:00 AM',
+];
 
 type RootStackParamList = {
   FarmPhotos: undefined;
@@ -43,6 +50,7 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [datePickerIndex, setDatePickerIndex] = useState<number | null>(null);
   const [viewDate, setViewDate] = useState(new Date());
+  const [timePickerField, setTimePickerField] = useState<string | null>(null);
 
   const formValues = useMemo(() => farm.pricing, [farm.pricing]);
 
@@ -262,7 +270,113 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
           <TouchableOpacity onPress={addCustomPrice} style={styles.addButton} activeOpacity={0.7}>
             <Text style={styles.addButtonText}>+ Add Custom Pricing</Text>
           </TouchableOpacity>
+
+          {/* Extra Guest Pricing */}
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionIcon}>👥</Text>
+            <Text style={styles.sectionTitle}>Guest Limits & Extra Charges</Text>
+          </View>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Max Guests Allowed*</Text>
+            <TextInput
+              value={(farm.pricing as any).maxGuests ?? ''}
+              onChangeText={(text) => setField(['pricing', 'maxGuests'], text.replace(/[^0-9]/g, ''))}
+              placeholder="Enter maximum guests allowed"
+              placeholderTextColor="#9CA3AF"
+              style={styles.input}
+              keyboardType="numeric"
+            />
+            <Text style={styles.helperText}>Absolute upper limit. Extra charge applies above base capacity.</Text>
+          </View>
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Price Per Extra Guest (per day/night)*</Text>
+            <TextInput
+              value={(farm.pricing as any).extraGuestPrice ?? ''}
+              onChangeText={(text) => setField(['pricing', 'extraGuestPrice'], text.replace(/[^0-9]/g, ''))}
+              placeholder="₹ Per extra guest charge"
+              placeholderTextColor="#9CA3AF"
+              style={styles.input}
+              keyboardType="numeric"
+            />
+          </View>
+
+          {/* Check-in / Check-out Times */}
+          <View style={styles.sectionHeader}>
+            <Clock size={16} color="#6B7280" />
+            <Text style={styles.sectionTitle}>Check-in & Check-out Times</Text>
+          </View>
+          <Text style={styles.helperText}>Set the allowed times for guests</Text>
+
+          <Text style={styles.timeGroupLabel}>Day Use</Text>
+          <View style={styles.timeRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Check-in</Text>
+              <TouchableOpacity style={styles.timePicker} onPress={() => setTimePickerField('dayUseCheckIn')} activeOpacity={0.7}>
+                <Clock size={14} color="#6B7280" />
+                <Text style={styles.timePickerText}>{(farm.pricing as any).dayUseCheckIn || '9:00 AM'}</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={{ width: 12 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Check-out</Text>
+              <TouchableOpacity style={styles.timePicker} onPress={() => setTimePickerField('dayUseCheckOut')} activeOpacity={0.7}>
+                <Clock size={14} color="#6B7280" />
+                <Text style={styles.timePickerText}>{(farm.pricing as any).dayUseCheckOut || '6:00 PM'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <Text style={[styles.timeGroupLabel, { marginTop: 12 }]}>Overnight Stay</Text>
+          <View style={styles.timeRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Check-in</Text>
+              <TouchableOpacity style={styles.timePicker} onPress={() => setTimePickerField('nightCheckIn')} activeOpacity={0.7}>
+                <Clock size={14} color="#6B7280" />
+                <Text style={styles.timePickerText}>{(farm.pricing as any).nightCheckIn || '12:00 PM'}</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={{ width: 12 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.label}>Check-out</Text>
+              <TouchableOpacity style={styles.timePicker} onPress={() => setTimePickerField('nightCheckOut')} activeOpacity={0.7}>
+                <Clock size={14} color="#6B7280" />
+                <Text style={styles.timePickerText}>{(farm.pricing as any).nightCheckOut || '11:00 AM'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </ScrollView>
+
+        {/* Time Picker Modal */}
+        <Modal visible={timePickerField !== null} transparent animationType="fade">
+          <Pressable style={styles.modalOverlay} onPress={() => setTimePickerField(null)}>
+            <Pressable style={styles.calendarModal}>
+              <Text style={styles.calendarTitle}>Select Time</Text>
+              <FlatList
+                data={TIME_OPTIONS}
+                keyExtractor={(item) => item}
+                style={{ maxHeight: 300 }}
+                renderItem={({ item }) => {
+                  const current = (farm.pricing as any)[timePickerField!];
+                  const isSelected = current === item;
+                  return (
+                    <TouchableOpacity
+                      style={[styles.timeOption, isSelected && styles.timeOptionSelected]}
+                      onPress={() => {
+                        if (timePickerField) setField(['pricing', timePickerField], item);
+                        setTimePickerField(null);
+                      }}
+                    >
+                      <Text style={[styles.timeOptionText, isSelected && styles.timeOptionTextSelected]}>{item}</Text>
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+              <TouchableOpacity style={styles.calCancelBtn} onPress={() => setTimePickerField(null)}>
+                <Text style={styles.calCancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </Modal>
 
         <View style={styles.footer}>
           <TouchableOpacity
@@ -473,6 +587,48 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 24,
     fontWeight: '600',
+  },
+  timeGroupLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  timePicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+  },
+  timePickerText: {
+    fontSize: 15,
+    color: '#1F2937',
+  },
+  timeOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  timeOptionSelected: {
+    backgroundColor: '#ECFDF5',
+  },
+  timeOptionText: {
+    fontSize: 16,
+    color: '#374151',
+  },
+  timeOptionTextSelected: {
+    color: '#4CAF50',
+    fontWeight: '700',
   },
   addButton: {
     flexDirection: 'row',

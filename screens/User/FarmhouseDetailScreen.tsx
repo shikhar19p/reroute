@@ -107,6 +107,14 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
             weekendNight: parseInt(data.pricing?.weekendNight || data.weekendNight) || farmhouse.weekendNight,
             occasionalDay: parseInt(data.pricing?.occasionalDay || data.occasionalDay) || farmhouse.occasionalDay,
             occasionalNight: parseInt(data.pricing?.occasionalNight || data.occasionalNight) || farmhouse.occasionalNight,
+            extraGuestPrice: parseInt(data.pricing?.extraGuestPrice) || farmhouse.extraGuestPrice,
+            maxGuests: parseInt(data.pricing?.maxGuests || data.basicDetails?.maxGuests) || farmhouse.maxGuests,
+            timing: data.timing ? {
+              dayUseCheckIn: data.timing.dayUseCheckIn || farmhouse.timing?.dayUseCheckIn || '9:00 AM',
+              dayUseCheckOut: data.timing.dayUseCheckOut || farmhouse.timing?.dayUseCheckOut || '6:00 PM',
+              nightCheckIn: data.timing.nightCheckIn || farmhouse.timing?.nightCheckIn || '12:00 PM',
+              nightCheckOut: data.timing.nightCheckOut || farmhouse.timing?.nightCheckOut || '11:00 AM',
+            } : farmhouse.timing,
           };
           setFarmhouse(updatedFarmhouse);
         }
@@ -327,6 +335,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   const rooms = farmhouse.bedrooms;
   const unavailableDates: string[] = [...new Set([...(farmhouse.blockedDates || []), ...(farmhouse.bookedDates || [])])];
   const extraGuestPrice = farmhouse.extraGuestPrice || 500;
+  const maxGuests = farmhouse.maxGuests && farmhouse.maxGuests > 0 ? farmhouse.maxGuests : farmhouse.capacity * 2;
 
   const rulesList = useMemo(() => {
     const rules = farmhouse.rules;
@@ -345,7 +354,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
   const updateGuestCount = (value: string) => {
     const numValue = parseInt(value) || 0;
-    const clampedValue = Math.max(1, numValue);
+    const clampedValue = Math.max(1, Math.min(numValue, maxGuests));
     setGuestCount(clampedValue);
     setGuestInputValue(clampedValue.toString());
   };
@@ -796,24 +805,24 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
             <View style={styles.timingRow}>
               <Clock size={16} color={colors.buttonBackground} />
               <Text style={[styles.timingLabel, { color: colors.placeholder }]}>Check-in</Text>
-              <Text style={[styles.timingValue, { color: colors.text }]}>9:00 AM</Text>
+              <Text style={[styles.timingValue, { color: colors.text }]}>{farmhouse.timing?.dayUseCheckIn || '9:00 AM'}</Text>
             </View>
             <View style={styles.timingRow}>
               <Clock size={16} color={colors.buttonBackground} />
               <Text style={[styles.timingLabel, { color: colors.placeholder }]}>Check-out</Text>
-              <Text style={[styles.timingValue, { color: colors.text }]}>6:00 PM</Text>
+              <Text style={[styles.timingValue, { color: colors.text }]}>{farmhouse.timing?.dayUseCheckOut || '6:00 PM'}</Text>
             </View>
             <View style={[styles.timingDivider, { backgroundColor: colors.border }]} />
             <Text style={[styles.timingTypeLabel, { color: colors.placeholder }]}>Overnight Stay</Text>
             <View style={styles.timingRow}>
               <Clock size={16} color={colors.buttonBackground} />
               <Text style={[styles.timingLabel, { color: colors.placeholder }]}>Check-in</Text>
-              <Text style={[styles.timingValue, { color: colors.text }]}>12:00 PM</Text>
+              <Text style={[styles.timingValue, { color: colors.text }]}>{farmhouse.timing?.nightCheckIn || '12:00 PM'}</Text>
             </View>
             <View style={styles.timingRow}>
               <Clock size={16} color={colors.buttonBackground} />
               <Text style={[styles.timingLabel, { color: colors.placeholder }]}>Check-out</Text>
-              <Text style={[styles.timingValue, { color: colors.text }]}>6:00 PM</Text>
+              <Text style={[styles.timingValue, { color: colors.text }]}>{farmhouse.timing?.nightCheckOut || '11:00 AM'}</Text>
             </View>
            </View>
 
@@ -871,8 +880,11 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
             )}
 
             <View style={[styles.extraGuestBox, { backgroundColor: isDark ? 'rgba(2,68,77,0.1)' : 'rgba(2,68,77,0.05)', borderColor: colors.border }]}>
-              <Text style={[styles.extraGuestText, { color: colors.text }]}>Charge for each extra guest (above {farmhouse.capacity}):</Text>
-              <Text style={[styles.extraGuestPrice, { color: colors.buttonBackground }]}>₹{extraGuestPrice}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.extraGuestText, { color: colors.text }]}>Extra guest charge (above {farmhouse.capacity})</Text>
+                <Text style={[{ fontSize: 12, color: colors.placeholder, marginTop: 2 }]}>Max {maxGuests} guests allowed</Text>
+              </View>
+              <Text style={[styles.extraGuestPrice, { color: colors.buttonBackground }]}>₹{extraGuestPrice}/guest</Text>
             </View>
           </View>
 
@@ -885,27 +897,31 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
             <View style={[styles.guestSelector, { borderColor: colors.border }]}>
               <View style={styles.guestInfoContainer}>
                 <Text style={[styles.guestLabel, { color: colors.text }]}>Number of Guests</Text>
-                <Text style={[styles.guestSubLabel, { color: colors.placeholder }]}>Capacity: {farmhouse.capacity}</Text>
+                <Text style={[styles.guestSubLabel, { color: colors.placeholder }]}>Base: {farmhouse.capacity} · Max: {maxGuests}</Text>
+                {guestCount > farmhouse.capacity && (
+                  <Text style={[styles.guestSubLabel, { color: '#F59E0B' }]}>+{guestCount - farmhouse.capacity} extra @ ₹{extraGuestPrice}/guest</Text>
+                )}
               </View>
               <View style={styles.guestControls}>
-                <TouchableOpacity 
-                  style={[styles.guestButton, { backgroundColor: colors.buttonBackground, opacity: guestCount <= 1 ? 0.5 : 1 }]} 
-                  onPress={() => updateGuestCount((guestCount - 1).toString())} 
+                <TouchableOpacity
+                  style={[styles.guestButton, { backgroundColor: colors.buttonBackground, opacity: guestCount <= 1 ? 0.5 : 1 }]}
+                  onPress={() => updateGuestCount((guestCount - 1).toString())}
                   disabled={guestCount <= 1}
                 >
                   <Text style={[styles.guestButtonText, { color: colors.buttonText }]}>−</Text>
                 </TouchableOpacity>
-                <TextInput 
-                  style={[styles.guestInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]} 
-                  value={guestInputValue} 
-                  onChangeText={handleGuestInputChange} 
-                  onBlur={handleGuestInputBlur} 
-                  keyboardType="number-pad" 
+                <TextInput
+                  style={[styles.guestInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
+                  value={guestInputValue}
+                  onChangeText={handleGuestInputChange}
+                  onBlur={handleGuestInputBlur}
+                  keyboardType="number-pad"
                   maxLength={3}
                 />
-                <TouchableOpacity 
-                  style={[styles.guestButton, { backgroundColor: colors.buttonBackground }]} 
+                <TouchableOpacity
+                  style={[styles.guestButton, { backgroundColor: colors.buttonBackground, opacity: guestCount >= maxGuests ? 0.5 : 1 }]}
                   onPress={() => updateGuestCount((guestCount + 1).toString())}
+                  disabled={guestCount >= maxGuests}
                 >
                   <Text style={[styles.guestButtonText, { color: colors.buttonText }]}>+</Text>
                 </TouchableOpacity>

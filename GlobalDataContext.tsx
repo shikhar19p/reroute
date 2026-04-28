@@ -204,8 +204,15 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
           }))
         : [],
       
-      extraGuestPrice: 0,
-      
+      extraGuestPrice: parseInt(data.pricing?.extraGuestPrice) || 0,
+      maxGuests: parseInt(data.pricing?.maxGuests || data.basicDetails?.maxGuests) || 0,
+      timing: data.timing ? {
+        dayUseCheckIn: data.timing.dayUseCheckIn || '9:00 AM',
+        dayUseCheckOut: data.timing.dayUseCheckOut || '6:00 PM',
+        nightCheckIn: data.timing.nightCheckIn || '12:00 PM',
+        nightCheckOut: data.timing.nightCheckOut || '11:00 AM',
+      } : undefined,
+
       photos: Array.isArray(data.photoUrls) ? data.photoUrls : [],
       
       amenities: {
@@ -268,8 +275,15 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
     weekendNight: data.weekendPrice || 0,
     
     customPricing: [],
-    extraGuestPrice: 0,
-    
+    extraGuestPrice: parseInt(data.extraGuestPrice) || 0,
+    maxGuests: parseInt(data.maxGuests) || 0,
+    timing: data.timing ? {
+      dayUseCheckIn: data.timing.dayUseCheckIn || '9:00 AM',
+      dayUseCheckOut: data.timing.dayUseCheckOut || '6:00 PM',
+      nightCheckIn: data.timing.nightCheckIn || '12:00 PM',
+      nightCheckOut: data.timing.nightCheckOut || '11:00 AM',
+    } : undefined,
+
     photos: Array.isArray(data.photos) ? data.photos : [],
     
     amenities: data.amenities || {

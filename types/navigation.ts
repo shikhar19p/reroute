@@ -23,6 +23,13 @@ export interface Farmhouse {
   weekendNight: number;
   customPricing: Array<{ label: string; price: number }>;
   extraGuestPrice: number;
+  maxGuests?: number;
+  timing?: {
+    dayUseCheckIn: string;
+    dayUseCheckOut: string;
+    nightCheckIn: string;
+    nightCheckOut: string;
+  };
   photos: string[];
   amenities: {
     tv: number;
