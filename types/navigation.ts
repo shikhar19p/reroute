@@ -179,6 +179,10 @@ export type RootStackParamList = {
   };
   BookingDetails: { booking: Booking };
   EditProfile: { profile: UserProfile };
+  PrivacyPolicy: undefined;
+  FAQs: undefined;
+  TermsAndConditions: undefined;
+  ContactUs: undefined;
 };
 
 export type TabParamList = {

@@ -101,6 +101,18 @@ const WishlistScreen = Platform.OS === 'web'
 const ProfileScreen = Platform.OS === 'web'
   ? React.lazy(() => import('./screens/User/tabs/ProfileScreen'))
   : require('./screens/User/tabs/ProfileScreen').default;
+const PrivacyPolicyScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/User/PrivacyPolicyScreen'))
+  : require('./screens/User/PrivacyPolicyScreen').default;
+const FAQsScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/User/FAQsScreen'))
+  : require('./screens/User/FAQsScreen').default;
+const TermsAndConditionsScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/User/TermsAndConditionsScreen'))
+  : require('./screens/User/TermsAndConditionsScreen').default;
+const ContactUsScreen = Platform.OS === 'web'
+  ? React.lazy(() => import('./screens/User/ContactUsScreen'))
+  : require('./screens/User/ContactUsScreen').default;
 
 // Owner Screens — lazy on web
 const MyFarmhousesScreen = Platform.OS === 'web'
@@ -154,6 +166,10 @@ function prefetchLazyScreens() {
     () => import('./screens/User/AllAmenitiesScreen'),
     () => import('./screens/User/AllReviewsScreen'),
     () => import('./screens/User/EditProfileScreen'),
+    () => import('./screens/User/PrivacyPolicyScreen'),
+    () => import('./screens/User/FAQsScreen'),
+    () => import('./screens/User/TermsAndConditionsScreen'),
+    () => import('./screens/User/ContactUsScreen'),
     () => import('./screens/Owner/MyFarmhousesScreen'),
     () => import('./screens/Owner/OwnerHomeScreen'),
     () => import('./screens/Owner/FarmhouseDetailOwnerScreen'),
@@ -476,6 +492,26 @@ function AppNavigator() {
             <Stack.Screen
               name="EditProfile"
               component={EditProfileScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="PrivacyPolicy"
+              component={PrivacyPolicyScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="FAQs"
+              component={FAQsScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="TermsAndConditions"
+              component={TermsAndConditionsScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="ContactUs"
+              component={ContactUsScreen}
               options={{ headerShown: false }}
             />
             </>
