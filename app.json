@@ -21,7 +21,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#F9F8EF"
-      }
+      },
+      "versionCode": 16
     },
     "plugins": [
       "expo-web-browser",

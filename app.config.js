@@ -18,6 +18,8 @@ export default {
     userInterfaceStyle: "light",
     newArchEnabled: false,
     splash: {
+      image: "./assets/splash-icon.png",
+      resizeMode: "contain",
       backgroundColor: "#F9F8EF"
     },
     ios: {
@@ -26,6 +28,7 @@ export default {
     },
     android: {
       package: "com.rerouteaventures.app",
+      versionCode: 15,
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#F9F8EF"
@@ -68,7 +71,7 @@ export default {
       // Bank detail encryption/decryption is handled server-side in Cloud Functions only.
       environment: process.env.ENVIRONMENT || 'development',
       eas: {
-        projectId: "b4fd15d4-8419-4cd7-b47a-ba697e65979e"
+        projectId: "f7babf0b-e74f-4fa2-856a-f2885ce93765"
       }
     }
   }

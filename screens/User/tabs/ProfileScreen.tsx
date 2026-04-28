@@ -184,15 +184,15 @@ export default function ProfileScreen({ navigation }: any) {
         {/* Stats */}
         <View style={styles.statsRow}>
           {[
-            { icon: <Calendar size={20} color={colors.primary} />, value: profile.upcomingBookings, label: 'Upcoming' },
-            { icon: <MapPin size={20} color={colors.primary} />, value: profile.pastBookings, label: 'Completed' },
-            { icon: <Heart size={20} color={colors.primary} />, value: profile.wishlistCount, label: 'Wishlist' },
+            { icon: <Calendar size={20} color={colors.primary} />, value: profile.upcomingBookings, label: 'Upcoming', onPress: () => navigation.navigate('Bookings') },
+            { icon: <MapPin size={20} color={colors.primary} />, value: profile.pastBookings, label: 'Completed', onPress: () => navigation.navigate('Bookings') },
+            { icon: <Heart size={20} color={colors.primary} />, value: profile.wishlistCount, label: 'Wishlist', onPress: () => navigation.navigate('Wishlist') },
           ].map((stat, i) => (
-            <View key={i} style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+            <TouchableOpacity key={i} style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]} onPress={stat.onPress} activeOpacity={0.7}>
               {stat.icon}
               <Text style={[styles.statNumber, { color: colors.text }]}>{stat.value}</Text>
               <Text style={[styles.statLabel, { color: colors.placeholder }]}>{stat.label}</Text>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
 
