@@ -11,7 +11,7 @@ import { useAuth } from '../../../authContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { useScrollHandler } from '../../../context/TabBarVisibilityContext';
 import { useDialog } from '../../../components/CustomDialog';
-import { Calendar, MapPin, Heart, ChevronRight, LogOut, Home } from 'lucide-react-native';
+import { Calendar, MapPin, Heart, ChevronRight, LogOut, Home, HelpCircle, FileText, Shield, Phone } from 'lucide-react-native';
 
 interface UserProfile {
   name: string;
@@ -124,14 +124,15 @@ export default function ProfileScreen({ navigation }: any) {
   };
 
   const MenuItem = ({
-    title, onPress, right, color,
-  }: { title: string; onPress?: () => void; right?: React.ReactNode; color?: string }) => (
+    title, onPress, right, color, icon,
+  }: { title: string; onPress?: () => void; right?: React.ReactNode; color?: string; icon?: React.ReactNode }) => (
     <TouchableOpacity
       style={[styles.menuItem, { borderBottomColor: colors.divider }]}
       onPress={onPress}
       activeOpacity={onPress ? 0.6 : 1}
     >
-      <Text style={[styles.menuText, { color: color || colors.text }]}>{title}</Text>
+      {icon && <View style={styles.menuIcon}>{icon}</View>}
+      <Text style={[styles.menuText, { color: color || colors.text, flex: 1 }]}>{title}</Text>
       {right ?? <ChevronRight size={18} color={colors.placeholder} />}
     </TouchableOpacity>
   );
@@ -235,6 +236,31 @@ export default function ProfileScreen({ navigation }: any) {
             right={<LogOut size={18} color={colors.error} />}
           />
         </View>
+
+        {/* Support & Legal */}
+        <Text style={[styles.sectionLabel, { color: colors.placeholder }]}>Support & Legal</Text>
+        <View style={[styles.menuCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+          <MenuItem
+            title="FAQs"
+            icon={<HelpCircle size={17} color={colors.primary} />}
+            onPress={() => navigation.navigate('FAQs')}
+          />
+          <MenuItem
+            title="Contact Us"
+            icon={<Phone size={17} color={colors.primary} />}
+            onPress={() => navigation.navigate('ContactUs')}
+          />
+          <MenuItem
+            title="Privacy Policy"
+            icon={<Shield size={17} color={colors.primary} />}
+            onPress={() => navigation.navigate('PrivacyPolicy')}
+          />
+          <MenuItem
+            title="Terms & Conditions"
+            icon={<FileText size={17} color={colors.primary} />}
+            onPress={() => navigation.navigate('TermsAndConditions')}
+          />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -278,4 +304,9 @@ const styles = StyleSheet.create({
     paddingVertical: 15, paddingHorizontal: 16, borderBottomWidth: StyleSheet.hairlineWidth,
   },
   menuText: { fontSize: 15, fontWeight: '500' },
+  menuIcon: { marginRight: 10 },
+  sectionLabel: {
+    fontSize: 12, fontWeight: '600', textTransform: 'uppercase',
+    letterSpacing: 0.8, marginHorizontal: 20, marginTop: 8, marginBottom: 6,
+  },
 });
