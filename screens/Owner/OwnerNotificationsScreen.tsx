@@ -1,13 +1,14 @@
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  ActivityIndicator, RefreshControl, Alert,
+  ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Bell, Calendar, CheckCircle, XCircle, Clock, Trash2 } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useOwnerBookings } from '../../GlobalDataContext';
 import { useAuth } from '../../authContext';
+import { useDialog } from '../../components/CustomDialog';
 import { Booking } from '../../services/bookingService';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
@@ -85,9 +86,11 @@ const TYPE_CONFIG = {
 export default function OwnerNotificationsScreen({ navigation }: any) {
   const { colors, isDark } = useTheme();
   const { user } = useAuth();
+  const { showDialog } = useDialog();
   const { data: bookings, loading, refreshing, refresh: onRefresh } = useOwnerBookings();
   const [adminNotifications, setAdminNotifications] = useState<any[]>([]);
   const [clearedIds, setClearedIds] = useState<Set<string>>(new Set());
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const fetchAdminNotifications = useCallback(async () => {
     if (!user) return;
@@ -147,33 +150,54 @@ export default function OwnerNotificationsScreen({ navigation }: any) {
   );
 
   const handleClearAll = useCallback(() => {
-    Alert.alert('Clear Notifications', 'Remove all notifications from this view?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Clear All', style: 'destructive',
-        onPress: () => setClearedIds(prev => {
-          const next = new Set(prev);
-          notifications.forEach(n => next.add(n.id));
-          return next;
-        }),
-      },
-    ]);
-  }, [notifications]);
+    showDialog({
+      title: 'Clear Notifications',
+      message: 'Remove all notifications from this view?',
+      type: 'warning',
+      buttons: [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear All', style: 'destructive',
+          onPress: () => setClearedIds(prev => {
+            const next = new Set(prev);
+            notifications.forEach(n => next.add(n.id));
+            return next;
+          }),
+        },
+      ],
+    });
+  }, [notifications, showDialog]);
 
   const renderItem = ({ item }: { item: NotificationItem }) => {
     const cfg = TYPE_CONFIG[item.type];
     if (item.type === 'admin') {
+      const isExpanded = expandedIds.has(item.id);
+      const isLong = (item.adminBody || '').length > 120;
+      const toggleExpand = () => setExpandedIds(prev => {
+        const next = new Set(prev);
+        if (next.has(item.id)) next.delete(item.id); else next.add(item.id);
+        return next;
+      });
       return (
-        <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+        <TouchableOpacity
+          style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+          onPress={isLong ? toggleExpand : undefined}
+          activeOpacity={isLong ? 0.75 : 1}
+        >
           <View style={[styles.iconBox, { backgroundColor: cfg.color + '20' }]}>
             {cfg.icon(cfg.color)}
           </View>
           <View style={styles.cardBody}>
             <Text style={[styles.cardTitle, { color: colors.text }]}>{item.adminTitle}</Text>
-            <Text style={[styles.metaText, { color: colors.placeholder }]} numberOfLines={3}>{item.adminBody}</Text>
+            <Text style={[styles.metaText, { color: colors.placeholder }]} numberOfLines={isExpanded ? undefined : 3}>{item.adminBody}</Text>
+            {isLong && (
+              <Text style={{ fontSize: 11, color: cfg.color, marginTop: 4 }}>
+                {isExpanded ? 'Show less' : 'Show more'}
+              </Text>
+            )}
           </View>
           <Text style={[styles.timeAgo, { color: colors.placeholder }]}>{timeAgo(item.timestamp)}</Text>
-        </View>
+        </TouchableOpacity>
       );
     }
     const b = item.booking!;

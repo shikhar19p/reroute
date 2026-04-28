@@ -121,6 +121,7 @@ export default function ExploreScreen({ navigation }: any) {
   const { data: myBookings } = useMyBookings();
   const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   const [clearedBefore, setClearedBefore] = useState(0);
+  const [expandedNotifId, setExpandedNotifId] = useState<string | null>(null);
   const [isOwnerWithFarms, setIsOwnerWithFarms] = useState(false);
 
   useEffect(() => {
@@ -416,10 +417,11 @@ export default function ExploreScreen({ navigation }: any) {
             {isOwnerWithFarms && (
               <TouchableOpacity
                 onPress={() => switchRole('owner')}
-                style={styles.notificationButton}
+                style={[styles.notificationButton, styles.ownerSwitchBtn]}
                 accessibilityLabel="Switch to owner view"
               >
-                <Building2 size={22} color={colors.text} />
+                <Building2 size={18} color={colors.primary} />
+                <Text style={[styles.ownerSwitchLabel, { color: colors.primary }]}>Owner</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity onPress={handleNotifications} style={styles.notificationButton}>
@@ -536,7 +538,14 @@ export default function ExploreScreen({ navigation }: any) {
                     <TouchableOpacity
                       key={item.id}
                       style={[styles.notifItem, { borderColor: colors.border }]}
-                      onPress={() => { setShowNotificationsModal(false); if (!(item as any)._isAdmin) navigation.navigate('BookingDetails', { bookingId: item.id }); }}
+                      onPress={() => {
+                        if ((item as any)._isAdmin) {
+                          setExpandedNotifId(prev => prev === item.id ? null : item.id);
+                        } else {
+                          setShowNotificationsModal(false);
+                          navigation.navigate('BookingDetails', { bookingId: item.id });
+                        }
+                      }}
                       activeOpacity={0.7}
                     >
                       <View style={[styles.notifIcon, { backgroundColor: item.statusColor + '22' }]}>
@@ -547,8 +556,18 @@ export default function ExploreScreen({ navigation }: any) {
                       </View>
                       <View style={{ flex: 1 }}>
                         <Text style={[{ fontSize: 13, fontWeight: '700', color: item.statusColor }]}>{item.statusLabel}</Text>
-                        <Text style={[{ fontSize: 14, fontWeight: '500', color: colors.text }]} numberOfLines={1}>{item.farmhouseName}</Text>
-                        <Text style={[{ fontSize: 12, color: colors.placeholder }]}>{item.checkInDate}{item.checkOutDate && item.checkOutDate !== item.checkInDate ? ` → ${item.checkOutDate}` : ''}</Text>
+                        <Text
+                          style={[{ fontSize: 14, fontWeight: '500', color: colors.text }]}
+                          numberOfLines={(item as any)._isAdmin && expandedNotifId !== item.id ? 2 : undefined}
+                        >{item.farmhouseName}</Text>
+                        {!(item as any)._isAdmin && (
+                          <Text style={[{ fontSize: 12, color: colors.placeholder }]}>{item.checkInDate}{item.checkOutDate && item.checkOutDate !== item.checkInDate ? ` → ${item.checkOutDate}` : ''}</Text>
+                        )}
+                        {(item as any)._isAdmin && item.farmhouseName.length > 80 && (
+                          <Text style={{ fontSize: 11, color: item.statusColor, marginTop: 2 }}>
+                            {expandedNotifId === item.id ? 'Show less' : 'Show more'}
+                          </Text>
+                        )}
                       </View>
                     </TouchableOpacity>
                   ))}
@@ -746,6 +765,8 @@ const styles = StyleSheet.create({
   userName: { fontSize: 18, fontWeight: '600' },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   notificationButton: { padding: 8, position: 'relative' },
+  ownerSwitchBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16 },
+  ownerSwitchLabel: { fontSize: 12, fontWeight: '700' },
   notificationBadge: { position: 'absolute', top: 4, right: 4, backgroundColor: '#EF4444', borderRadius: 8, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
   notificationBadgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
   notifItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1 },

@@ -30,11 +30,11 @@ export default function PremiumTabBar({ state, descriptors, navigation }: Bottom
   return (
     <Animated.View style={[styles.container, { transform: [{ translateY }] }]}>
       <BlurView
-        intensity={Platform.OS === 'web' ? 0 : 80}
+        intensity={Platform.OS === 'web' ? 0 : 40}
         tint={isDark ? 'dark' : 'light'}
         style={[styles.blurContainer, {
-          borderColor: isDark ? 'rgba(255, 255, 255, 0.22)' : 'rgba(0, 0, 0, 0.18)',
-          backgroundColor: isDark ? 'rgba(18, 18, 18, 0.92)' : 'rgba(252, 250, 245, 0.94)',
+          borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.10)',
+          backgroundColor: isDark ? 'rgb(22, 22, 22)' : 'rgb(249, 248, 239)',
         }]}
       >
         <View style={styles.tabBar}>

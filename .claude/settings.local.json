@@ -84,7 +84,12 @@
       "Bash(firebase login:print-access-token *)",
       "Bash(TOKEN=$\\(gcloud auth print-access-token akshitareddybanala@gmail.com\\) node scripts/seed-rest.js)",
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('scripts',{}\\), indent=2\\)\\)\")",
-      "Bash(node scripts/post-build-web.js)"
+      "Bash(node scripts/post-build-web.js)",
+      "Bash(git remote *)",
+      "Bash(git fetch *)",
+      "Bash(git rm *)",
+      "Bash(gh run *)",
+      "Bash(git config *)"
     ],
     "deny": [],
     "ask": []
