@@ -1,7 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, orderBy, limit, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 
 // Configure notification behavior (skip on web - not supported)
@@ -24,6 +24,25 @@ export interface NotificationData {
   type: 'booking' | 'payment' | 'cancellation' | 'reminder' | 'promotion';
   createdAt: any;
   read: boolean;
+}
+
+/**
+ * Save native FCM device token to Firestore for server-side push delivery
+ */
+export async function saveFcmToken(userId: string): Promise<void> {
+  if (Platform.OS === 'web') return;
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') return;
+    const tokenData = await Notifications.getDevicePushTokenAsync();
+    const token = tokenData.data;
+    if (!token) return;
+    await updateDoc(doc(db, 'users', userId), {
+      fcmTokens: arrayUnion(token),
+    });
+  } catch {
+    // Non-fatal — FCM not configured or no permission
+  }
 }
 
 /**

@@ -6,13 +6,19 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../authContext';
 import { useToast } from '../../../components/Toast';
 import { useDialog } from '../../../components/CustomDialog';
-import { useScrollHandler } from '../../../context/TabBarVisibilityContext';
+import { useScrollHandler, useTabBarVisibility } from '../../../context/TabBarVisibilityContext';
 import { Booking } from '../../../services/bookingService';
 import { cancelBookingWithRefund, calculateRefundAmount } from '../../../services/cancellationService';
 import { parseError } from '../../../utils/errorHandler';
 import { useFocusEffect } from '@react-navigation/native';
+
 import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../../../firebaseConfig';
+
+function calcNights(checkIn: string, checkOut: string, bookingType: string): number {
+  if (bookingType === 'dayuse') return 1;
+  return Math.max(1, Math.round((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / 86400000));
+}
 
 // Memoized booking card component for better performance
 const BookingCard = React.memo(({
@@ -25,9 +31,30 @@ const BookingCard = React.memo(({
 }: any) => {
   const category = getBookingCategory(item);
   const canCancel = (item.status === 'confirmed' || item.status === 'pending') && category === 'upcoming';
+  const isPending = item.status === 'pending' && category === 'upcoming';
+
+  const navigateToContinuePayment = () => {
+    navigation.navigate('BookingConfirmation', {
+      farmhouseId: item.farmhouseId,
+      farmhouseName: item.farmhouseName,
+      farmhouseImage: item.farmhouseImage || '',
+      location: item.location || '',
+      startDate: item.checkInDate,
+      endDate: item.checkOutDate,
+      guestCount: item.guests,
+      totalPrice: item.originalPrice || item.totalPrice,
+      numberOfNights: calcNights(item.checkInDate, item.checkOutDate, item.bookingType),
+      bookingType: item.bookingType === 'dayuse' ? 'day-use' : 'overnight',
+      existingBookingId: item.id,
+    });
+  };
 
   return (
-    <View style={[styles.bookingCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+    <TouchableOpacity
+      style={[styles.bookingCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+      onPress={isPending ? navigateToContinuePayment : () => navigation.navigate('BookingDetails', { booking: item, bookingId: item.id })}
+      activeOpacity={0.85}
+    >
       <View style={styles.bookingHeader}>
         <Text style={[styles.farmhouseName, { color: colors.text }]} numberOfLines={1}>
           {item.farmhouseName}
@@ -59,12 +86,21 @@ const BookingCard = React.memo(({
       </View>
 
       <View style={styles.actionRow}>
-        <TouchableOpacity
-          style={[styles.viewButton, { backgroundColor: colors.buttonBackground }]}
-          onPress={() => navigation.navigate('BookingDetails', { booking: item, bookingId: item.id })}
-        >
-          <Text style={[styles.buttonText, { color: colors.buttonText }]}>View Details</Text>
-        </TouchableOpacity>
+        {isPending ? (
+          <TouchableOpacity
+            style={[styles.viewButton, { backgroundColor: '#FF9800' }]}
+            onPress={navigateToContinuePayment}
+          >
+            <Text style={[styles.buttonText, { color: '#fff' }]}>Continue Payment</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[styles.viewButton, { backgroundColor: colors.buttonBackground }]}
+            onPress={() => navigation.navigate('BookingDetails', { booking: item, bookingId: item.id })}
+          >
+            <Text style={[styles.buttonText, { color: colors.buttonText }]}>View Details</Text>
+          </TouchableOpacity>
+        )}
         {canCancel && (
           <TouchableOpacity
             style={[styles.cancelButton, { borderColor: '#F44336' }]}
@@ -74,7 +110,7 @@ const BookingCard = React.memo(({
           </TouchableOpacity>
         )}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 });
 
@@ -90,6 +126,9 @@ export default function BookingsScreen({ navigation }: any) {
   const { showToast } = useToast();
   const { showDialog } = useDialog();
   const scrollHandler = useScrollHandler();
+  const { showTabBar } = useTabBarVisibility();
+
+  useFocusEffect(useCallback(() => { showTabBar(); }, [showTabBar]));
   
   useEffect(() => {
     if (!user) {

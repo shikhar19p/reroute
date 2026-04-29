@@ -29,14 +29,19 @@ export default function PremiumTabBar({ state, descriptors, navigation }: Bottom
 
   return (
     <Animated.View style={[styles.container, { transform: [{ translateY }] }]}>
-      <BlurView
-        intensity={Platform.OS === 'web' ? 0 : 40}
-        tint={isDark ? 'dark' : 'light'}
+      <View
         style={[styles.blurContainer, {
           borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.10)',
           backgroundColor: isDark ? 'rgb(22, 22, 22)' : 'rgb(249, 248, 239)',
         }]}
       >
+        {Platform.OS !== 'web' && (
+          <BlurView
+            intensity={25}
+            tint={isDark ? 'dark' : 'light'}
+            style={StyleSheet.absoluteFillObject}
+          />
+        )}
         <View style={styles.tabBar}>
           {state.routes.map((route, index) => {
             const { options } = descriptors[route.key];
@@ -109,7 +114,7 @@ export default function PremiumTabBar({ state, descriptors, navigation }: Bottom
             );
           })}
         </View>
-      </BlurView>
+      </View>
     </Animated.View>
   );
 }
