@@ -280,6 +280,87 @@ function refundStatusEmail(b: any, refundAmount: number, refundId: string | null
   `);
 }
 
+// ─── Helper: send FCM push to a single user ───────────────────────────────────
+async function sendPushToUser(
+  userId: string,
+  title: string,
+  body: string,
+  data?: Record<string, string>
+): Promise<void> {
+  try {
+    const userDoc = await db.collection('users').doc(userId).get();
+    const tokens: string[] = userDoc.data()?.fcmTokens || [];
+    if (!tokens.length) return;
+
+    const response = await admin.messaging().sendEachForMulticast({
+      tokens,
+      notification: { title, body },
+      data: data || {},
+      android: { priority: 'high', notification: { sound: 'default', channelId: 'default' } },
+      apns: { payload: { aps: { sound: 'default', badge: 1 } } },
+    });
+
+    // Remove invalid tokens so future sends skip them
+    const invalidTokens = tokens.filter((_, i) => {
+      const err = response.responses[i]?.error?.code;
+      return err === 'messaging/invalid-registration-token' ||
+             err === 'messaging/registration-token-not-registered';
+    });
+    if (invalidTokens.length) {
+      await db.collection('users').doc(userId).update({
+        fcmTokens: admin.firestore.FieldValue.arrayRemove(...invalidTokens),
+      });
+    }
+  } catch (err) {
+    logger.error('sendPushToUser error (non-fatal):', { userId, err });
+  }
+}
+
+// ─── Helper: broadcast FCM push to all users with tokens ─────────────────────
+async function broadcastPushToAllUsers(title: string, body: string, data?: Record<string, string>): Promise<void> {
+  try {
+    const usersSnap = await db.collection('users').get();
+    const tokenToUserId = new Map<string, string>();
+    usersSnap.forEach(doc => {
+      (doc.data().fcmTokens as string[] || []).forEach(t => tokenToUserId.set(t, doc.id));
+    });
+
+    const allTokens = Array.from(tokenToUserId.keys());
+    if (!allTokens.length) return;
+
+    for (let i = 0; i < allTokens.length; i += 500) {
+      const batch = allTokens.slice(i, i + 500);
+      const response = await admin.messaging().sendEachForMulticast({
+        tokens: batch,
+        notification: { title, body },
+        data: data || {},
+        android: { priority: 'high', notification: { sound: 'default', channelId: 'default' } },
+        apns: { payload: { aps: { sound: 'default' } } },
+      });
+
+      const invalidByUser = new Map<string, string[]>();
+      response.responses.forEach((resp, idx) => {
+        const err = resp.error?.code;
+        if (err === 'messaging/invalid-registration-token' ||
+            err === 'messaging/registration-token-not-registered') {
+          const token = batch[idx];
+          const uid = tokenToUserId.get(token)!;
+          if (!invalidByUser.has(uid)) invalidByUser.set(uid, []);
+          invalidByUser.get(uid)!.push(token);
+        }
+      });
+
+      await Promise.all(Array.from(invalidByUser.entries()).map(([uid, tokens]) =>
+        db.collection('users').doc(uid).update({
+          fcmTokens: admin.firestore.FieldValue.arrayRemove(...tokens),
+        })
+      ));
+    }
+  } catch (err) {
+    logger.error('broadcastPushToAllUsers error (non-fatal):', { err });
+  }
+}
+
 // ─── Helper: get farmhouse owner email ───────────────────────────────────────
 async function getOwnerEmail(farmhouseId: string): Promise<string | null> {
   try {
@@ -307,7 +388,7 @@ async function sendBookingConfirmationEmails(bookingId: string, transactionId: s
       getOwnerEmail(b.farmhouseId),
     ]);
 
-    // Firestore notification for owner (in-app)
+    // Firestore notification + FCM push for owner (in-app + mobile)
     if (farmhouseDoc?.exists) {
       const ownerId = farmhouseDoc.data()?.ownerId;
       if (ownerId) {
@@ -321,7 +402,19 @@ async function sendBookingConfirmationEmails(bookingId: string, transactionId: s
           read: false,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
+        sendPushToUser(ownerId, 'New Booking Received 💼',
+          `${b.userName || 'A guest'} booked ${b.farmhouseName} for ${b.checkInDate}`,
+          { bookingId, type: 'new_booking' }
+        ).catch(() => {});
       }
+    }
+
+    // FCM push for user (booking confirmed)
+    if (b.userId) {
+      sendPushToUser(b.userId, 'Booking Confirmed! 🎉',
+        `Your booking at ${b.farmhouseName} is confirmed. Check-in: ${b.checkInDate}`,
+        { bookingId, type: 'booking_confirmed' }
+      ).catch(() => {});
     }
 
     const recipients: string[] = [];
@@ -687,7 +780,7 @@ export const processRefund = onCall(async (request) => {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // Send refund notification email (non-blocking)
+    // Send refund notification email + FCM push (non-blocking)
     ;(async () => {
       try {
         const bData: any = { id: bookingId, ...booking };
@@ -705,6 +798,14 @@ export const processRefund = onCall(async (request) => {
             ADMIN_EMAIL,
             `[Refund] ${refundStatus} — Booking ${bookingId}`,
             refundStatusEmail(bData, actualRefundRupees, refund.id, 'processed')
+          );
+        }
+        // FCM push for user
+        if (bData.userId) {
+          const refundTitle = refundStatus === 'completed' ? 'Refund Processed ✅' : 'Refund Initiated';
+          const refundBody = `₹${actualRefundRupees} refund for your ${bData.farmhouseName} booking ${refundStatus === 'completed' ? 'has been processed.' : 'is being processed.'}`;
+          await sendPushToUser(bData.userId, refundTitle, refundBody,
+            { bookingId, type: 'refund_update' }
           );
         }
       } catch (emailErr) {
@@ -761,6 +862,16 @@ export const notifyBookingCancellation = onCall(async (request) => {
         `[Cancellation] Booking Cancelled — ${b.farmhouseName} | Reroute`,
         cancellationUserEmail(b, refundAmount, refundPercentage, reason)
       );
+    }
+
+    // FCM push for user
+    if (b.userId) {
+      const cancelBody = refundAmount > 0
+        ? `Your booking at ${b.farmhouseName} was cancelled. Refund of ₹${refundAmount} initiated.`
+        : `Your booking at ${b.farmhouseName} has been cancelled.`;
+      sendPushToUser(b.userId, 'Booking Cancelled', cancelBody,
+        { bookingId, type: 'booking_cancelled' }
+      ).catch(() => {});
     }
 
     if (ownerEmail) {
@@ -971,7 +1082,7 @@ async function handleRefundUpdate(refund: any) {
       });
       logger.info('Refund status updated via webhook:', { bookingId, refundId, status });
 
-      // Send refund processed email
+      // Send refund processed email + FCM push
       if (status === 'processed') {
         const bookingDoc = await db.collection('bookings').doc(bookingId).get();
         if (bookingDoc.exists) {
@@ -981,6 +1092,12 @@ async function handleRefundUpdate(refund: any) {
               b.userEmail,
               `[Refund] Processed — ₹${refundAmount} | Reroute`,
               refundStatusEmail(b, refundAmount, refundId, 'processed')
+            ).catch(() => {});
+          }
+          if (b.userId) {
+            sendPushToUser(b.userId, 'Refund Processed ✅',
+              `₹${refundAmount} refund for your ${b.farmhouseName} booking has been processed.`,
+              { bookingId, type: 'refund_processed' }
             ).catch(() => {});
           }
         }
@@ -1164,6 +1281,33 @@ export const onFarmhouseApprovalChanged = onDocumentUpdated('farmhouses/{farmhou
       approvalStatusEmail(farmhouseName, ownerName, newStatus, after.rejectionReason)
     );
 
+    // FCM push to owner
+    if (ownerId) {
+      const pushTitle = newStatus === 'approved'
+        ? 'Listing Approved 🎉'
+        : newStatus === 'rejected'
+          ? 'Listing Update'
+          : 'Listing Status Changed';
+      const pushBody = newStatus === 'approved'
+        ? `${farmhouseName} is now live on Reroute!`
+        : newStatus === 'rejected'
+          ? `${farmhouseName} was not approved. Check the app for details.`
+          : `${farmhouseName} status updated to ${statusLabel}.`;
+      sendPushToUser(ownerId, pushTitle, pushBody,
+        { farmhouseId, type: 'listing_status' }
+      ).catch(() => {});
+    }
+
+    // Broadcast to all users when a new farmhouse goes live
+    if (newStatus === 'approved') {
+      const city = after.basicDetails?.city || '';
+      broadcastPushToAllUsers(
+        'New Property Available 🏡',
+        `${farmhouseName}${city ? ` in ${city}` : ''} is now available to book on Reroute!`,
+        { farmhouseId, type: 'new_farmhouse' }
+      ).catch(() => {});
+    }
+
     logger.info('Approval status email sent:', { farmhouseId, newStatus, ownerEmail });
   });
 
@@ -1195,6 +1339,17 @@ export const notifyBankDetailsUpdate = onCall(async (request) => {
 
   logger.info('Bank details update email sent:', { farmhouseId, to: BANK_UPDATE_EMAIL });
   return { success: true };
+});
+
+// ─── Firestore trigger: admin communication → mobile push ────────────────────
+// Admin sends messages via the "communications" collection.
+// Each doc must have: userId (string), title (string), body/message (string).
+export const onCommunicationCreated = onDocumentCreated('communications/{notifId}', async (event) => {
+  const data = event.data!.data();
+  const { userId, title, body, message } = data;
+  if (!userId || !title) return;
+  await sendPushToUser(userId, title, body || message || '', { type: 'admin_message' });
+  logger.info('Admin push sent:', { userId, title });
 });
 
 // ─── ingestLogs ───────────────────────────────────────────────────────────────

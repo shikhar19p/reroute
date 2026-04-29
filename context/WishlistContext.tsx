@@ -1,7 +1,10 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
 import { useAuth } from '../authContext';
+
+const wishlistCacheKey = (uid: string) => `@reroute/cache/wishlist/${uid}`;
 
 // --- Firestore Helper Functions ---
 
@@ -85,35 +88,48 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const loadWishlist = async () => {
       if (user) {
+        // Hydrate from cache immediately so wishlist shows while offline
+        try {
+          const cached = await AsyncStorage.getItem(wishlistCacheKey(user.uid));
+          if (cached) setWishlist(JSON.parse(cached));
+        } catch {}
         const userWishlist = await getUserWishlist(user.uid);
         setWishlist(userWishlist);
+        AsyncStorage.setItem(wishlistCacheKey(user.uid), JSON.stringify(userWishlist)).catch(() => {});
       } else {
-        setWishlist([]); // Clear wishlist on logout
+        setWishlist([]);
       }
     };
     loadWishlist();
-  }, [user]);
+  }, [user?.uid]);
 
   const addToWishlist = async (id: string) => {
     if (!user) return;
-    setWishlist(prev => [...prev, id]); // Optimistic update
+    const next = [...wishlist, id];
+    setWishlist(next);
+    AsyncStorage.setItem(wishlistCacheKey(user.uid), JSON.stringify(next)).catch(() => {});
     try {
       await addToUserWishlist(user.uid, id);
     } catch (error) {
       console.error('Failed to add to wishlist:', error);
-      setWishlist(prev => prev.filter(item => item !== id)); // Revert on failure
+      const reverted = wishlist.filter(item => item !== id);
+      setWishlist(reverted);
+      AsyncStorage.setItem(wishlistCacheKey(user.uid), JSON.stringify(reverted)).catch(() => {});
     }
   };
 
   const removeFromWishlist = async (id: string) => {
     if (!user) return;
     const originalWishlist = [...wishlist];
-    setWishlist(prev => prev.filter(item => item !== id)); // Optimistic update
+    const next = wishlist.filter(item => item !== id);
+    setWishlist(next);
+    AsyncStorage.setItem(wishlistCacheKey(user.uid), JSON.stringify(next)).catch(() => {});
     try {
       await removeFromUserWishlist(user.uid, id);
     } catch (error) {
       console.error('Failed to remove from wishlist:', error);
-      setWishlist(originalWishlist); // Revert on failure
+      setWishlist(originalWishlist);
+      AsyncStorage.setItem(wishlistCacheKey(user.uid), JSON.stringify(originalWishlist)).catch(() => {});
     }
   };
 

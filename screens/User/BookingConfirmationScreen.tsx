@@ -16,6 +16,7 @@ import { useCoupons, useGlobalData } from '../../GlobalDataContext';
 import { createBooking, cleanupPendingBooking } from '../../services/bookingService';
 import { parseError } from '../../utils/errorHandler';
 import { completePaymentFlow, savePaymentRecord } from '../../services/paymentService';
+import { useIsConnected } from '../../context/NetworkContext';
 
 const { width } = Dimensions.get('window');
 
@@ -23,13 +24,14 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
   const {
     farmhouseId, farmhouseName, farmhouseImage, location,
     startDate, endDate, guestCount, totalPrice, numberOfNights,
-    bookingType
+    bookingType, existingBookingId,
   } = route.params;
 
   const { colors, isDark } = useTheme();
   const { user } = useAuth();
   const { showToast } = useToast();
   const { showDialog } = useDialog();
+  const isConnected = useIsConnected();
   const scrollHandler = useScrollHandler();
   const { getFarmhouseById } = useGlobalData();
   const { data: availableCoupons, loading: couponsLoading, refresh: refreshCoupons } = useCoupons();
@@ -56,6 +58,10 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
   useEffect(() => {
     fetchUserProfile();
     fetchFarmhouseDetails();
+    if (existingBookingId) {
+      setCurrentBookingId(existingBookingId);
+      currentBookingIdRef.current = existingBookingId;
+    }
   }, [user, farmhouseId]);
 
   // Cleanup on unmount only — empty deps so this NEVER re-runs mid-flow.
@@ -166,6 +172,15 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
   const finalPrice = totalPrice - discountAmount;
 
   const handleConfirmBooking = async () => {
+    if (!isConnected) {
+      showDialog({
+        title: 'No internet connection',
+        message: 'Check your network or mobile data and try again.',
+        type: 'error',
+      });
+      return;
+    }
+
     if (!user || !userProfile) {
       showDialog({
         title: 'Sign in required',
@@ -197,10 +212,9 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
     setLoading(true);
     setLoadingMessage('Creating booking...');
     cleanupDoneRef.current = false;
-    let bookingId: string | null = null;
+    let bookingId: string | null = currentBookingIdRef.current;
 
     try {
-      // Step 1: Create booking with pending status
       const bookingData = {
         farmhouseId,
         farmhouseName: farmhouseDetails?.name || farmhouseName,
@@ -220,10 +234,15 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
         paymentStatus: 'pending' as 'pending',
       };
 
-      bookingId = await createBooking(bookingData);
-      console.log('✅ Booking created with ID:', bookingId);
-      setCurrentBookingId(bookingId);
-      currentBookingIdRef.current = bookingId;
+      if (!bookingId) {
+        // Step 1: Create booking with pending status
+        bookingId = await createBooking(bookingData);
+        console.log('✅ Booking created with ID:', bookingId);
+        setCurrentBookingId(bookingId);
+        currentBookingIdRef.current = bookingId;
+      } else {
+        console.log('♻️ Resuming payment for existing booking:', bookingId);
+      }
 
       // Set up automatic cleanup after 2 minutes
       cleanupTimeoutRef.current = setTimeout(() => {

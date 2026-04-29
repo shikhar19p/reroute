@@ -5,7 +5,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Heart, MapPin, Users, Star } from 'lucide-react-native';
 import { useWishlist } from '../../../context/WishlistContext';
 import { useTheme } from '../../../context/ThemeContext';
-import { useScrollHandler } from '../../../context/TabBarVisibilityContext';
+import { useScrollHandler, useTabBarVisibility } from '../../../context/TabBarVisibilityContext';
+import { useFocusEffect } from '@react-navigation/native';
 import { Farmhouse } from '../../../types/navigation';
 import { useAvailableFarmhouses } from '../../../GlobalDataContext';
 import { resolveRatings } from '../../../utils/ratingsCache';
@@ -14,8 +15,11 @@ export default function WishlistScreen({ navigation }: any) {
   const { colors } = useTheme();
   const { wishlist, removeFromWishlist } = useWishlist();
   const scrollHandler = useScrollHandler();
+  const { showTabBar } = useTabBarVisibility();
   const { data: allFarmhouses, loading, refreshing, refresh } = useAvailableFarmhouses();
   const [wishlistRatings, setWishlistRatings] = useState<Record<string, number>>({});
+
+  useFocusEffect(useCallback(() => { showTabBar(); }, [showTabBar]));
 
   // Filter from live onSnapshot-backed list — auto-updates when ratings change
   const wishlistFarmhouses = useMemo(

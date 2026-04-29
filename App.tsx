@@ -2,7 +2,7 @@ import React, { useEffect, useCallback, Suspense } from 'react';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { ActivityIndicator, View, StyleSheet, Text, Platform } from 'react-native';
+import { ActivityIndicator, Animated, View, StyleSheet, Text, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   useFonts,
@@ -40,7 +40,7 @@ import { ToastProvider } from './components/Toast';
 import { DialogProvider } from './components/CustomDialog';
 import { TabBarVisibilityProvider } from './context/TabBarVisibilityContext';
 import ErrorBoundary from './components/ErrorBoundary';
-import { registerForPushNotifications } from './services/notificationService';
+import { registerForPushNotifications, saveFcmToken } from './services/notificationService';
 
 // Critical screens — always eager (needed on first render)
 import WelcomeScreen from './screens/WelcomeScreen';
@@ -143,6 +143,8 @@ const OwnerNotificationsScreen = Platform.OS === 'web'
 // Components
 import PremiumTabBar from './components/PremiumTabBar';
 import AnimatedSplashScreen from './components/AnimatedSplashScreen';
+import OfflineBanner, { OFFLINE_BANNER_HEIGHT } from './components/OfflineBanner';
+import { NetworkProvider, useNetwork } from './context/NetworkContext';
 
 // Suspense fallback for lazy screens on web
 const ScreenLoader = () => (
@@ -193,6 +195,27 @@ function prefetchLazyScreens() {
 
 // Navigation types
 import { RootStackParamList, TabParamList } from './types/navigation';
+
+// Pushes app content down when offline banner is visible so banner never covers content
+function OfflineContentWrapper({ children }: { children: React.ReactNode }) {
+  const { isConnected, wasOffline } = useNetwork();
+  const padTop = React.useRef(new Animated.Value(0)).current;
+  const showing = !isConnected || wasOffline;
+
+  React.useEffect(() => {
+    Animated.timing(padTop, {
+      toValue: showing ? OFFLINE_BANNER_HEIGHT : 0,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [showing]);
+
+  return (
+    <Animated.View style={{ flex: 1, paddingTop: padTop }}>
+      {children}
+    </Animated.View>
+  );
+}
 
 // Navigation setup
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -311,6 +334,12 @@ function AppNavigator() {
   React.useEffect(() => {
     if (!loading) prefetchLazyScreens();
   }, [loading]);
+
+  // Save native FCM token for this user so Cloud Functions can send pushes
+  React.useEffect(() => {
+    if (!user?.uid || Platform.OS === 'web') return;
+    saveFcmToken(user.uid).catch(() => {});
+  }, [user?.uid]);
 
   // Hide HTML splash screen once auth resolves (web only)
   React.useEffect(() => {
@@ -624,35 +653,40 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ErrorBoundary>
-        <AuthProvider>
-          <GlobalDataProvider>
-            <ThemeProvider>
-              <DialogProvider>
-                <ToastProvider>
-                  <WishlistProvider>
-                    <FarmRegistrationProvider>
-                      {!showApp && !SKIP_SPLASH && !isWeb ? (
-                        <View style={{ flex: 1, backgroundColor: '#000' }}>
-                          {fontsLoaded && (
-                            <SplashWithAuthCheck
-                              message="Loading..."
-                              onReady={onCustomSplashReady}
-                              onComplete={() => setShowApp(true)}
-                            />
+        <NetworkProvider>
+          <AuthProvider>
+            <GlobalDataProvider>
+              <ThemeProvider>
+                <DialogProvider>
+                  <ToastProvider>
+                    <WishlistProvider>
+                      <FarmRegistrationProvider>
+                        <OfflineContentWrapper>
+                          {!showApp && !SKIP_SPLASH && !isWeb ? (
+                            <View style={{ flex: 1, backgroundColor: '#000' }}>
+                              {fontsLoaded && (
+                                <SplashWithAuthCheck
+                                  message="Loading..."
+                                  onReady={onCustomSplashReady}
+                                  onComplete={() => setShowApp(true)}
+                                />
+                              )}
+                            </View>
+                          ) : (
+                            <Suspense fallback={<ScreenLoader />}>
+                              <AppNavigator />
+                            </Suspense>
                           )}
-                        </View>
-                      ) : (
-                        <Suspense fallback={<ScreenLoader />}>
-                          <AppNavigator />
-                        </Suspense>
-                      )}
-                    </FarmRegistrationProvider>
-                  </WishlistProvider>
-                </ToastProvider>
-              </DialogProvider>
-            </ThemeProvider>
-          </GlobalDataProvider>
-        </AuthProvider>
+                        </OfflineContentWrapper>
+                        <OfflineBanner />
+                      </FarmRegistrationProvider>
+                    </WishlistProvider>
+                  </ToastProvider>
+                </DialogProvider>
+              </ThemeProvider>
+            </GlobalDataProvider>
+          </AuthProvider>
+        </NetworkProvider>
       </ErrorBoundary>
     </SafeAreaProvider>
   );

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   collection,
   query,
@@ -13,6 +14,22 @@ import {
 import { db } from './firebaseConfig';
 import { useAuth } from './authContext';
 import { Farmhouse } from './types/navigation';
+
+const CACHE_KEY_FARMHOUSES = '@reroute/cache/farmhouses';
+const cacheBookingsKey = (uid: string) => `@reroute/cache/bookings/${uid}`;
+
+async function loadCache<T>(key: string): Promise<T | null> {
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveCache(key: string, data: any) {
+  AsyncStorage.setItem(key, JSON.stringify(data)).catch(() => {});
+}
 
 // ==================== TYPES ====================
 
@@ -332,6 +349,32 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
 export function GlobalDataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
 
+  // Hydrate cached data so screens show content immediately (offline or slow network)
+  useEffect(() => {
+    loadCache<Farmhouse[]>(CACHE_KEY_FARMHOUSES).then(cached => {
+      if (cached && cached.length > 0) {
+        setState(prev =>
+          prev.availableFarmhouses.length === 0
+            ? { ...prev, availableFarmhouses: cached, availableFarmhousesLoading: false }
+            : prev
+        );
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    loadCache<Booking[]>(cacheBookingsKey(user.uid)).then(cached => {
+      if (cached && cached.length > 0) {
+        setState(prev =>
+          prev.myBookings.length === 0
+            ? { ...prev, myBookings: cached, myBookingsLoading: false }
+            : prev
+        );
+      }
+    });
+  }, [user?.uid]);
+
   // On web: defer Firebase listeners until after first idle frame to unblock LCP.
   // On native: start immediately (no paint blocking concern).
   const [ready, setReady] = useState(Platform.OS !== 'web');
@@ -417,7 +460,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setState(prev => ({ ...prev, myBookingsLoading: true, myBookingsError: null }));
+    setState(prev => ({ ...prev, myBookingsLoading: prev.myBookings.length === 0, myBookingsError: null }));
 
     const q = query(
       collection(db, 'bookings'),
@@ -432,6 +475,8 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
           id: doc.id,
           ...doc.data(),
         })) as Booking[];
+
+        saveCache(cacheBookingsKey(user.uid), bookings);
 
         setState(prev => ({
           ...prev,
@@ -464,7 +509,8 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     }
     setState(prev => ({
       ...prev,
-      availableFarmhousesLoading: true,
+      // Don't flash loading spinner if cache already populated the list
+      availableFarmhousesLoading: prev.availableFarmhouses.length === 0,
       availableFarmhousesError: null
     }));
 
@@ -485,6 +531,8 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
             const dateB = new Date(b.createdAt || 0).getTime();
             return dateB - dateA;
           });
+
+          saveCache(CACHE_KEY_FARMHOUSES, farmhouses);
 
           setState(prev => ({
             ...prev,

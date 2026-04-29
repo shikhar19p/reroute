@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet, StatusBar,
   Modal, TextInput, FlatList, Share, ActivityIndicator, RefreshControl,
-  useWindowDimensions, Platform,
+  useWindowDimensions, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import AnimatedImage from '../../components/AnimatedImage';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,7 +11,7 @@ import { Heart, Search, SlidersHorizontal, ArrowUpDown, Bell, Share2, Star, MapP
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
-import { useScrollHandler } from '../../context/TabBarVisibilityContext';
+import { useScrollHandler, useTabBarVisibility } from '../../context/TabBarVisibilityContext';
 import { useDialog } from '../../components/CustomDialog';
 import { Farmhouse as FarmhouseType } from '../../types/navigation';
 import { useAvailableFarmhouses, useMyBookings } from '../../GlobalDataContext';
@@ -82,16 +83,18 @@ const FarmhouseCard = React.memo(({
           </Text>
         </View>
       </View>
-      <View style={[styles.propertyTypeBadge, { backgroundColor: item.propertyType === 'resort' ? '#7C3AED22' : '#16A34A22' }]}>
-        <Text style={[styles.propertyTypeBadgeText, { color: item.propertyType === 'resort' ? '#7C3AED' : '#16A34A' }]}>
-          {item.propertyType === 'resort' ? 'Resort' : 'Farmhouse'}
-        </Text>
-      </View>
-      <View style={styles.locationChip}>
-        <MapPin size={11} color={colors.placeholder} />
-        <Text style={[styles.locationText, { color: colors.placeholder }]} numberOfLines={1}>
-          {item.location}
-        </Text>
+      <View style={styles.badgeLocationRow}>
+        <View style={[styles.propertyTypeBadge, { backgroundColor: item.propertyType === 'resort' ? '#7C3AED22' : '#16A34A22' }]}>
+          <Text style={[styles.propertyTypeBadgeText, { color: item.propertyType === 'resort' ? '#7C3AED' : '#16A34A' }]}>
+            {item.propertyType === 'resort' ? 'Resort' : 'Farmhouse'}
+          </Text>
+        </View>
+        <View style={styles.locationChip}>
+          <MapPin size={11} color={colors.placeholder} />
+          <Text style={[styles.locationText, { color: colors.placeholder }]} numberOfLines={1}>
+            {item.location}
+          </Text>
+        </View>
       </View>
       <View style={styles.priceCapacityRow}>
         <Text style={[styles.price, { color: colors.buttonBackground }]}>
@@ -114,6 +117,9 @@ export default function ExploreScreen({ navigation }: any) {
   const { width: windowWidth } = useWindowDimensions();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const scrollHandler = useScrollHandler();
+  const { showTabBar } = useTabBarVisibility();
+
+  useFocusEffect(useCallback(() => { showTabBar(); }, [showTabBar]));
   const { showDialog } = useDialog();
 
   // Use the GlobalDataContext hook instead of local state
@@ -339,13 +345,17 @@ export default function ExploreScreen({ navigation }: any) {
     }
 
     if (filters.checkIn && filters.checkOut && filters.checkIn <= filters.checkOut) {
+      const toLocalDate = (d: Date) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       result = result.filter(f => {
         const booked = new Set([...(f.bookedDates || []), ...(f.blockedDates || [])]);
-        const start = new Date(filters.checkIn);
-        const end = new Date(filters.checkOut);
-        let cur = new Date(start);
+        // Parse as local midnight to avoid UTC offset shifting the date
+        const [sy, sm, sd] = filters.checkIn.split('-').map(Number);
+        const [ey, em, ed] = filters.checkOut.split('-').map(Number);
+        const cur = new Date(sy, sm - 1, sd);
+        const end = new Date(ey, em - 1, ed);
         while (cur <= end) {
-          if (booked.has(cur.toISOString().split('T')[0])) return false;
+          if (booked.has(toLocalDate(cur))) return false;
           cur.setDate(cur.getDate() + 1);
         }
         return true;
@@ -631,6 +641,10 @@ export default function ExploreScreen({ navigation }: any) {
 
       {/* Filter Modal */}
       <Modal visible={showFilterModal} transparent animationType="slide">
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
         <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
@@ -640,7 +654,7 @@ export default function ExploreScreen({ navigation }: any) {
             <View style={[styles.filterModalContent, { backgroundColor: colors.cardBackground, paddingBottom: Math.max(insets.bottom, 16) }]}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Filters</Text>
 
-              <ScrollView style={styles.filterScrollView} showsVerticalScrollIndicator={false}>
+              <ScrollView style={styles.filterScrollView} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <Text style={[styles.filterLabel, { color: colors.text }]}>Location</Text>
                 <TextInput
                   style={[styles.filterInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
@@ -741,6 +755,7 @@ export default function ExploreScreen({ navigation }: any) {
             </View>
           </TouchableOpacity>
         </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -810,9 +825,10 @@ const styles = StyleSheet.create({
   ratingContainer: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   star: { color: '#FCD34D', fontSize: 14 },
   rating: { fontSize: 14, fontWeight: '500' },
-  propertyTypeBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginBottom: 6 },
+  badgeLocationRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'nowrap' },
+  propertyTypeBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, flexShrink: 0 },
   propertyTypeBadgeText: { fontSize: 11, fontWeight: '700' },
-  locationChip: { flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', marginBottom: 10 },
+  locationChip: { flexDirection: 'row', alignItems: 'center', gap: 4, flex: 1, minWidth: 0 },
   locationText: { fontSize: 12, flex: 1 },
   priceCapacityRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   price: { fontSize: 16, fontWeight: '600' },

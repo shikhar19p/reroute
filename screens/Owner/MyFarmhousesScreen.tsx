@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerTitle: {
-    fontSize: isSmallDevice() ? 24 : 28,
+    fontSize: isSmallDevice() ? 18 : 20,
     fontWeight: 'bold',
   },
   headerSubtitle: {

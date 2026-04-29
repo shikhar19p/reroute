@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useRef, useCallback, useState } from 'react';
-import { Animated } from 'react-native';
+import React, { createContext, useContext, useRef, useCallback } from 'react';
+import { Animated, Easing } from 'react-native';
 
 interface TabBarContextType {
   tabBarHeight: number;
@@ -13,72 +13,65 @@ interface TabBarContextType {
 const TabBarVisibilityContext = createContext<TabBarContextType | undefined>(undefined);
 
 export const TAB_BAR_HEIGHT = 60;
-const SCROLL_THRESHOLD = 5; // Minimum scroll distance to trigger hide/show
+const SCROLL_THRESHOLD_HIDE = 5;
+const SCROLL_THRESHOLD_SHOW = 1;
+const ANIM_DURATION = 220;
 
 export function TabBarVisibilityProvider({ children }: { children: React.ReactNode }) {
   const translateY = useRef(new Animated.Value(0)).current;
   const lastScrollY = useRef(0);
-  const scrollDirection = useRef<'up' | 'down'>('up');
-  const [isVisible, setIsVisible] = useState(true);
+  const isVisibleRef = useRef(true);
 
   const showTabBar = useCallback(() => {
-    if (!isVisible) {
-      setIsVisible(true);
-      Animated.spring(translateY, {
-        toValue: 0,
-        useNativeDriver: true,
-        tension: 65,
-        friction: 10,
-      }).start();
-    }
-  }, [isVisible, translateY]);
+    if (isVisibleRef.current) return;
+    isVisibleRef.current = true;
+    translateY.stopAnimation();
+    Animated.timing(translateY, {
+      toValue: 0,
+      duration: ANIM_DURATION,
+      useNativeDriver: true,
+      easing: Easing.out(Easing.cubic),
+    }).start();
+  }, [translateY]);
 
   const hideTabBar = useCallback(() => {
-    if (isVisible) {
-      setIsVisible(false);
-      Animated.spring(translateY, {
-        toValue: TAB_BAR_HEIGHT + 20,
-        useNativeDriver: true,
-        tension: 65,
-        friction: 10,
-      }).start();
-    }
-  }, [isVisible, translateY]);
+    if (!isVisibleRef.current) return;
+    isVisibleRef.current = false;
+    translateY.stopAnimation();
+    Animated.timing(translateY, {
+      toValue: TAB_BAR_HEIGHT + 20,
+      duration: ANIM_DURATION,
+      useNativeDriver: true,
+      easing: Easing.in(Easing.cubic),
+    }).start();
+  }, [translateY]);
 
   const setTabBarVisible = useCallback((visible: boolean) => {
-    if (visible) {
-      showTabBar();
-    } else {
-      hideTabBar();
-    }
+    visible ? showTabBar() : hideTabBar();
   }, [showTabBar, hideTabBar]);
 
   const onScroll = useCallback((event: any) => {
     const currentScrollY = event.nativeEvent.contentOffset.y;
     const scrollDelta = currentScrollY - lastScrollY.current;
 
-    // Only react to significant scroll movements
-    if (Math.abs(scrollDelta) < SCROLL_THRESHOLD) {
+    // Always show when near top
+    if (currentScrollY <= 5) {
+      showTabBar();
+      lastScrollY.current = currentScrollY;
       return;
     }
 
-    // Scrolling down (hide tab bar)
-    if (scrollDelta > 0 && currentScrollY > 50) {
-      if (scrollDirection.current !== 'down') {
-        scrollDirection.current = 'down';
-        hideTabBar();
-      }
+    // Scroll down → sink
+    if (scrollDelta > SCROLL_THRESHOLD_HIDE && currentScrollY > 50) {
+      hideTabBar();
     }
-    // Scrolling up (show tab bar)
-    else if (scrollDelta < 0) {
-      if (scrollDirection.current !== 'up') {
-        scrollDirection.current = 'up';
-        showTabBar();
-      }
+    // Any upward scroll → float up
+    else if (scrollDelta < -SCROLL_THRESHOLD_SHOW) {
+      showTabBar();
     }
 
     lastScrollY.current = currentScrollY;
-  }, [hideTabBar, showTabBar]);
+  }, [showTabBar, hideTabBar]);
 
   return (
     <TabBarVisibilityContext.Provider
@@ -104,12 +97,10 @@ export function useTabBarVisibility() {
   return context;
 }
 
-// Hook for screens to easily integrate scroll handling
 export function useScrollHandler() {
   const { onScroll } = useTabBarVisibility();
-
   return {
     onScroll,
-    scrollEventThrottle: 16, // 60fps
+    scrollEventThrottle: 16,
   };
 }
