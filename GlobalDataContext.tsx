@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
+import React, {
+  createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode,
+} from 'react';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -83,117 +85,115 @@ export interface Coupon {
   current_uses: number;
 }
 
-interface DataState {
+// ==================== SLICE TYPES ====================
+
+interface BookingsSlice {
   myBookings: Booking[];
-  availableFarmhouses: Farmhouse[];
-  wishlistFarmhouses: Farmhouse[];
-  myFarmhouses: Farmhouse[];
-  allBookingsForMyFarmhouses: Booking[];
-  reviews: Review[];
-  coupons: Coupon[];
   myBookingsLoading: boolean;
-  availableFarmhousesLoading: boolean;
-  myFarmhousesLoading: boolean;
-  myFarmhousesServerConfirmed: boolean;
-  allBookingsLoading: boolean;
-  reviewsLoading: boolean;
-  couponsLoading: boolean;
-  wishlistLoading: boolean;
   myBookingsRefreshing: boolean;
-  availableFarmhousesRefreshing: boolean;
-  myFarmhousesRefreshing: boolean;
-  allBookingsRefreshing: boolean;
-  reviewsRefreshing: boolean;
-  couponsRefreshing: boolean;
-  wishlistRefreshing: boolean;
   myBookingsError: string | null;
-  availableFarmhousesError: string | null;
-  myFarmhousesError: string | null;
-  allBookingsError: string | null;
-  reviewsError: string | null;
-  couponsError: string | null;
-  wishlistError: string | null;
+  refreshMyBookings: () => void;
+  getCategorizedBookings: () => { upcoming: Booking[]; past: Booking[]; cancelled: Booking[] };
 }
 
-interface GlobalDataContextType extends DataState {
-  refreshMyBookings: () => void;
+interface FarmhousesSlice {
+  availableFarmhouses: Farmhouse[];
+  availableFarmhousesLoading: boolean;
+  availableFarmhousesRefreshing: boolean;
+  availableFarmhousesError: string | null;
+  myFarmhouses: Farmhouse[];
+  myFarmhousesLoading: boolean;
+  myFarmhousesRefreshing: boolean;
+  myFarmhousesServerConfirmed: boolean;
+  myFarmhousesError: string | null;
   refreshAvailableFarmhouses: () => void;
   refreshMyFarmhouses: () => void;
-  refreshAllBookings: () => void;
-  refreshReviews: (farmhouseId?: string) => void;
-  refreshCoupons: () => void;
-  refreshWishlist: () => void;
-  refreshAll: () => Promise<void>;
   getFarmhouseById: (id: string) => Farmhouse | undefined;
-  getBookingById: (id: string) => Booking | undefined;
-  getFarmhouseBookings: (farmhouseId: string) => Booking[];
-  getFarmhouseReviews: (farmhouseId: string) => Review[];
-  getCategorizedBookings: () => {
-    upcoming: Booking[];
-    past: Booking[];
-    cancelled: Booking[];
-  };
 }
 
+interface OwnerDataSlice {
+  allBookingsForMyFarmhouses: Booking[];
+  allBookingsLoading: boolean;
+  allBookingsRefreshing: boolean;
+  allBookingsError: string | null;
+  refreshAllBookings: () => void;
+  getBookingById: (id: string) => Booking | undefined;
+  getFarmhouseBookings: (farmhouseId: string) => Booking[];
+}
+
+interface CouponsSlice {
+  coupons: Coupon[];
+  couponsLoading: boolean;
+  couponsRefreshing: boolean;
+  couponsError: string | null;
+  refreshCoupons: () => void;
+}
+
+// Legacy combined type (kept for App.tsx backward compat)
+interface GlobalDataContextType extends BookingsSlice, FarmhousesSlice, OwnerDataSlice, CouponsSlice {
+  wishlistFarmhouses: Farmhouse[];
+  wishlistLoading: boolean;
+  wishlistRefreshing: boolean;
+  wishlistError: string | null;
+  reviews: Review[];
+  reviewsLoading: boolean;
+  reviewsRefreshing: boolean;
+  reviewsError: string | null;
+  refreshReviews: (farmhouseId?: string) => void;
+  refreshWishlist: () => void;
+  refreshAll: () => Promise<void>;
+  getFarmhouseReviews: (farmhouseId: string) => Review[];
+}
+
+// ==================== CONTEXTS ====================
+
+const BookingsCtx = createContext<BookingsSlice | undefined>(undefined);
+const FarmhousesCtx = createContext<FarmhousesSlice | undefined>(undefined);
+const OwnerDataCtx = createContext<OwnerDataSlice | undefined>(undefined);
+const CouponsCtx = createContext<CouponsSlice | undefined>(undefined);
+// Legacy context merges all slices
 const GlobalDataContext = createContext<GlobalDataContextType | undefined>(undefined);
 
 // ==================== HELPER FUNCTIONS ====================
 
-const createDefaultFarmhouse = (id: string): Farmhouse => {
-  return {
-    id,
-    name: 'Unknown Farmhouse',
-    location: '',
-    city: '',
-    area: '',
-    mapLink: '',
-    bedrooms: 0,
-    capacity: 0,
-    description: '',
-    weeklyDay: 0,
-    weeklyNight: 0,
-    occasionalDay: 0,
-    occasionalNight: 0,
-    weekendDay: 0,
-    weekendNight: 0,
-    customPricing: [],
-    extraGuestPrice: 0,
-    photos: [],
-    amenities: {
-      tv: 0,
-      geyser: 0,
-      bonfire: 0,
-      chess: 0,
-      carroms: 0,
-      volleyball: 0,
-      pool: false,
-    },
-    rules: {
-      pets: false,
-      quietHours: false,
-      alcohol: false,
-    },
-    ownerId: '',
-    status: 'pending',
-    rating: 0,
-    reviews: 0,
-    bookedDates: [],
-    blockedDates: [],
-    createdAt: new Date().toISOString(),
-    sourceType: 'old',
-  };
-};
+const createDefaultFarmhouse = (id: string): Farmhouse => ({
+  id,
+  name: 'Unknown Farmhouse',
+  location: '',
+  city: '',
+  area: '',
+  mapLink: '',
+  bedrooms: 0,
+  capacity: 0,
+  description: '',
+  weeklyDay: 0,
+  weeklyNight: 0,
+  occasionalDay: 0,
+  occasionalNight: 0,
+  weekendDay: 0,
+  weekendNight: 0,
+  customPricing: [],
+  extraGuestPrice: 0,
+  photos: [],
+  amenities: { tv: 0, geyser: 0, bonfire: 0, chess: 0, carroms: 0, volleyball: 0, pool: false },
+  rules: { pets: false, quietHours: false, alcohol: false },
+  ownerId: '',
+  status: 'pending',
+  rating: 0,
+  reviews: 0,
+  bookedDates: [],
+  blockedDates: [],
+  createdAt: new Date().toISOString(),
+  sourceType: 'old',
+});
 
 const transformFarmhouseData = (doc: any): Farmhouse => {
   const data = doc.data();
-  
-  // Safety checks for undefined values
   if (!data) {
     console.warn(`Farmhouse document ${doc.id} has no data`);
     return createDefaultFarmhouse(doc.id);
   }
-  
-  // Check if this is the new structure (has basicDetails)
+
   if (data.basicDetails) {
     return {
       id: doc.id,
@@ -205,22 +205,15 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
       bedrooms: parseInt(data.basicDetails?.bedrooms) || 0,
       capacity: parseInt(data.basicDetails?.capacity) || 0,
       description: data.basicDetails?.description || '',
-      
-      // Pricing from new structure - with safety checks
       weeklyDay: parseInt(data.pricing?.weeklyDay) || 0,
       weeklyNight: parseInt(data.pricing?.weeklyNight) || 0,
       occasionalDay: parseInt(data.pricing?.occasionalDay) || 0,
       occasionalNight: parseInt(data.pricing?.occasionalNight) || 0,
       weekendDay: parseInt(data.pricing?.weekendDay) || 0,
       weekendNight: parseInt(data.pricing?.weekendNight) || 0,
-      
-      customPricing: Array.isArray(data.pricing?.customPricing) 
-        ? data.pricing.customPricing.map((cp: any) => ({
-            label: cp?.name || '',
-            price: parseInt(cp?.price) || 0
-          }))
+      customPricing: Array.isArray(data.pricing?.customPricing)
+        ? data.pricing.customPricing.map((cp: any) => ({ label: cp?.name || '', price: parseInt(cp?.price) || 0 }))
         : [],
-      
       extraGuestPrice: parseInt(data.pricing?.extraGuestPrice) || 0,
       maxGuests: parseInt(data.pricing?.maxGuests || data.basicDetails?.maxGuests) || 0,
       timing: data.timing ? {
@@ -229,9 +222,7 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
         nightCheckIn: data.timing.nightCheckIn || '12:00 PM',
         nightCheckOut: data.timing.nightCheckOut || '11:00 AM',
       } : undefined,
-
       photos: Array.isArray(data.photoUrls) ? data.photoUrls : [],
-      
       amenities: {
         tv: data.amenities?.tv || 0,
         geyser: data.amenities?.geyser || 0,
@@ -241,14 +232,12 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
         volleyball: data.amenities?.volleyball || 0,
         pool: data.amenities?.pool || false,
       },
-      
       rules: {
         pets: !data.rules?.petsNotAllowed,
         quietHours: data.rules?.quietHours || false,
         alcohol: !data.rules?.alcoholNotAllowed,
         additionalRules: data.rules?.additionalRules || '',
       },
-
       ownerId: data.ownerId || '',
       status: data.status || 'pending',
       rating: data.averageRating || data.rating || 0,
@@ -256,22 +245,17 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
       bookedDates: Array.isArray(data.bookedDates) ? data.bookedDates : [],
       blockedDates: Array.isArray(data.blockedDates) ? data.blockedDates : [],
       bookingWindowDays: typeof data.bookingWindowDays === 'number' ? data.bookingWindowDays : undefined,
-
       coordinates: data.coordinates || undefined,
       createdAt: data.createdAt,
       approvedAt: data.approvedAt,
-
       contactPhone1: data.basicDetails?.contactPhone1,
       contactPhone2: data.basicDetails?.contactPhone2,
-
       propertyType: data.propertyType || data.basicDetails?.propertyType || 'farmhouse',
-
       basicDetails: data.basicDetails,
       sourceType: 'new',
     };
   }
 
-  // Old structure (flat fields)
   return {
     id: doc.id,
     name: data.name || '',
@@ -282,15 +266,12 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
     bedrooms: data.bedrooms || 0,
     capacity: data.capacity || 0,
     description: data.description || '',
-    
-    // Pricing from old structure
     weeklyDay: data.price || 0,
     weeklyNight: data.price || 0,
     occasionalDay: data.price || 0,
     occasionalNight: data.weekendPrice || 0,
     weekendDay: data.price || 0,
     weekendNight: data.weekendPrice || 0,
-    
     customPricing: [],
     extraGuestPrice: parseInt(data.extraGuestPrice) || 0,
     maxGuests: parseInt(data.maxGuests) || 0,
@@ -300,29 +281,10 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
       nightCheckIn: data.timing.nightCheckIn || '12:00 PM',
       nightCheckOut: data.timing.nightCheckOut || '11:00 AM',
     } : undefined,
-
     photos: Array.isArray(data.photos) ? data.photos : [],
-    
-    amenities: data.amenities || {
-      tv: 0,
-      geyser: 0,
-      bonfire: 0,
-      chess: 0,
-      carroms: 0,
-      volleyball: 0,
-      pool: false,
-    },
-    
-    rules: data.rules ? {
-      ...data.rules,
-      additionalRules: data.rules.additionalRules || '',
-    } : {
-      pets: false,
-      quietHours: false,
-      alcohol: false,
-      additionalRules: '',
-    },
-    
+    amenities: data.amenities || { tv: 0, geyser: 0, bonfire: 0, chess: 0, carroms: 0, volleyball: 0, pool: false },
+    rules: data.rules ? { ...data.rules, additionalRules: data.rules.additionalRules || '' }
+      : { pets: false, quietHours: false, alcohol: false, additionalRules: '' },
     ownerId: data.ownerId || '',
     status: data.status || 'pending',
     rating: data.rating || 0,
@@ -330,16 +292,12 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
     bookedDates: Array.isArray(data.bookedDates) ? data.bookedDates : [],
     blockedDates: Array.isArray(data.blockedDates) ? data.blockedDates : [],
     bookingWindowDays: typeof data.bookingWindowDays === 'number' ? data.bookingWindowDays : undefined,
-
     coordinates: data.coordinates,
     createdAt: data.createdAt,
     approvedAt: data.approvedAt,
-    
     propertyType: data.propertyType || 'farmhouse',
-
     contactPhone1: data.contactPhone1,
     contactPhone2: data.contactPhone2,
-
     sourceType: 'old',
   };
 };
@@ -349,34 +307,7 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
 export function GlobalDataProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
 
-  // Hydrate cached data so screens show content immediately (offline or slow network)
-  useEffect(() => {
-    loadCache<Farmhouse[]>(CACHE_KEY_FARMHOUSES).then(cached => {
-      if (cached && cached.length > 0) {
-        setState(prev =>
-          prev.availableFarmhouses.length === 0
-            ? { ...prev, availableFarmhouses: cached, availableFarmhousesLoading: false }
-            : prev
-        );
-      }
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!user?.uid) return;
-    loadCache<Booking[]>(cacheBookingsKey(user.uid)).then(cached => {
-      if (cached && cached.length > 0) {
-        setState(prev =>
-          prev.myBookings.length === 0
-            ? { ...prev, myBookings: cached, myBookingsLoading: false }
-            : prev
-        );
-      }
-    });
-  }, [user?.uid]);
-
   // On web: defer Firebase listeners until after first idle frame to unblock LCP.
-  // On native: start immediately (no paint blocking concern).
   const [ready, setReady] = useState(Platform.OS !== 'web');
 
   useEffect(() => {
@@ -393,8 +324,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  // bfcache fix: Firebase WebSocket connections block back/forward cache.
-  // Suspend network on pagehide, resume on pageshow.
+  // bfcache fix: suspend Firebase network on pagehide, resume on pageshow.
   useEffect(() => {
     if (Platform.OS !== 'web') return;
     const onHide = () => { disableNetwork(db).catch(() => {}); };
@@ -409,58 +339,71 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const [state, setState] = useState<DataState>({
-    myBookings: [],
-    availableFarmhouses: [],
-    wishlistFarmhouses: [],
-    myFarmhouses: [],
-    allBookingsForMyFarmhouses: [],
-    reviews: [],
-    coupons: [],
-    myBookingsLoading: true,
-    availableFarmhousesLoading: true,
-    myFarmhousesLoading: true,
-    myFarmhousesServerConfirmed: false,
-    allBookingsLoading: false,
-    reviewsLoading: false,
-    couponsLoading: true,
-    wishlistLoading: false,
-    myBookingsRefreshing: false,
-    availableFarmhousesRefreshing: false,
-    myFarmhousesRefreshing: false,
-    allBookingsRefreshing: false,
-    reviewsRefreshing: false,
-    couponsRefreshing: false,
-    wishlistRefreshing: false,
-    myBookingsError: null,
-    availableFarmhousesError: null,
-    myFarmhousesError: null,
-    allBookingsError: null,
-    reviewsError: null,
-    couponsError: null,
-    wishlistError: null,
-  });
+  // ==================== SPLIT STATE ====================
 
-  // refreshTriggers only needed for manual force-reconnect; onSnapshot handles live updates automatically
-  const [refreshTriggers] = useState({
-    myBookings: 0,
-    availableFarmhouses: 0,
-    myFarmhouses: 0,
-    allBookings: 0,
-    reviews: 0,
-    coupons: 0,
-    wishlist: 0,
-  });
+  // Bookings
+  const [myBookings, setMyBookings] = useState<Booking[]>([]);
+  const [myBookingsLoading, setMyBookingsLoading] = useState(true);
+  const [myBookingsRefreshing, setMyBookingsRefreshing] = useState(false);
+  const [myBookingsError, setMyBookingsError] = useState<string | null>(null);
+
+  // Available Farmhouses
+  const [availableFarmhouses, setAvailableFarmhouses] = useState<Farmhouse[]>([]);
+  const [availableFarmhousesLoading, setAvailableFarmhousesLoading] = useState(true);
+  const [availableFarmhousesRefreshing, setAvailableFarmhousesRefreshing] = useState(false);
+  const [availableFarmhousesError, setAvailableFarmhousesError] = useState<string | null>(null);
+
+  // My Farmhouses (owner)
+  const [myFarmhouses, setMyFarmhouses] = useState<Farmhouse[]>([]);
+  const [myFarmhousesLoading, setMyFarmhousesLoading] = useState(true);
+  const [myFarmhousesRefreshing, setMyFarmhousesRefreshing] = useState(false);
+  const [myFarmhousesServerConfirmed, setMyFarmhousesServerConfirmed] = useState(false);
+  const [myFarmhousesError, setMyFarmhousesError] = useState<string | null>(null);
+
+  // Owner bookings
+  const [allBookingsForMyFarmhouses, setAllBookingsForMyFarmhouses] = useState<Booking[]>([]);
+  const [allBookingsLoading, setAllBookingsLoading] = useState(false);
+  const [allBookingsRefreshing, setAllBookingsRefreshing] = useState(false);
+  const [allBookingsError, setAllBookingsError] = useState<string | null>(null);
+
+  // Coupons
+  const [coupons, setCoupons] = useState<Coupon[]>([]);
+  const [couponsLoading, setCouponsLoading] = useState(true);
+  const [couponsRefreshing, setCouponsRefreshing] = useState(false);
+  const [couponsError, setCouponsError] = useState<string | null>(null);
+
+  // ==================== CACHE HYDRATION ====================
+
+  useEffect(() => {
+    loadCache<Farmhouse[]>(CACHE_KEY_FARMHOUSES).then(cached => {
+      if (cached && cached.length > 0) {
+        setAvailableFarmhouses(prev => prev.length === 0 ? cached : prev);
+        setAvailableFarmhousesLoading(false);
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    loadCache<Booking[]>(cacheBookingsKey(user.uid)).then(cached => {
+      if (cached && cached.length > 0) {
+        setMyBookings(prev => prev.length === 0 ? cached : prev);
+        setMyBookingsLoading(false);
+      }
+    });
+  }, [user?.uid]);
 
   // ==================== MY BOOKINGS ====================
   useEffect(() => {
     if (!ready) return;
     if (!user?.uid || user.role !== 'customer') {
-      setState(prev => ({ ...prev, myBookings: [], myBookingsLoading: false }));
+      setMyBookings([]);
+      setMyBookingsLoading(false);
       return;
     }
 
-    setState(prev => ({ ...prev, myBookingsLoading: prev.myBookings.length === 0, myBookingsError: null }));
+    setMyBookingsLoading(prev => myBookings.length === 0 ? true : prev);
+    setMyBookingsError(null);
 
     const q = query(
       collection(db, 'bookings'),
@@ -471,65 +414,50 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const bookings = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Booking[];
-
+        const bookings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Booking[];
         saveCache(cacheBookingsKey(user.uid), bookings);
-
-        setState(prev => ({
-          ...prev,
-          myBookings: bookings,
-          myBookingsLoading: false,
-          myBookingsRefreshing: false,
-          myBookingsError: null,
-        }));
+        setMyBookings(bookings);
+        setMyBookingsLoading(false);
+        setMyBookingsRefreshing(false);
+        setMyBookingsError(null);
       },
       (error) => {
         console.error('Error fetching myBookings:', error);
-        setState(prev => ({
-          ...prev,
-          myBookingsLoading: false,
-          myBookingsRefreshing: false,
-          myBookingsError: error.message,
-        }));
+        setMyBookingsLoading(false);
+        setMyBookingsRefreshing(false);
+        setMyBookingsError(error.message);
       }
     );
 
     return () => unsubscribe();
-  }, [ready, user?.uid, user?.role, refreshTriggers.myBookings]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, user?.uid, user?.role]);
 
   // ==================== AVAILABLE FARMHOUSES ====================
   useEffect(() => {
     if (!ready) return;
     if (!user || user.role !== 'customer') {
-      setState(prev => ({ ...prev, availableFarmhouses: [], availableFarmhousesLoading: false }));
+      setAvailableFarmhouses([]);
+      setAvailableFarmhousesLoading(false);
       return;
     }
-    setState(prev => ({
-      ...prev,
-      // Don't flash loading spinner if cache already populated the list
-      availableFarmhousesLoading: prev.availableFarmhouses.length === 0,
-      availableFarmhousesError: null
-    }));
+
+    setAvailableFarmhousesLoading(prev => availableFarmhouses.length === 0 ? true : prev);
+    setAvailableFarmhousesError(null);
 
     const q = query(
       collection(db, 'farmhouses'),
-      where('status', '==', 'approved')
+      where('status', '==', 'approved'),
+      limit(200)
     );
 
-    // If Firestore doesn't respond in 10s (e.g. WebChannel issues), unblock the UI
     const timeoutId = setTimeout(() => {
-      setState(prev => {
-        if (!prev.availableFarmhousesLoading) return prev;
-        return {
-          ...prev,
-          availableFarmhousesLoading: false,
-          availableFarmhousesError: prev.availableFarmhouses.length === 0
-            ? 'Unable to load farmhouses. Pull down to refresh.'
-            : null,
-        };
+      setAvailableFarmhousesLoading(prev => {
+        if (!prev) return prev;
+        setAvailableFarmhousesError(
+          availableFarmhouses.length === 0 ? 'Unable to load farmhouses. Pull down to refresh.' : null
+        );
+        return false;
       });
     }, 10000);
 
@@ -538,69 +466,57 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
       (snapshot) => {
         clearTimeout(timeoutId);
         try {
-          let farmhouses = snapshot.docs.map(doc => transformFarmhouseData(doc));
-
-          // Sort client-side by createdAt descending
+          const farmhouses = snapshot.docs.map(doc => transformFarmhouseData(doc));
           farmhouses.sort((a, b) => {
             const dateA = new Date(a.createdAt || 0).getTime();
             const dateB = new Date(b.createdAt || 0).getTime();
             return dateB - dateA;
           });
-
           saveCache(CACHE_KEY_FARMHOUSES, farmhouses);
-
-          setState(prev => ({
-            ...prev,
-            availableFarmhouses: farmhouses,
-            availableFarmhousesLoading: false,
-            availableFarmhousesRefreshing: false,
-            availableFarmhousesError: null,
-          }));
+          setAvailableFarmhouses(farmhouses);
+          setAvailableFarmhousesLoading(false);
+          setAvailableFarmhousesRefreshing(false);
+          setAvailableFarmhousesError(null);
         } catch (error: any) {
           console.error('Error transforming farmhouses:', error);
-          setState(prev => ({
-            ...prev,
-            availableFarmhousesLoading: false,
-            availableFarmhousesRefreshing: false,
-            availableFarmhousesError: error.message,
-          }));
+          setAvailableFarmhousesLoading(false);
+          setAvailableFarmhousesRefreshing(false);
+          setAvailableFarmhousesError(error.message);
         }
       },
       (error) => {
         clearTimeout(timeoutId);
         console.error('Error fetching availableFarmhouses:', error);
-        setState(prev => ({
-          ...prev,
-          availableFarmhousesLoading: false,
-          availableFarmhousesRefreshing: false,
-          availableFarmhousesError: error.message,
-        }));
+        setAvailableFarmhousesLoading(false);
+        setAvailableFarmhousesRefreshing(false);
+        setAvailableFarmhousesError(error.message);
       }
     );
 
     return () => { clearTimeout(timeoutId); unsubscribe(); };
-  }, [ready, user?.uid, user?.role, refreshTriggers.availableFarmhouses]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, user?.uid, user?.role]);
 
   // ==================== MY FARMHOUSES (OWNER) ====================
   useEffect(() => {
     if (!user?.uid || user.role !== 'owner') {
-      // Keep loading:true so OwnerNavigator never sees an empty+ready state during role transition
-      setState(prev => ({ ...prev, myFarmhouses: [], myFarmhousesLoading: true, myFarmhousesServerConfirmed: false }));
+      setMyFarmhouses([]);
+      setMyFarmhousesLoading(true);
+      setMyFarmhousesServerConfirmed(false);
       return;
     }
 
-    setState(prev => ({ ...prev, myFarmhousesLoading: true, myFarmhousesError: null, myFarmhousesServerConfirmed: false }));
+    setMyFarmhousesLoading(true);
+    setMyFarmhousesError(null);
+    setMyFarmhousesServerConfirmed(false);
 
-    const q = query(
-      collection(db, 'farmhouses'),
-      where('ownerId', '==', user.uid)
-    );
+    const q = query(collection(db, 'farmhouses'), where('ownerId', '==', user.uid));
 
-    // If server confirmation never arrives in 10s (WebChannel issues), unblock routing
     const timeoutId = setTimeout(() => {
-      setState(prev => {
-        if (prev.myFarmhousesServerConfirmed) return prev;
-        return { ...prev, myFarmhousesLoading: false, myFarmhousesServerConfirmed: true };
+      setMyFarmhousesServerConfirmed(prev => {
+        if (prev) return prev;
+        setMyFarmhousesLoading(false);
+        return true;
       });
     }, 10000);
 
@@ -617,114 +533,94 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
             const tb = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
             return tb - ta;
           });
-
-          setState(prev => ({
-            ...prev,
-            myFarmhouses: farmhouses,
-            // Still "loading" if only cache data so far and list is empty — wait for server
-            myFarmhousesLoading: fromCache && farmhouses.length === 0,
-            myFarmhousesServerConfirmed: !fromCache,
-            myFarmhousesRefreshing: false,
-            myFarmhousesError: null,
-          }));
+          setMyFarmhouses(farmhouses);
+          setMyFarmhousesLoading(fromCache && farmhouses.length === 0);
+          setMyFarmhousesServerConfirmed(!fromCache);
+          setMyFarmhousesRefreshing(false);
+          setMyFarmhousesError(null);
         } catch (error: any) {
           console.error('Error transforming myFarmhouses:', error);
-          setState(prev => ({
-            ...prev,
-            myFarmhousesLoading: false,
-            myFarmhousesServerConfirmed: !fromCache,
-            myFarmhousesRefreshing: false,
-            myFarmhousesError: error.message,
-          }));
+          setMyFarmhousesLoading(false);
+          setMyFarmhousesServerConfirmed(!fromCache);
+          setMyFarmhousesRefreshing(false);
+          setMyFarmhousesError(error.message);
         }
       },
       (error) => {
         clearTimeout(timeoutId);
         console.error('Error fetching myFarmhouses:', error);
-        setState(prev => ({
-          ...prev,
-          myFarmhousesLoading: false,
-          myFarmhousesServerConfirmed: true,
-          myFarmhousesRefreshing: false,
-          myFarmhousesError: error.message,
-        }));
+        setMyFarmhousesLoading(false);
+        setMyFarmhousesServerConfirmed(true);
+        setMyFarmhousesRefreshing(false);
+        setMyFarmhousesError(error.message);
       }
     );
 
     return () => { clearTimeout(timeoutId); unsubscribe(); };
-  }, [user?.uid, user?.role, refreshTriggers.myFarmhouses]);
+  }, [user?.uid, user?.role]);
 
   // ==================== COUPONS ====================
   useEffect(() => {
     if (!ready) return;
     if (!user || user.role !== 'customer') {
-      setState(prev => ({ ...prev, coupons: [], couponsLoading: false }));
+      setCoupons([]);
+      setCouponsLoading(false);
       return;
     }
-    setState(prev => ({ ...prev, couponsLoading: true, couponsError: null }));
+    setCouponsLoading(true);
+    setCouponsError(null);
 
-    const q = query(
-      collection(db, 'coupons'),
-      where('is_active', '==', true)
-    );
+    const q = query(collection(db, 'coupons'), where('is_active', '==', true));
 
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
-        const coupons = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Coupon[];
-
-        setState(prev => ({
-          ...prev,
-          coupons,
-          couponsLoading: false,
-          couponsRefreshing: false,
-          couponsError: null,
-        }));
+        setCoupons(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Coupon[]);
+        setCouponsLoading(false);
+        setCouponsRefreshing(false);
+        setCouponsError(null);
       },
       (error) => {
         console.error('Error fetching coupons:', error);
-        setState(prev => ({
-          ...prev,
-          couponsLoading: false,
-          couponsRefreshing: false,
-          couponsError: error.message,
-        }));
+        setCouponsLoading(false);
+        setCouponsRefreshing(false);
+        setCouponsError(error.message);
       }
     );
 
     return () => unsubscribe();
-  }, [ready, user?.uid, user?.role, refreshTriggers.coupons]);
+  }, [ready, user?.uid, user?.role]);
 
   // ==================== OWNER BOOKINGS ====================
   useEffect(() => {
     if (!ready) return;
     if (!user?.uid || user.role !== 'owner') {
-      setState(prev => ({ ...prev, allBookingsForMyFarmhouses: [], allBookingsLoading: false }));
+      setAllBookingsForMyFarmhouses([]);
+      setAllBookingsLoading(false);
       return;
     }
 
-    const farmhouseIds = state.myFarmhouses.map(f => f.id);
+    const farmhouseIds = myFarmhouses.map(f => f.id);
     if (farmhouseIds.length === 0) {
-      setState(prev => ({ ...prev, allBookingsForMyFarmhouses: [], allBookingsLoading: false }));
+      setAllBookingsForMyFarmhouses([]);
+      setAllBookingsLoading(false);
       return;
     }
 
-    setState(prev => ({ ...prev, allBookingsLoading: true, allBookingsError: null }));
+    setAllBookingsLoading(true);
+    setAllBookingsError(null);
 
-    // Firestore 'in' supports up to 30 values; batch if needed
-    const batches = [];
+    const batches: string[][] = [];
     for (let i = 0; i < farmhouseIds.length; i += 30) {
       batches.push(farmhouseIds.slice(i, i + 30));
     }
 
+    // Use a Map keyed by batchIndex to know when ALL batches have settled at least once
+    const settledBatches = new Set<number>();
     const allBookingsMap = new Map<string, Booking>();
     const unsubs: (() => void)[] = [];
-    let settledCount = 0;
 
-    batches.forEach(batch => {
+    batches.forEach((batch, batchIdx) => {
       const q = query(
         collection(db, 'bookings'),
         where('farmhouseId', 'in', batch),
@@ -732,65 +628,58 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
         limit(500)
       );
 
-      const unsub = onSnapshot(q, (snapshot) => {
-        snapshot.docs.forEach(doc => {
-          allBookingsMap.set(doc.id, { id: doc.id, ...doc.data() } as Booking);
-        });
-        settledCount++;
-        if (settledCount >= batches.length) {
-          const sorted = Array.from(allBookingsMap.values()).sort((a, b) => {
-            const ta = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
-            const tb = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
-            return tb - ta;
+      const unsub = onSnapshot(
+        q,
+        (snapshot) => {
+          snapshot.docs.forEach(doc => {
+            allBookingsMap.set(doc.id, { id: doc.id, ...doc.data() } as Booking);
           });
-          setState(prev => ({
-            ...prev,
-            allBookingsForMyFarmhouses: sorted,
-            allBookingsLoading: false,
-            allBookingsRefreshing: false,
-            allBookingsError: null,
-          }));
+          settledBatches.add(batchIdx);
+
+          if (settledBatches.size >= batches.length) {
+            const sorted = Array.from(allBookingsMap.values()).sort((a, b) => {
+              const ta = a.createdAt?.toDate ? a.createdAt.toDate().getTime() : new Date(a.createdAt || 0).getTime();
+              const tb = b.createdAt?.toDate ? b.createdAt.toDate().getTime() : new Date(b.createdAt || 0).getTime();
+              return tb - ta;
+            });
+            setAllBookingsForMyFarmhouses(sorted);
+            setAllBookingsLoading(false);
+            setAllBookingsRefreshing(false);
+            setAllBookingsError(null);
+          }
+        },
+        (error) => {
+          setAllBookingsLoading(false);
+          setAllBookingsError(error.message);
         }
-      }, (error) => {
-        setState(prev => ({ ...prev, allBookingsLoading: false, allBookingsError: error.message }));
-      });
+      );
 
       unsubs.push(unsub);
     });
 
     return () => unsubs.forEach(u => u());
-  }, [ready, user?.uid, user?.role, state.myFarmhouses]);
+  }, [ready, user?.uid, user?.role, myFarmhouses]);
 
   // ==================== REFRESH FUNCTIONS ====================
 
-  // onSnapshot listeners are live — "refresh" just clears the refreshing flag.
-  // Data propagates automatically; no need to tear down and recreate listeners.
   const refreshMyBookings = useCallback(() => {
-    setState(prev => ({ ...prev, myBookingsRefreshing: false }));
+    setMyBookingsRefreshing(false);
   }, []);
 
   const refreshAvailableFarmhouses = useCallback(() => {
-    setState(prev => ({ ...prev, availableFarmhousesRefreshing: false }));
+    setAvailableFarmhousesRefreshing(false);
   }, []);
 
   const refreshMyFarmhouses = useCallback(() => {
-    setState(prev => ({ ...prev, myFarmhousesRefreshing: false }));
+    setMyFarmhousesRefreshing(false);
   }, []);
 
   const refreshAllBookings = useCallback(() => {
-    setState(prev => ({ ...prev, allBookingsRefreshing: false }));
-  }, []);
-
-  const refreshReviews = useCallback((_farmhouseId?: string) => {
-    setState(prev => ({ ...prev, reviewsRefreshing: false }));
+    setAllBookingsRefreshing(false);
   }, []);
 
   const refreshCoupons = useCallback(() => {
-    setState(prev => ({ ...prev, couponsRefreshing: false }));
-  }, []);
-
-  const refreshWishlist = useCallback(() => {
-    setState(prev => ({ ...prev, wishlistRefreshing: false }));
+    setCouponsRefreshing(false);
   }, []);
 
   const refreshAll = useCallback(async () => {
@@ -806,50 +695,40 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
   // ==================== HELPERS ====================
 
   const getFarmhouseById = useCallback(
-    (id: string) => {
-      return state.availableFarmhouses.find(f => f.id === id) || 
-             state.myFarmhouses.find(f => f.id === id);
-    },
-    [state.availableFarmhouses, state.myFarmhouses]
+    (id: string) =>
+      availableFarmhouses.find(f => f.id === id) || myFarmhouses.find(f => f.id === id),
+    [availableFarmhouses, myFarmhouses]
   );
 
   const getBookingById = useCallback(
-    (id: string) => {
-      return state.myBookings.find(b => b.id === id) ||
-             state.allBookingsForMyFarmhouses.find(b => b.id === id);
-    },
-    [state.myBookings, state.allBookingsForMyFarmhouses]
+    (id: string) =>
+      myBookings.find(b => b.id === id) || allBookingsForMyFarmhouses.find(b => b.id === id),
+    [myBookings, allBookingsForMyFarmhouses]
   );
 
   const getFarmhouseBookings = useCallback(
-    (farmhouseId: string) => {
-      return state.allBookingsForMyFarmhouses.filter(b => b.farmhouseId === farmhouseId);
-    },
-    [state.allBookingsForMyFarmhouses]
+    (farmhouseId: string) => allBookingsForMyFarmhouses.filter(b => b.farmhouseId === farmhouseId),
+    [allBookingsForMyFarmhouses]
   );
 
   const getFarmhouseReviews = useCallback(
-    (farmhouseId: string) => {
-      return state.reviews.filter(r => r.farmhouseId === farmhouseId);
-    },
-    [state.reviews]
+    (_farmhouseId: string): Review[] => [],
+    []
   );
 
   const getCategorizedBookings = useCallback(() => {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
-
     const upcoming: Booking[] = [];
     const past: Booking[] = [];
     const cancelled: Booking[] = [];
 
-    state.myBookings.forEach(booking => {
+    myBookings.forEach(booking => {
       if (booking.status === 'cancelled') {
         cancelled.push(booking);
       } else {
         const checkOut = new Date(booking.checkOutDate);
         checkOut.setHours(23, 59, 59, 999);
-        
         if (now > checkOut) {
           past.push(booking);
         } else {
@@ -859,28 +738,91 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     });
 
     return { upcoming, past, cancelled };
-  }, [state.myBookings]);
+  }, [myBookings]);
 
-  const value: GlobalDataContextType = {
-    ...state,
+  // ==================== MEMOIZED SLICE VALUES ====================
+  // Each slice only re-renders consumers when its own data changes.
+
+  const bookingsValue = useMemo<BookingsSlice>(() => ({
+    myBookings,
+    myBookingsLoading,
+    myBookingsRefreshing,
+    myBookingsError,
     refreshMyBookings,
+    getCategorizedBookings,
+  }), [myBookings, myBookingsLoading, myBookingsRefreshing, myBookingsError, refreshMyBookings, getCategorizedBookings]);
+
+  const farmhousesValue = useMemo<FarmhousesSlice>(() => ({
+    availableFarmhouses,
+    availableFarmhousesLoading,
+    availableFarmhousesRefreshing,
+    availableFarmhousesError,
+    myFarmhouses,
+    myFarmhousesLoading,
+    myFarmhousesRefreshing,
+    myFarmhousesServerConfirmed,
+    myFarmhousesError,
     refreshAvailableFarmhouses,
     refreshMyFarmhouses,
-    refreshAllBookings,
-    refreshReviews,
-    refreshCoupons,
-    refreshWishlist,
-    refreshAll,
     getFarmhouseById,
+  }), [
+    availableFarmhouses, availableFarmhousesLoading, availableFarmhousesRefreshing, availableFarmhousesError,
+    myFarmhouses, myFarmhousesLoading, myFarmhousesRefreshing, myFarmhousesServerConfirmed, myFarmhousesError,
+    refreshAvailableFarmhouses, refreshMyFarmhouses, getFarmhouseById,
+  ]);
+
+  const ownerDataValue = useMemo<OwnerDataSlice>(() => ({
+    allBookingsForMyFarmhouses,
+    allBookingsLoading,
+    allBookingsRefreshing,
+    allBookingsError,
+    refreshAllBookings,
     getBookingById,
     getFarmhouseBookings,
+  }), [
+    allBookingsForMyFarmhouses, allBookingsLoading, allBookingsRefreshing, allBookingsError,
+    refreshAllBookings, getBookingById, getFarmhouseBookings,
+  ]);
+
+  const couponsValue = useMemo<CouponsSlice>(() => ({
+    coupons,
+    couponsLoading,
+    couponsRefreshing,
+    couponsError,
+    refreshCoupons,
+  }), [coupons, couponsLoading, couponsRefreshing, couponsError, refreshCoupons]);
+
+  // Legacy combined value for backward compat (useGlobalData)
+  const legacyValue = useMemo<GlobalDataContextType>(() => ({
+    ...bookingsValue,
+    ...farmhousesValue,
+    ...ownerDataValue,
+    ...couponsValue,
+    wishlistFarmhouses: [],
+    wishlistLoading: false,
+    wishlistRefreshing: false,
+    wishlistError: null,
+    reviews: [],
+    reviewsLoading: false,
+    reviewsRefreshing: false,
+    reviewsError: null,
+    refreshReviews: () => {},
+    refreshWishlist: () => {},
+    refreshAll,
     getFarmhouseReviews,
-    getCategorizedBookings,
-  };
+  }), [bookingsValue, farmhousesValue, ownerDataValue, couponsValue, refreshAll, getFarmhouseReviews]);
 
   return (
-    <GlobalDataContext.Provider value={value}>
-      {children}
+    <GlobalDataContext.Provider value={legacyValue}>
+      <BookingsCtx.Provider value={bookingsValue}>
+        <FarmhousesCtx.Provider value={farmhousesValue}>
+          <OwnerDataCtx.Provider value={ownerDataValue}>
+            <CouponsCtx.Provider value={couponsValue}>
+              {children}
+            </CouponsCtx.Provider>
+          </OwnerDataCtx.Provider>
+        </FarmhousesCtx.Provider>
+      </BookingsCtx.Provider>
     </GlobalDataContext.Provider>
   );
 }
@@ -894,63 +836,68 @@ export function useGlobalData() {
 }
 
 export function useMyBookings() {
-  const { myBookings, myBookingsLoading, myBookingsError, myBookingsRefreshing, refreshMyBookings, getCategorizedBookings } = useGlobalData();
-  const categorized = useMemo(() => getCategorizedBookings(), [getCategorizedBookings]);
+  const ctx = useContext(BookingsCtx);
+  if (!ctx) throw new Error('useMyBookings must be used within a GlobalDataProvider');
+  const categorized = useMemo(() => ctx.getCategorizedBookings(), [ctx.getCategorizedBookings]);
   return {
-    data: myBookings,
-    loading: myBookingsLoading,
-    error: myBookingsError,
-    refreshing: myBookingsRefreshing,
-    refresh: refreshMyBookings,
+    data: ctx.myBookings,
+    loading: ctx.myBookingsLoading,
+    error: ctx.myBookingsError,
+    refreshing: ctx.myBookingsRefreshing,
+    refresh: ctx.refreshMyBookings,
     categorized,
   };
 }
 
 export function useAvailableFarmhouses() {
-  const { availableFarmhouses, availableFarmhousesLoading, availableFarmhousesError, availableFarmhousesRefreshing, refreshAvailableFarmhouses } = useGlobalData();
+  const ctx = useContext(FarmhousesCtx);
+  if (!ctx) throw new Error('useAvailableFarmhouses must be used within a GlobalDataProvider');
   return {
-    data: availableFarmhouses,
-    loading: availableFarmhousesLoading,
-    error: availableFarmhousesError,
-    refreshing: availableFarmhousesRefreshing,
-    refresh: refreshAvailableFarmhouses,
+    data: ctx.availableFarmhouses,
+    loading: ctx.availableFarmhousesLoading,
+    error: ctx.availableFarmhousesError,
+    refreshing: ctx.availableFarmhousesRefreshing,
+    refresh: ctx.refreshAvailableFarmhouses,
   };
 }
 
 export function useMyFarmhouses() {
-  const { myFarmhouses, myFarmhousesLoading, myFarmhousesError, myFarmhousesRefreshing, myFarmhousesServerConfirmed, refreshMyFarmhouses } = useGlobalData();
+  const ctx = useContext(FarmhousesCtx);
+  if (!ctx) throw new Error('useMyFarmhouses must be used within a GlobalDataProvider');
   return {
-    data: myFarmhouses,
-    loading: myFarmhousesLoading,
-    serverConfirmed: myFarmhousesServerConfirmed,
-    error: myFarmhousesError,
-    refreshing: myFarmhousesRefreshing,
-    refresh: refreshMyFarmhouses,
+    data: ctx.myFarmhouses,
+    loading: ctx.myFarmhousesLoading,
+    serverConfirmed: ctx.myFarmhousesServerConfirmed,
+    error: ctx.myFarmhousesError,
+    refreshing: ctx.myFarmhousesRefreshing,
+    refresh: ctx.refreshMyFarmhouses,
   };
 }
 
 export function useCoupons() {
-  const { coupons, couponsLoading, couponsError, couponsRefreshing, refreshCoupons } = useGlobalData();
+  const ctx = useContext(CouponsCtx);
+  if (!ctx) throw new Error('useCoupons must be used within a GlobalDataProvider');
   return {
-    data: coupons,
-    loading: couponsLoading,
-    error: couponsError,
-    refreshing: couponsRefreshing,
-    refresh: refreshCoupons,
+    data: ctx.coupons,
+    loading: ctx.couponsLoading,
+    error: ctx.couponsError,
+    refreshing: ctx.couponsRefreshing,
+    refresh: ctx.refreshCoupons,
   };
 }
 
 export function useOwnerBookings(farmhouseId?: string) {
-  const { allBookingsForMyFarmhouses, allBookingsLoading, allBookingsError, allBookingsRefreshing, refreshAllBookings, getFarmhouseBookings } = useGlobalData();
+  const ctx = useContext(OwnerDataCtx);
+  if (!ctx) throw new Error('useOwnerBookings must be used within a GlobalDataProvider');
   const data = useMemo(
-    () => farmhouseId ? getFarmhouseBookings(farmhouseId) : allBookingsForMyFarmhouses,
-    [farmhouseId, allBookingsForMyFarmhouses, getFarmhouseBookings]
+    () => farmhouseId ? ctx.getFarmhouseBookings(farmhouseId) : ctx.allBookingsForMyFarmhouses,
+    [farmhouseId, ctx.allBookingsForMyFarmhouses, ctx.getFarmhouseBookings]
   );
   return {
     data,
-    loading: allBookingsLoading,
-    error: allBookingsError,
-    refreshing: allBookingsRefreshing,
-    refresh: refreshAllBookings,
+    loading: ctx.allBookingsLoading,
+    error: ctx.allBookingsError,
+    refreshing: ctx.allBookingsRefreshing,
+    refresh: ctx.refreshAllBookings,
   };
 }
