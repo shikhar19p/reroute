@@ -19,6 +19,9 @@ jest.mock('firebase/auth', () => ({
 
 jest.mock('firebase/firestore', () => ({
   getFirestore: jest.fn(() => ({})),
+  initializeFirestore: jest.fn(() => ({})),
+  memoryLocalCache: jest.fn(() => ({})),
+  persistentLocalCache: jest.fn(() => ({})),
   collection: jest.fn(),
   addDoc: jest.fn(),
   getDocs: jest.fn(),
@@ -30,6 +33,13 @@ jest.mock('firebase/firestore', () => ({
   updateDoc: jest.fn(),
   deleteDoc: jest.fn(),
   doc: jest.fn(),
+  arrayUnion: jest.fn((...args) => ({ type: 'arrayUnion', args })),
+  arrayRemove: jest.fn((...args) => ({ type: 'arrayRemove', args })),
+  documentId: jest.fn(() => '__name__'),
+  limit: jest.fn(),
+  increment: jest.fn((n) => n),
+  runTransaction: jest.fn(),
+  writeBatch: jest.fn(),
 }));
 
 jest.mock('firebase/storage', () => ({
