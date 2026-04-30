@@ -376,6 +376,47 @@ async function getOwnerEmail(farmhouseId: string): Promise<string | null> {
 }
 
 // ─── Helper: send all booking confirmation emails ─────────────────────────────
+async function upsertPaymentRecord(params: {
+  bookingId: string;
+  userId: string;
+  amount: number;
+  currency: string;
+  status: 'pending' | 'success' | 'failed' | 'refunded';
+  razorpayPaymentId?: string;
+  razorpayOrderId?: string;
+  razorpaySignature?: string;
+  errorMessage?: string;
+}): Promise<void> {
+  const {
+    bookingId,
+    userId,
+    amount,
+    currency,
+    status,
+    razorpayPaymentId,
+    razorpayOrderId,
+    razorpaySignature,
+    errorMessage,
+  } = params;
+  const paymentDocId = razorpayPaymentId || razorpayOrderId || bookingId;
+  const paymentRef = db.collection('payments').doc(paymentDocId);
+  const existing = await paymentRef.get();
+  await paymentRef.set({
+    bookingId,
+    userId,
+    amount,
+    currency,
+    status,
+    paymentMethod: 'razorpay',
+    razorpayPaymentId: razorpayPaymentId || null,
+    razorpayOrderId: razorpayOrderId || null,
+    razorpaySignature: razorpaySignature || null,
+    errorMessage: errorMessage || null,
+    createdAt: existing.exists ? (existing.data()?.createdAt || admin.firestore.FieldValue.serverTimestamp()) : admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  }, { merge: true });
+}
+
 async function sendBookingConfirmationEmails(bookingId: string, transactionId: string): Promise<void> {
   try {
     const bookingDoc = await db.collection('bookings').doc(bookingId).get();
@@ -614,6 +655,17 @@ export const verifyPayment = onCall({ minInstances: 1 }, async (request) => {
         status: 'confirmed',
         transactionId: razorpay_payment_id,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      await upsertPaymentRecord({
+        bookingId,
+        userId: bookingData.userId || bookingData.user_id,
+        amount: rzpPayment.amount,
+        currency: rzpPayment.currency || 'INR',
+        status: 'success',
+        razorpayPaymentId: razorpay_payment_id,
+        razorpayOrderId: razorpay_order_id,
+        razorpaySignature: razorpay_signature,
       });
 
       logger.info('Booking confirmed:', { bookingId, paymentId: razorpay_payment_id });
@@ -997,12 +1049,28 @@ async function handlePaymentSuccess(payment: any) {
   const bookingId = orderDoc.data()?.bookingId;
 
   if (bookingId) {
+    const bookingSnap = await db.collection('bookings').doc(bookingId).get();
+    const booking = bookingSnap.data();
+
     await db.collection('bookings').doc(bookingId).update({
       paymentStatus: 'paid',
       status: 'confirmed',
       transactionId: paymentId,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+
+    if (booking) {
+      await upsertPaymentRecord({
+        bookingId,
+        userId: booking.userId || booking.user_id,
+        amount: payment.amount,
+        currency: payment.currency || 'INR',
+        status: 'success',
+        razorpayPaymentId: paymentId,
+        razorpayOrderId: orderId,
+      });
+    }
+
     logger.info('Booking confirmed via webhook:', { bookingId, paymentId });
     sendBookingConfirmationEmails(bookingId, paymentId).catch(() => {});
   }
@@ -1032,6 +1100,19 @@ async function handlePaymentFailure(payment: any) {
       cancellationReason: 'Payment failed',
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
+
+    if (booking) {
+      await upsertPaymentRecord({
+        bookingId,
+        userId: booking.userId || booking.user_id,
+        amount: payment.amount || Math.round((booking.totalPrice || booking.total_amount || 0) * 100),
+        currency: payment.currency || 'INR',
+        status: 'failed',
+        razorpayPaymentId: paymentId,
+        razorpayOrderId: orderId,
+        errorMessage: payment.error_description || 'Payment failed',
+      });
+    }
 
     // Unblock dates on the farmhouse so they can be booked by others
     if (booking?.farmhouseId && booking?.checkInDate && booking?.checkOutDate) {
@@ -1532,3 +1613,4 @@ export const getBankDetails = onCall(async (request) => {
     throw new HttpsError('internal', 'Failed to decrypt bank details');
   }
 });
+
