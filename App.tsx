@@ -40,6 +40,7 @@ import { ToastProvider } from './components/Toast';
 import { DialogProvider } from './components/CustomDialog';
 import { TabBarVisibilityProvider } from './context/TabBarVisibilityContext';
 import ErrorBoundary from './components/ErrorBoundary';
+import { withScreenErrorBoundary } from './components/ScreenErrorBoundary';
 import { registerForPushNotifications, saveFcmToken } from './services/notificationService';
 
 // Critical screens — always eager (needed on first render)
@@ -71,36 +72,53 @@ const RegistrationFeeScreen = Platform.OS === 'web'
   : require('./screens/FarmRegistration/RegistrationFeeScreen').default;
 
 // User Screens — lazy on web
-const ExploreScreen = Platform.OS === 'web'
+const ExploreScreenBase = Platform.OS === 'web'
   ? React.lazy(() => import('./screens/User/ExploreScreen'))
   : require('./screens/User/ExploreScreen').default;
-const FarmhouseDetailScreen = Platform.OS === 'web'
+const ExploreScreen = Platform.OS === 'web' ? ExploreScreenBase : withScreenErrorBoundary(ExploreScreenBase, 'Explore');
+
+const FarmhouseDetailScreenBase = Platform.OS === 'web'
   ? React.lazy(() => import('./screens/User/FarmhouseDetailScreen'))
   : require('./screens/User/FarmhouseDetailScreen').default;
+const FarmhouseDetailScreen = Platform.OS === 'web' ? FarmhouseDetailScreenBase : withScreenErrorBoundary(FarmhouseDetailScreenBase, 'Farmhouse Details');
+
 const AllAmenitiesScreen = Platform.OS === 'web'
   ? React.lazy(() => import('./screens/User/AllAmenitiesScreen'))
   : require('./screens/User/AllAmenitiesScreen').default;
+
 const AllReviewsScreen = Platform.OS === 'web'
   ? React.lazy(() => import('./screens/User/AllReviewsScreen'))
   : require('./screens/User/AllReviewsScreen').default;
-const BookingConfirmationScreen = Platform.OS === 'web'
+
+const BookingConfirmationScreenBase = Platform.OS === 'web'
   ? React.lazy(() => import('./screens/User/BookingConfirmationScreen'))
   : require('./screens/User/BookingConfirmationScreen').default;
-const BookingDetailsScreen = Platform.OS === 'web'
+const BookingConfirmationScreen = Platform.OS === 'web' ? BookingConfirmationScreenBase : withScreenErrorBoundary(BookingConfirmationScreenBase, 'Booking Confirmation');
+
+const BookingDetailsScreenBase = Platform.OS === 'web'
   ? React.lazy(() => import('./screens/User/BookingDetailsScreen'))
   : require('./screens/User/BookingDetailsScreen').default;
-const EditProfileScreen = Platform.OS === 'web'
+const BookingDetailsScreen = Platform.OS === 'web' ? BookingDetailsScreenBase : withScreenErrorBoundary(BookingDetailsScreenBase, 'Booking Details');
+
+const EditProfileScreenBase = Platform.OS === 'web'
   ? React.lazy(() => import('./screens/User/EditProfileScreen'))
   : require('./screens/User/EditProfileScreen').default;
-const BookingsScreen = Platform.OS === 'web'
+const EditProfileScreen = Platform.OS === 'web' ? EditProfileScreenBase : withScreenErrorBoundary(EditProfileScreenBase, 'Edit Profile');
+
+const BookingsScreenBase = Platform.OS === 'web'
   ? React.lazy(() => import('./screens/User/tabs/BookingsScreen'))
   : require('./screens/User/tabs/BookingsScreen').default;
-const WishlistScreen = Platform.OS === 'web'
+const BookingsScreen = Platform.OS === 'web' ? BookingsScreenBase : withScreenErrorBoundary(BookingsScreenBase, 'Bookings');
+
+const WishlistScreenBase = Platform.OS === 'web'
   ? React.lazy(() => import('./screens/User/tabs/WishlistScreen'))
   : require('./screens/User/tabs/WishlistScreen').default;
-const ProfileScreen = Platform.OS === 'web'
+const WishlistScreen = Platform.OS === 'web' ? WishlistScreenBase : withScreenErrorBoundary(WishlistScreenBase, 'Wishlist');
+
+const ProfileScreenBase = Platform.OS === 'web'
   ? React.lazy(() => import('./screens/User/tabs/ProfileScreen'))
   : require('./screens/User/tabs/ProfileScreen').default;
+const ProfileScreen = Platform.OS === 'web' ? ProfileScreenBase : withScreenErrorBoundary(ProfileScreenBase, 'Profile');
 const PrivacyPolicyScreen = Platform.OS === 'web'
   ? React.lazy(() => import('./screens/User/PrivacyPolicyScreen'))
   : require('./screens/User/PrivacyPolicyScreen').default;
@@ -115,30 +133,45 @@ const ContactUsScreen = Platform.OS === 'web'
   : require('./screens/User/ContactUsScreen').default;
 
 // Owner Screens — lazy on web
-const MyFarmhousesScreen = Platform.OS === 'web'
+const MyFarmhousesScreenBase = Platform.OS === 'web'
   ? React.lazy(() => import('./screens/Owner/MyFarmhousesScreen'))
   : require('./screens/Owner/MyFarmhousesScreen').default;
-const OwnerHomeScreen = Platform.OS === 'web'
+const MyFarmhousesScreen = Platform.OS === 'web' ? MyFarmhousesScreenBase : withScreenErrorBoundary(MyFarmhousesScreenBase, 'My Farmhouses');
+
+const OwnerHomeScreenBase = Platform.OS === 'web'
   ? React.lazy(() => import('./screens/Owner/OwnerHomeScreen'))
   : require('./screens/Owner/OwnerHomeScreen').default;
-const FarmhouseDetailOwnerScreen = Platform.OS === 'web'
+const OwnerHomeScreen = Platform.OS === 'web' ? OwnerHomeScreenBase : withScreenErrorBoundary(OwnerHomeScreenBase, 'Owner Home');
+
+const FarmhouseDetailOwnerScreenBase = Platform.OS === 'web'
   ? React.lazy(() => import('./screens/Owner/FarmhouseDetailOwnerScreen'))
   : require('./screens/Owner/FarmhouseDetailOwnerScreen').default;
-const EditFarmhouseScreen = Platform.OS === 'web'
+const FarmhouseDetailOwnerScreen = Platform.OS === 'web' ? FarmhouseDetailOwnerScreenBase : withScreenErrorBoundary(FarmhouseDetailOwnerScreenBase, 'Farmhouse Details');
+
+const EditFarmhouseScreenBase = Platform.OS === 'web'
   ? React.lazy(() => import('./screens/Owner/EditFarmhouseScreen'))
   : require('./screens/Owner/EditFarmhouseScreen').default;
-const OwnerBookingsScreen = Platform.OS === 'web'
+const EditFarmhouseScreen = Platform.OS === 'web' ? EditFarmhouseScreenBase : withScreenErrorBoundary(EditFarmhouseScreenBase, 'Edit Farmhouse');
+
+const OwnerBookingsScreenBase = Platform.OS === 'web'
   ? React.lazy(() => import('./screens/Owner/BookingsListScreen'))
   : require('./screens/Owner/BookingsListScreen').default;
-const OwnerBookingDetailScreen = Platform.OS === 'web'
+const OwnerBookingsScreen = Platform.OS === 'web' ? OwnerBookingsScreenBase : withScreenErrorBoundary(OwnerBookingsScreenBase, 'Bookings');
+
+const OwnerBookingDetailScreenBase = Platform.OS === 'web'
   ? React.lazy(() => import('./screens/Owner/BookingDetailScreen'))
   : require('./screens/Owner/BookingDetailScreen').default;
-const ManageBlockedDatesScreen = Platform.OS === 'web'
+const OwnerBookingDetailScreen = Platform.OS === 'web' ? OwnerBookingDetailScreenBase : withScreenErrorBoundary(OwnerBookingDetailScreenBase, 'Booking Details');
+
+const ManageBlockedDatesScreenBase = Platform.OS === 'web'
   ? React.lazy(() => import('./screens/Owner/ManageBlockedDatesScreen'))
   : require('./screens/Owner/ManageBlockedDatesScreen').default;
-const OwnerNotificationsScreen = Platform.OS === 'web'
+const ManageBlockedDatesScreen = Platform.OS === 'web' ? ManageBlockedDatesScreenBase : withScreenErrorBoundary(ManageBlockedDatesScreenBase, 'Manage Blocked Dates');
+
+const OwnerNotificationsScreenBase = Platform.OS === 'web'
   ? React.lazy(() => import('./screens/Owner/OwnerNotificationsScreen'))
   : require('./screens/Owner/OwnerNotificationsScreen').default;
+const OwnerNotificationsScreen = Platform.OS === 'web' ? OwnerNotificationsScreenBase : withScreenErrorBoundary(OwnerNotificationsScreenBase, 'Notifications');
 
 // Components
 import PremiumTabBar from './components/PremiumTabBar';

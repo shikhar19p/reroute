@@ -15,6 +15,7 @@ import { db } from '../firebaseConfig';
 import { validators, validateFields } from '../utils/validators';
 import { validateBookingDates, addBookedDatesToFarmhouse, removeBookedDatesFromFarmhouse } from './availabilityService';
 import { logAuditEvent } from './auditService';
+import { retryAsync } from '../utils/retryHandler';
 
 export interface Booking {
   id: string;
@@ -85,50 +86,60 @@ export async function createBooking(bookingData: Omit<Booking, 'id' | 'createdAt
       throw new Error(availabilityCheck.error || 'Dates not available');
     }
 
-    // Create the booking
-    const docRef = await addDoc(collection(db, 'bookings'), {
-      ...bookingData,
-      status: 'pending',
-      paymentStatus: 'pending',
-      createdAt: serverTimestamp(),
-    });
+    // Create the booking with retry
+    const docRef = await retryAsync(
+      () => addDoc(collection(db, 'bookings'), {
+        ...bookingData,
+        status: 'pending',
+        paymentStatus: 'pending',
+        createdAt: serverTimestamp(),
+      }),
+      { maxRetries: 3, initialDelayMs: 500 },
+      'createBooking'
+    );
 
     // Add dates to farmhouse bookedDates array
     try {
-      await addBookedDatesToFarmhouse(
-        bookingData.farmhouseId,
-        bookingData.checkInDate,
-        bookingData.checkOutDate
+      await retryAsync(
+        () => addBookedDatesToFarmhouse(
+          bookingData.farmhouseId,
+          bookingData.checkInDate,
+          bookingData.checkOutDate
+        ),
+        { maxRetries: 2, initialDelayMs: 500 },
+        'addBookedDates'
       );
     } catch (dateError) {
       console.error('Warning: Failed to add dates to farmhouse, but booking was created:', dateError);
-      // Don't throw error here - booking is already created
     }
 
-    // Log audit event (silently fail if permissions issue)
+    // Log audit event with retry
     try {
-      await logAuditEvent(
-        'booking_created',
-        bookingData.userId,
-        'booking',
-        docRef.id,
-        {
-          farmhouseId: bookingData.farmhouseId,
-          totalPrice: bookingData.totalPrice,
-          checkIn: bookingData.checkInDate,
-          checkOut: bookingData.checkOutDate,
-        }
+      await retryAsync(
+        () => logAuditEvent(
+          'booking_created',
+          bookingData.userId,
+          'booking',
+          docRef.id,
+          {
+            farmhouseId: bookingData.farmhouseId,
+            totalPrice: bookingData.totalPrice,
+            checkIn: bookingData.checkInDate,
+            checkOut: bookingData.checkOutDate,
+          }
+        ),
+        { maxRetries: 1, initialDelayMs: 200 },
+        'logAuditEvent'
       );
     } catch (auditError) {
-      // Silently ignore audit log failures - booking is still created
+      // Silently ignore audit log failures
     }
 
     return docRef.id;
   } catch (error) {
     if (error instanceof Error && error.message.includes('Validation failed')) {
-      throw error; // Re-throw validation errors as-is
+      throw error;
     }
-    // For other errors, throw a user-friendly message
     throw new Error('Unable to complete booking. Please try again.');
   }
 }
@@ -136,16 +147,22 @@ export async function createBooking(bookingData: Omit<Booking, 'id' | 'createdAt
 // Get all bookings for a user
 export async function getUserBookings(userId: string): Promise<Booking[]> {
   try {
-    const q = query(
-      collection(db, 'bookings'),
-      where('userId', '==', userId),
-      orderBy('createdAt', 'desc')
+    return await retryAsync(
+      async () => {
+        const q = query(
+          collection(db, 'bookings'),
+          where('userId', '==', userId),
+          orderBy('createdAt', 'desc')
+        );
+        const snapshot = await getDocs(q);
+        return snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as Booking));
+      },
+      { maxRetries: 2, initialDelayMs: 1000 },
+      'getUserBookings'
     );
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    } as Booking));
   } catch (error) {
     console.error('Error fetching user bookings:', error);
     return [];
@@ -197,11 +214,17 @@ export async function updateBookingStatus(
   status: Booking['status']
 ): Promise<void> {
   try {
-    const bookingRef = doc(db, 'bookings', bookingId);
-    await updateDoc(bookingRef, {
-      status,
-      updatedAt: serverTimestamp()
-    });
+    await retryAsync(
+      () => {
+        const bookingRef = doc(db, 'bookings', bookingId);
+        return updateDoc(bookingRef, {
+          status,
+          updatedAt: serverTimestamp()
+        });
+      },
+      { maxRetries: 3, initialDelayMs: 500 },
+      'updateBookingStatus'
+    );
   } catch (error) {
     console.error('Error updating booking status:', error);
     throw error;
@@ -262,11 +285,17 @@ export async function updatePaymentStatus(
   paymentStatus: Booking['paymentStatus']
 ): Promise<void> {
   try {
-    const bookingRef = doc(db, 'bookings', bookingId);
-    await updateDoc(bookingRef, {
-      paymentStatus,
-      updatedAt: serverTimestamp()
-    });
+    await retryAsync(
+      () => {
+        const bookingRef = doc(db, 'bookings', bookingId);
+        return updateDoc(bookingRef, {
+          paymentStatus,
+          updatedAt: serverTimestamp()
+        });
+      },
+      { maxRetries: 3, initialDelayMs: 500 },
+      'updatePaymentStatus'
+    );
   } catch (error) {
     console.error('Error updating payment status:', error);
     throw error;
@@ -280,19 +309,25 @@ export async function updateRefundStatus(
   refundDate?: string
 ): Promise<void> {
   try {
-    const bookingRef = doc(db, 'bookings', bookingId);
-    const updateData: any = {
-      refundStatus,
-      refund_status: refundStatus,
-      updatedAt: serverTimestamp(),
-    };
+    await retryAsync(
+      () => {
+        const bookingRef = doc(db, 'bookings', bookingId);
+        const updateData: any = {
+          refundStatus,
+          refund_status: refundStatus,
+          updatedAt: serverTimestamp(),
+        };
 
-    if (refundDate) {
-      updateData.refundDate = refundDate;
-      updateData.refund_date = refundDate;
-    }
+        if (refundDate) {
+          updateData.refundDate = refundDate;
+          updateData.refund_date = refundDate;
+        }
 
-    await updateDoc(bookingRef, updateData);
+        return updateDoc(bookingRef, updateData);
+      },
+      { maxRetries: 3, initialDelayMs: 500 },
+      'updateRefundStatus'
+    );
   } catch (error) {
     console.error('Error updating refund status:', error);
     throw error;
