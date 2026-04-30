@@ -1,20 +1,20 @@
-import React, { useState } from 'react';
-import { View, Image, StyleSheet, ImageResizeMode } from 'react-native';
+import React from 'react';
+import { View, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import { useTheme } from '../context/ThemeContext';
 
 interface AnimatedImageProps {
   uri: string;
   style?: any;
-  resizeMode?: ImageResizeMode;
+  resizeMode?: 'cover' | 'contain' | 'fill' | 'none' | 'scale-down';
+  priority?: 'low' | 'normal' | 'high';
 }
 
-export default function AnimatedImage({ uri, style, resizeMode = 'cover' }: AnimatedImageProps) {
+export default function AnimatedImage({ uri, style, resizeMode = 'cover', priority = 'normal' }: AnimatedImageProps) {
   const { isDark } = useTheme();
-  const [error, setError] = useState(false);
-
   const placeholderBg = isDark ? '#1e1e1e' : '#e8e4dc';
 
-  if (error || !uri) {
+  if (!uri) {
     return <View style={[styles.container, style, { backgroundColor: placeholderBg, opacity: 0.5 }]} />;
   }
 
@@ -23,8 +23,11 @@ export default function AnimatedImage({ uri, style, resizeMode = 'cover' }: Anim
       <Image
         source={{ uri }}
         style={StyleSheet.absoluteFill}
-        resizeMode={resizeMode}
-        onError={() => setError(true)}
+        contentFit={resizeMode}
+        transition={200}
+        cachePolicy="memory-disk"
+        priority={priority}
+        recyclingKey={uri}
       />
     </View>
   );
@@ -33,6 +36,5 @@ export default function AnimatedImage({ uri, style, resizeMode = 'cover' }: Anim
 const styles = StyleSheet.create({
   container: {
     overflow: 'hidden',
-    backgroundColor: 'transparent',
   },
 });
