@@ -519,9 +519,24 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
       where('status', '==', 'approved')
     );
 
+    // If Firestore doesn't respond in 10s (e.g. WebChannel issues), unblock the UI
+    const timeoutId = setTimeout(() => {
+      setState(prev => {
+        if (!prev.availableFarmhousesLoading) return prev;
+        return {
+          ...prev,
+          availableFarmhousesLoading: false,
+          availableFarmhousesError: prev.availableFarmhouses.length === 0
+            ? 'Unable to load farmhouses. Pull down to refresh.'
+            : null,
+        };
+      });
+    }, 10000);
+
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
+        clearTimeout(timeoutId);
         try {
           let farmhouses = snapshot.docs.map(doc => transformFarmhouseData(doc));
 
@@ -552,6 +567,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
         }
       },
       (error) => {
+        clearTimeout(timeoutId);
         console.error('Error fetching availableFarmhouses:', error);
         setState(prev => ({
           ...prev,
@@ -562,7 +578,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    return () => unsubscribe();
+    return () => { clearTimeout(timeoutId); unsubscribe(); };
   }, [ready, user?.uid, user?.role, refreshTriggers.availableFarmhouses]);
 
   // ==================== MY FARMHOUSES (OWNER) ====================
@@ -580,11 +596,20 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
       where('ownerId', '==', user.uid)
     );
 
+    // If server confirmation never arrives in 10s (WebChannel issues), unblock routing
+    const timeoutId = setTimeout(() => {
+      setState(prev => {
+        if (prev.myFarmhousesServerConfirmed) return prev;
+        return { ...prev, myFarmhousesLoading: false, myFarmhousesServerConfirmed: true };
+      });
+    }, 10000);
+
     const unsubscribe = onSnapshot(
       q,
       { includeMetadataChanges: true },
       (snapshot) => {
         const fromCache = snapshot.metadata.fromCache;
+        if (!fromCache) clearTimeout(timeoutId);
         try {
           const farmhouses = snapshot.docs.map(doc => transformFarmhouseData(doc));
           farmhouses.sort((a, b) => {
@@ -614,6 +639,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
         }
       },
       (error) => {
+        clearTimeout(timeoutId);
         console.error('Error fetching myFarmhouses:', error);
         setState(prev => ({
           ...prev,
@@ -625,7 +651,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    return () => unsubscribe();
+    return () => { clearTimeout(timeoutId); unsubscribe(); };
   }, [user?.uid, user?.role, refreshTriggers.myFarmhouses]);
 
   // ==================== COUPONS ====================

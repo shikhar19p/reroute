@@ -276,29 +276,54 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
             <Text style={styles.sectionIcon}>👥</Text>
             <Text style={styles.sectionTitle}>Guest Limits & Extra Charges</Text>
           </View>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Max Guests Allowed*</Text>
-            <TextInput
-              value={(farm.pricing as any).maxGuests ?? ''}
-              onChangeText={(text) => setField(['pricing', 'maxGuests'], text.replace(/[^0-9]/g, ''))}
-              placeholder="Enter maximum guests allowed"
-              placeholderTextColor="#9CA3AF"
-              style={styles.input}
-              keyboardType="numeric"
-            />
-            <Text style={styles.helperText}>Absolute upper limit. Extra charge applies above base capacity.</Text>
-          </View>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>Price Per Extra Guest (per day/night)*</Text>
-            <TextInput
-              value={(farm.pricing as any).extraGuestPrice ?? ''}
-              onChangeText={(text) => setField(['pricing', 'extraGuestPrice'], text.replace(/[^0-9]/g, ''))}
-              placeholder="₹ Per extra guest charge"
-              placeholderTextColor="#9CA3AF"
-              style={styles.input}
-              keyboardType="numeric"
-            />
-          </View>
+          {(() => {
+            const cap = parseInt((farm as any).basicDetails?.capacity) || 0;
+            const maxG = parseInt((farm.pricing as any).maxGuests) || 0;
+            const extraP = parseInt((farm.pricing as any).extraGuestPrice) || 0;
+            return (
+              <>
+                <View style={styles.fieldContainer}>
+                  <Text style={styles.label}>Max Guests Allowed*</Text>
+                  <TextInput
+                    value={(farm.pricing as any).maxGuests ?? ''}
+                    onChangeText={(text) => setField(['pricing', 'maxGuests'], text.replace(/[^0-9]/g, ''))}
+                    placeholder="Enter maximum guests allowed"
+                    placeholderTextColor="#9CA3AF"
+                    style={styles.input}
+                    keyboardType="numeric"
+                  />
+                  <Text style={styles.helperText}>
+                    Hard cap on total guests.{cap > 0 ? ` Base capacity is ${cap}; guests above ${cap} pay the extra rate.` : ' Must be ≥ base capacity set in previous step.'}
+                  </Text>
+                </View>
+                <View style={styles.fieldContainer}>
+                  <Text style={styles.label}>Price Per Extra Guest (per day/night)*</Text>
+                  <TextInput
+                    value={(farm.pricing as any).extraGuestPrice ?? ''}
+                    onChangeText={(text) => setField(['pricing', 'extraGuestPrice'], text.replace(/[^0-9]/g, ''))}
+                    placeholder="₹ Per extra guest charge"
+                    placeholderTextColor="#9CA3AF"
+                    style={styles.input}
+                    keyboardType="numeric"
+                  />
+                  <Text style={styles.helperText}>
+                    Charged per guest per night/day for each guest above base capacity{cap > 0 ? ` (${cap})` : ''}.
+                  </Text>
+                </View>
+                {maxG > cap && cap > 0 && extraP > 0 && (
+                  <View style={{ backgroundColor: '#F0FDF4', borderRadius: 8, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#86EFAC' }}>
+                    <Text style={{ fontSize: 13, color: '#166534', fontWeight: '600', marginBottom: 2 }}>Preview</Text>
+                    <Text style={{ fontSize: 12, color: '#166534' }}>
+                      {maxG - cap} extra slot{maxG - cap !== 1 ? 's' : ''} above base {cap} · ₹{extraP}/guest/night
+                    </Text>
+                    <Text style={{ fontSize: 12, color: '#15803D', marginTop: 2 }}>
+                      e.g. {maxG - cap} extra guests × 2 nights = ₹{(maxG - cap) * extraP * 2} extra
+                    </Text>
+                  </View>
+                )}
+              </>
+            );
+          })()}
 
           {/* Check-in / Check-out Times */}
           <View style={styles.sectionHeader}>

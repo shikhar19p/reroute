@@ -25,6 +25,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
     farmhouseId, farmhouseName, farmhouseImage, location,
     startDate, endDate, guestCount, totalPrice, numberOfNights,
     bookingType, existingBookingId,
+    extraGuestCharge, extraGuestCount, extraGuestRate, capacity,
   } = route.params;
 
   const { colors, isDark } = useTheme();
@@ -492,10 +493,29 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
 
         <View style={[styles.billingCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Billing Summary</Text>
-          <View style={styles.billingRow}>
-            <Text style={[styles.billingLabel, { color: colors.placeholder }]}>Base Price:</Text>
-            <Text style={[styles.billingValue, { color: colors.text }]}>₹{totalPrice}</Text>
-          </View>
+          {extraGuestCharge > 0 ? (
+            <>
+              <View style={styles.billingRow}>
+                <Text style={[styles.billingLabel, { color: colors.placeholder }]}>Accommodation:</Text>
+                <Text style={[styles.billingValue, { color: colors.text }]}>₹{totalPrice - extraGuestCharge}</Text>
+              </View>
+              <View style={styles.billingRow}>
+                <Text style={[styles.billingLabel, { color: '#F59E0B' }]}>
+                  Extra guests ({extraGuestCount} × ₹{extraGuestRate}{bookingType !== 'day-use' && numberOfNights > 1 ? ` × ${numberOfNights}n` : ''}):
+                </Text>
+                <Text style={[styles.billingValue, { color: '#F59E0B' }]}>₹{extraGuestCharge}</Text>
+              </View>
+              <View style={styles.billingRow}>
+                <Text style={[styles.billingLabel, { color: colors.text, fontWeight: '600' }]}>Subtotal:</Text>
+                <Text style={[styles.billingValue, { color: colors.text, fontWeight: '600' }]}>₹{totalPrice}</Text>
+              </View>
+            </>
+          ) : (
+            <View style={styles.billingRow}>
+              <Text style={[styles.billingLabel, { color: colors.placeholder }]}>Accommodation:</Text>
+              <Text style={[styles.billingValue, { color: colors.text }]}>₹{totalPrice}</Text>
+            </View>
+          )}
           {appliedCoupon && (
             <View style={styles.billingRow}>
               <Text style={[styles.discountLabel, { color: '#10B981' }]}>

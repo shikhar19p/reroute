@@ -403,6 +403,17 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
       showDialog({ title: 'Validation Error', message: 'Location details are required', type: 'error' });
       return false;
     }
+    const cap = parseInt(formData.capacity) || 0;
+    const maxG = parseInt(formData.maxGuests) || 0;
+    const extraP = parseInt(formData.extraGuestPrice) || 0;
+    if (maxG > 0 && maxG < cap) {
+      showDialog({ title: 'Validation Error', message: `Max guests (${maxG}) cannot be less than base capacity (${cap}). Set to ${cap} or higher.`, type: 'error' });
+      return false;
+    }
+    if (maxG > cap && extraP === 0) {
+      showDialog({ title: 'Validation Error', message: `Extra guest price must be set when max guests (${maxG}) exceeds base capacity (${cap}).`, type: 'error' });
+      return false;
+    }
     return true;
   };
 
@@ -753,6 +764,9 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
                   placeholderTextColor={colors.placeholder}
                   keyboardType="number-pad"
                 />
+                <Text style={{ fontSize: 11, color: colors.placeholder, marginTop: 4 }}>
+                  Hard cap including base {formData.capacity || '?'} guests. 0 = no extras.
+                </Text>
               </View>
               <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
                 <Text style={[styles.label, { color: colors.text }]}>Extra Guest Price (₹)</Text>
@@ -764,8 +778,38 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
                   placeholderTextColor={colors.placeholder}
                   keyboardType="number-pad"
                 />
+                <Text style={{ fontSize: 11, color: colors.placeholder, marginTop: 4 }}>
+                  Per extra guest per night/day above {formData.capacity || '?'}.
+                </Text>
               </View>
             </View>
+            {(() => {
+              const cap = parseInt(formData.capacity) || 0;
+              const maxG = parseInt(formData.maxGuests) || 0;
+              const extraP = parseInt(formData.extraGuestPrice) || 0;
+              if (maxG > cap && extraP > 0) {
+                return (
+                  <View style={{ backgroundColor: colors.buttonBackground + '18', borderRadius: 8, padding: 10, marginBottom: 8 }}>
+                    <Text style={{ fontSize: 12, color: colors.text }}>
+                      Up to {maxG - cap} extra guest{maxG - cap !== 1 ? 's' : ''} allowed above base {cap}. Each charged ₹{extraP}/night·day.
+                    </Text>
+                    <Text style={{ fontSize: 12, color: colors.placeholder, marginTop: 2 }}>
+                      Example: {maxG - cap} extra guests × ₹{extraP} × 2 nights = ₹{(maxG - cap) * extraP * 2} extra charge
+                    </Text>
+                  </View>
+                );
+              }
+              if (maxG === 0 || maxG <= cap) {
+                return (
+                  <View style={{ backgroundColor: colors.cardBackground, borderRadius: 8, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: colors.border }}>
+                    <Text style={{ fontSize: 12, color: colors.placeholder }}>
+                      Set Max Guests above base capacity ({cap}) to allow extra guests with a charge.
+                    </Text>
+                  </View>
+                );
+              }
+              return null;
+            })()}
 
             <Text style={[styles.priceCategory, { color: colors.text, marginTop: 8 }]}>Check-in & Check-out Times</Text>
             <Text style={[styles.label, { color: colors.placeholder, fontSize: 12, marginBottom: 8 }]}>Day Use</Text>

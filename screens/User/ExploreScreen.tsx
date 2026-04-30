@@ -7,7 +7,8 @@ import {
 } from 'react-native';
 import AnimatedImage from '../../components/AnimatedImage';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Heart, Search, SlidersHorizontal, ArrowUpDown, Bell, Share2, Star, MapPin, LogOut, Calendar, CheckCircle, AlertCircle, Clock, Building2 } from 'lucide-react-native';
+import { Heart, Search, SlidersHorizontal, ArrowUpDown, Bell, Share2, Star, MapPin, LogOut, Calendar, CheckCircle, AlertCircle, Clock, Building2, X as XIcon, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { Calendar as RNCalendar, DateData } from 'react-native-calendars';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
@@ -29,7 +30,8 @@ const FarmhouseCard = React.memo(({
   isInWishlist,
   onPress,
   onShare,
-  onToggleWishlist
+  onToggleWishlist,
+  cardStyle,
 }: {
   item: FarmhouseType;
   colors: any;
@@ -38,9 +40,10 @@ const FarmhouseCard = React.memo(({
   onPress: () => void;
   onShare: () => void;
   onToggleWishlist: () => void;
+  cardStyle?: object;
 }) => (
   <TouchableOpacity
-    style={[styles.propertyCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+    style={[styles.propertyCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }, cardStyle]}
     onPress={onPress}
   >
     <View style={styles.imageContainer}>
@@ -108,7 +111,6 @@ const FarmhouseCard = React.memo(({
   </TouchableOpacity>
 ));
 
-const CONTENT_MAX_WIDTH = 1440;
 const GRID_BREAKPOINTS = { md: 768, lg: 1200, xl: 1440 };
 
 export default function ExploreScreen({ navigation }: any) {
@@ -151,8 +153,8 @@ export default function ExploreScreen({ navigation }: any) {
 
   // Responsive grid layout
   const numColumns = useMemo(() => {
-    if (windowWidth > GRID_BREAKPOINTS.xl) return 4;
-    if (windowWidth >= GRID_BREAKPOINTS.xl) return 3;
+    if (windowWidth > GRID_BREAKPOINTS.lg) return 4;
+    if (windowWidth >= 1024) return 3;
     if (windowWidth >= GRID_BREAKPOINTS.md) return 2;
     return 1;
   }, [windowWidth]);
@@ -175,6 +177,13 @@ export default function ExploreScreen({ navigation }: any) {
     checkIn: '',
     checkOut: '',
   });
+  const [calPickerFor, setCalPickerFor] = useState<'checkIn' | 'checkOut' | null>(null);
+  const todayStr = new Date().toISOString().split('T')[0];
+  const maxFilterDate = useMemo(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() + 3);
+    return d.toISOString().split('T')[0];
+  }, []);
   const filtersActive = filters.location !== '' || filters.minPrice !== '' || filters.maxPrice !== '' || filters.minCapacity !== '' || filters.propertyType !== '' || filters.checkIn !== '';
   const clearFilters = () => setFilters({ location: '', minPrice: '', maxPrice: '', minCapacity: '', propertyType: '', checkIn: '', checkOut: '' });
 
@@ -386,17 +395,29 @@ export default function ExploreScreen({ navigation }: any) {
     return result;
   }, [searchText, filters, sortBy, farmhouses, farmhouseRatings]);
 
-  const renderFarmhouse = React.useCallback(({ item }: { item: FarmhouseType }) => (
-    <FarmhouseCard
-      item={item}
-      colors={colors}
-      farmhouseRating={farmhouseRatings[item.id]}
-      isInWishlist={isInWishlist(item.id)}
-      onPress={() => navigation.navigate('FarmhouseDetail', { farmhouse: item })}
-      onShare={() => handleShare(item)}
-      onToggleWishlist={() => toggleWishlist(item)}
-    />
-  ), [colors, farmhouseRatings, isInWishlist, navigation]);
+  // Pad last row with null spacers so final-row cards don't stretch
+  const paddedFarmhouses = useMemo(() => {
+    if (numColumns <= 1) return filteredAndSortedFarmhouses as (FarmhouseType | null)[];
+    const remainder = filteredAndSortedFarmhouses.length % numColumns;
+    if (remainder === 0) return filteredAndSortedFarmhouses as (FarmhouseType | null)[];
+    const pads = numColumns - remainder;
+    return [...filteredAndSortedFarmhouses, ...Array<null>(pads).fill(null)] as (FarmhouseType | null)[];
+  }, [filteredAndSortedFarmhouses, numColumns]);
+
+  const renderFarmhouse = React.useCallback(({ item }: { item: FarmhouseType | null }) => {
+    if (!item) return <View style={{ flex: 1 }} />;
+    return (
+      <FarmhouseCard
+        item={item}
+        colors={colors}
+        farmhouseRating={farmhouseRatings[item.id]}
+        isInWishlist={isInWishlist(item.id)}
+        onPress={() => navigation.navigate('FarmhouseDetail', { farmhouse: item })}
+        onShare={() => handleShare(item)}
+        onToggleWishlist={() => toggleWishlist(item)}
+      />
+    );
+  }, [colors, farmhouseRatings, isInWishlist, navigation]);
 
   if (error) {
     return (
@@ -413,8 +434,7 @@ export default function ExploreScreen({ navigation }: any) {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
       <StatusBar barStyle={isDark ? "light-content" : "dark-content"} backgroundColor={colors.background} />
 
-      {/* Centered max-width wrapper for large screens */}
-      <View style={[styles.innerContainer, isLargeScreen && styles.innerContainerLarge]}>
+      <View style={styles.innerContainer}>
 
         <View style={[styles.header, { paddingHorizontal: hPad }]}>
           <View style={styles.userInfo}>
@@ -490,15 +510,12 @@ export default function ExploreScreen({ navigation }: any) {
         ) : (
           <FlatList
             key={`farmhouse-list-${numColumns}`}
-            data={filteredAndSortedFarmhouses}
+            data={paddedFarmhouses}
             renderItem={renderFarmhouse}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item, index) => item?.id ?? `pad-${index}`}
             numColumns={numColumns}
-            columnWrapperStyle={numColumns > 1 ? { gap: cardGap, paddingHorizontal: hPad } : undefined}
-            contentContainerStyle={[
-              styles.listContent,
-              numColumns === 1 && { paddingHorizontal: hPad },
-            ]}
+            columnWrapperStyle={numColumns > 1 ? { gap: cardGap } : undefined}
+            contentContainerStyle={[styles.listContent, { paddingHorizontal: hPad }]}
             showsVerticalScrollIndicator={false}
             onScroll={scrollHandler.onScroll}
             scrollEventThrottle={scrollHandler.scrollEventThrottle}
@@ -694,24 +711,36 @@ export default function ExploreScreen({ navigation }: any) {
                   onChangeText={(text) => setFilters({...filters, minCapacity: text.replace(/[^0-9]/g, '')})}
                 />
 
-                <Text style={[styles.filterLabel, { color: colors.text }]}>Availability (YYYY-MM-DD)</Text>
+                <Text style={[styles.filterLabel, { color: colors.text }]}>Availability</Text>
                 <View style={styles.priceRow}>
-                  <TextInput
-                    style={[styles.filterInputHalf, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
-                    placeholder="Check-in"
-                    placeholderTextColor={colors.placeholder}
-                    value={filters.checkIn}
-                    onChangeText={(text) => setFilters({ ...filters, checkIn: text })}
-                    maxLength={10}
-                  />
-                  <TextInput
-                    style={[styles.filterInputHalf, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
-                    placeholder="Check-out"
-                    placeholderTextColor={colors.placeholder}
-                    value={filters.checkOut}
-                    onChangeText={(text) => setFilters({ ...filters, checkOut: text })}
-                    maxLength={10}
-                  />
+                  <TouchableOpacity
+                    style={[styles.filterInputHalf, { backgroundColor: colors.background, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 10 }]}
+                    onPress={() => setCalPickerFor('checkIn')}
+                  >
+                    <Calendar size={14} color={filters.checkIn ? colors.text : colors.placeholder} />
+                    <Text style={{ color: filters.checkIn ? colors.text : colors.placeholder, fontSize: 13 }}>
+                      {filters.checkIn || 'Check-in'}
+                    </Text>
+                    {filters.checkIn ? (
+                      <TouchableOpacity onPress={() => setFilters({ ...filters, checkIn: '', checkOut: '' })} style={{ marginLeft: 'auto' }}>
+                        <XIcon size={12} color={colors.placeholder} />
+                      </TouchableOpacity>
+                    ) : null}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.filterInputHalf, { backgroundColor: colors.background, borderColor: colors.border, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 10, paddingHorizontal: 10 }]}
+                    onPress={() => setCalPickerFor('checkOut')}
+                  >
+                    <Calendar size={14} color={filters.checkOut ? colors.text : colors.placeholder} />
+                    <Text style={{ color: filters.checkOut ? colors.text : colors.placeholder, fontSize: 13 }}>
+                      {filters.checkOut || 'Check-out'}
+                    </Text>
+                    {filters.checkOut ? (
+                      <TouchableOpacity onPress={() => setFilters({ ...filters, checkOut: '' })} style={{ marginLeft: 'auto' }}>
+                        <XIcon size={12} color={colors.placeholder} />
+                      </TouchableOpacity>
+                    ) : null}
+                  </TouchableOpacity>
                 </View>
 
                 <Text style={[styles.filterLabel, { color: colors.text }]}>Property Type</Text>
@@ -757,6 +786,83 @@ export default function ExploreScreen({ navigation }: any) {
         </TouchableOpacity>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Availability date picker modal */}
+      <Modal visible={calPickerFor !== null} transparent animationType="fade" onRequestClose={() => setCalPickerFor(null)}>
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }} activeOpacity={1} onPress={() => setCalPickerFor(null)}>
+          <TouchableOpacity activeOpacity={1} onPress={() => {}}>
+            <View style={{ backgroundColor: colors.cardBackground, borderRadius: 16, padding: 16, width: 320, elevation: 8 }}>
+              <Text style={{ color: colors.text, fontWeight: '700', fontSize: 16, marginBottom: 12, textAlign: 'center' }}>
+                {calPickerFor === 'checkIn' ? 'Select Check-in Date' : 'Select Check-out Date'}
+              </Text>
+              {(() => {
+                const effectiveMin = calPickerFor === 'checkOut' && filters.checkIn
+                  ? (() => { const d = new Date(filters.checkIn); d.setDate(d.getDate() + 1); return d.toISOString().split('T')[0]; })()
+                  : todayStr;
+                return (
+                  <RNCalendar
+                    minDate={effectiveMin}
+                    maxDate={maxFilterDate}
+                    current={calPickerFor === 'checkOut' && filters.checkIn ? filters.checkIn : todayStr}
+                    onDayPress={(day: DateData) => {
+                      if (calPickerFor === 'checkIn') {
+                        setFilters(f => ({ ...f, checkIn: day.dateString, checkOut: f.checkOut && f.checkOut <= day.dateString ? '' : f.checkOut }));
+                        setCalPickerFor('checkOut');
+                      } else {
+                        setFilters(f => ({ ...f, checkOut: day.dateString }));
+                        setCalPickerFor(null);
+                      }
+                    }}
+                    markedDates={{
+                      ...(filters.checkIn ? { [filters.checkIn]: { selected: true, selectedColor: colors.buttonBackground } } : {}),
+                      ...(filters.checkOut ? { [filters.checkOut]: { selected: true, selectedColor: colors.buttonBackground } } : {}),
+                    }}
+                    pastScrollRange={0}
+                    renderArrow={(direction) =>
+                      direction === 'left'
+                        ? <ChevronLeft size={20} color="#D4AF37" />
+                        : <ChevronRight size={20} color="#D4AF37" />
+                    }
+                    dayComponent={({ date, state, marking, onPress }: any) => {
+                      const outOfRange = date.dateString < effectiveMin || date.dateString > maxFilterDate;
+                      const selected = marking?.selected;
+                      const isToday = state === 'today';
+                      return (
+                        <TouchableOpacity
+                          onPress={() => { if (!outOfRange && onPress) onPress(date); }}
+                          disabled={outOfRange}
+                          style={{
+                            width: 32, height: 32, borderRadius: 16,
+                            backgroundColor: selected ? colors.buttonBackground : 'transparent',
+                            justifyContent: 'center', alignItems: 'center',
+                          }}
+                        >
+                          <Text style={{
+                            fontSize: 14, textAlign: 'center',
+                            color: selected ? colors.buttonText
+                              : outOfRange ? colors.placeholder
+                              : isToday ? colors.buttonBackground
+                              : colors.text,
+                            fontWeight: selected || isToday ? '700' : '400',
+                          }}>
+                            {date.day}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    }}
+                    theme={{
+                      backgroundColor: colors.cardBackground,
+                      calendarBackground: colors.cardBackground,
+                      textSectionTitleColor: colors.text,
+                      monthTextColor: colors.text,
+                    }}
+                  />
+                );
+              })()}
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -764,11 +870,6 @@ export default function ExploreScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   innerContainer: { flex: 1 },
-  innerContainerLarge: {
-    maxWidth: CONTENT_MAX_WIDTH,
-    alignSelf: 'center',
-    width: '100%',
-  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -815,8 +916,8 @@ const styles = StyleSheet.create({
   },
   listContent: { paddingBottom: 100 },
   propertyCard: { flex: 1, borderRadius: 16, overflow: 'hidden', marginBottom: 24, borderWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 3 },
-  imageContainer: { position: 'relative' },
-  propertyImage: { width: '100%', aspectRatio: 16 / 10 },
+  imageContainer: { width: '100%', height: 220, overflow: 'hidden', position: 'relative' },
+  propertyImage: { width: '100%', height: 220 },
   imageActions: { position: 'absolute', top: 12, right: 12, flexDirection: 'row', gap: 8 },
   actionButton: { backgroundColor: 'rgba(255, 255, 255, 0.9)', borderRadius: 20, padding: 8 },
   propertyDetails: { padding: 16 },
