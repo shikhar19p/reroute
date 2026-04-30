@@ -237,17 +237,18 @@ export async function savePaymentRecord(
   currency: string,
   paymentResponse?: PaymentResponse
 ): Promise<string> {
+  if (paymentResponse) {
+    return paymentResponse.razorpay_payment_id;
+  }
+
   try {
     const paymentData: Omit<PaymentRecord, 'id'> = {
       bookingId,
       userId,
       amount,
       currency,
-      status: paymentResponse ? 'success' : 'pending',
+      status: 'pending',
       paymentMethod: 'razorpay',
-      razorpayPaymentId: paymentResponse?.razorpay_payment_id,
-      razorpayOrderId: paymentResponse?.razorpay_order_id,
-      razorpaySignature: paymentResponse?.razorpay_signature,
       createdAt: serverTimestamp(),
     };
 
