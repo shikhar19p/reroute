@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet, StatusBar,
@@ -165,6 +165,14 @@ export default function ExploreScreen({ navigation }: any) {
   const cardGap = numColumns > 1 ? 16 : 0;
 
   const [searchText, setSearchText] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleSearchChange = useCallback((text: string) => {
+    setSearchText(text);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => setDebouncedSearch(text), 250);
+  }, []);
+  useEffect(() => () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); }, []);
   const [sortBy, setSortBy] = useState('name');
   const [showSortModal, setShowSortModal] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -340,11 +348,12 @@ export default function ExploreScreen({ navigation }: any) {
   const filteredAndSortedFarmhouses = useMemo(() => {
     let result = [...farmhouses];
 
-    if (searchText) {
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
       result = result.filter(f =>
-        (f.name || '').toLowerCase().includes(searchText.toLowerCase()) ||
-        (f.location || '').toLowerCase().includes(searchText.toLowerCase()) ||
-        (f.city || '').toLowerCase().includes(searchText.toLowerCase())
+        (f.name || '').toLowerCase().includes(q) ||
+        (f.location || '').toLowerCase().includes(q) ||
+        (f.city || '').toLowerCase().includes(q)
       );
     }
 
@@ -416,7 +425,7 @@ export default function ExploreScreen({ navigation }: any) {
     }
 
     return result;
-  }, [searchText, filters, sortBy, farmhouses, farmhouseRatings]);
+  }, [debouncedSearch, filters, sortBy, farmhouses, farmhouseRatings]);
 
   // Pad last row with null spacers so final-row cards don't stretch
   const paddedFarmhouses = useMemo(() => {
@@ -440,7 +449,7 @@ export default function ExploreScreen({ navigation }: any) {
         onToggleWishlist={() => toggleWishlist(item)}
       />
     );
-  }, [colors, farmhouseRatings, isInWishlist, navigation]);
+  }, [colors, farmhouseRatings, isInWishlist, navigation, handleShare, toggleWishlist]);
 
   if (error) {
     return (
@@ -499,7 +508,7 @@ export default function ExploreScreen({ navigation }: any) {
               placeholder="Search by name or area..."
               placeholderTextColor={colors.placeholder}
               value={searchText}
-              onChangeText={setSearchText}
+              onChangeText={handleSearchChange}
             />
           </View>
           <TouchableOpacity
