@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Linking, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { ArrowLeft } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../authContext';
 import { Booking, updateBookingStatus, updatePaymentStatus } from '../../services/bookingService';
@@ -159,7 +160,12 @@ export default function BookingsListScreen({ route, navigation }: Props) {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right', 'bottom']}>
       <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Bookings</Text>
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <ArrowLeft size={22} color={colors.text} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Bookings</Text>
+        </View>
         <Text style={[styles.headerSub, { color: colors.placeholder }]}>{bookings.length} total</Text>
       </View>
       <View style={styles.filtersRow}>
@@ -198,6 +204,8 @@ export default function BookingsListScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  backBtn: { padding: 4 },
   headerTitle: { fontSize: 22, fontWeight: '700' },
   headerSub: { marginTop: 2 },
   filtersRow: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, gap: 8, flexWrap: 'wrap' },

@@ -268,8 +268,10 @@ function OwnerNavigator({ navigation }: any) {
   const routed = React.useRef(false);
 
   React.useEffect(() => {
-    // Wait for server-confirmed data — never route on stale cache or empty loading state
-    if (!user?.uid || loading || !serverConfirmed || routed.current) return;
+    if (!user?.uid || loading || routed.current) return;
+    // If cache has farms, route immediately (server will update in-place).
+    // If no farms yet, wait for server confirmation before routing to OwnerHome.
+    if (myFarmhouses.length === 0 && !serverConfirmed) return;
     routed.current = true;
     if (myFarmhouses.length > 0) {
       navigation.replace('MyFarmhouses');

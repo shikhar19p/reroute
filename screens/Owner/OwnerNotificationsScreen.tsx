@@ -11,6 +11,7 @@ import { useAuth } from '../../authContext';
 import { useDialog } from '../../components/CustomDialog';
 import { Booking } from '../../services/bookingService';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { db } from '../../firebaseConfig';
 
 type NotificationItem = {
@@ -89,8 +90,14 @@ export default function OwnerNotificationsScreen({ navigation }: any) {
   const { showDialog } = useDialog();
   const { data: bookings, loading, refreshing, refresh: onRefresh } = useOwnerBookings();
   const [adminNotifications, setAdminNotifications] = useState<any[]>([]);
-  const [clearedIds, setClearedIds] = useState<Set<string>>(new Set());
+  const [dismissedUntil, setDismissedUntil] = useState<number>(0);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    AsyncStorage.getItem('ownerNotifDismissedUntil').then(val => {
+      if (val) setDismissedUntil(parseInt(val, 10));
+    });
+  }, []);
 
   const fetchAdminNotifications = useCallback(async () => {
     if (!user) return;
@@ -145,8 +152,11 @@ export default function OwnerNotificationsScreen({ navigation }: any) {
   }, [bookings, adminNotifications]);
 
   const notifications = useMemo(
-    () => allNotifications.filter(n => !clearedIds.has(n.id)),
-    [allNotifications, clearedIds]
+    () => allNotifications.filter(n => {
+      const ts = toDate(n.timestamp)?.getTime() ?? 0;
+      return ts > dismissedUntil;
+    }),
+    [allNotifications, dismissedUntil]
   );
 
   const handleClearAll = useCallback(() => {
@@ -158,15 +168,15 @@ export default function OwnerNotificationsScreen({ navigation }: any) {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Clear All', style: 'destructive',
-          onPress: () => setClearedIds(prev => {
-            const next = new Set(prev);
-            notifications.forEach(n => next.add(n.id));
-            return next;
-          }),
+          onPress: () => {
+            const now = Date.now();
+            setDismissedUntil(now);
+            AsyncStorage.setItem('ownerNotifDismissedUntil', String(now));
+          },
         },
       ],
     });
-  }, [notifications, showDialog]);
+  }, [showDialog]);
 
   const renderItem = ({ item }: { item: NotificationItem }) => {
     const cfg = TYPE_CONFIG[item.type];

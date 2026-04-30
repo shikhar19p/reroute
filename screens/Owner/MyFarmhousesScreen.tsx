@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   Image,
   ActivityIndicator,
   RefreshControl,
+  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -40,6 +41,16 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
   const { data: ownerBookings } = useOwnerBookings();
   const pendingCount = ownerBookings.filter(b => b.status === 'pending').length;
 
+  const { width: windowWidth } = useWindowDimensions();
+  const numColumns = useMemo(() => {
+    if (windowWidth > 1200) return 4;
+    if (windowWidth >= 1024) return 3;
+    if (windowWidth >= 768) return 2;
+    return 1;
+  }, [windowWidth]);
+  const hPad = windowWidth >= 1024 ? 32 : 20;
+  const cardGap = numColumns > 1 ? 16 : 0;
+
   const handleLogout = () => {
     showDialog({
       title: 'Logout',
@@ -66,7 +77,16 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
     });
   };
 
-  const renderFarmhouse = ({ item }: { item: Farmhouse }) => (
+  const paddedFarmhouses = useMemo(() => {
+    if (numColumns <= 1) return farmhouses as (Farmhouse | null)[];
+    const remainder = farmhouses.length % numColumns;
+    if (remainder === 0) return farmhouses as (Farmhouse | null)[];
+    return [...farmhouses, ...Array<null>(numColumns - remainder).fill(null)] as (Farmhouse | null)[];
+  }, [farmhouses, numColumns]);
+
+  const renderFarmhouse = ({ item }: { item: Farmhouse | null }) => {
+    if (!item) return <View style={{ flex: 1 }} />;
+    return (
     <TouchableOpacity
       style={[styles.farmCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
       onPress={() => navigation.navigate('FarmhouseDetailOwner', { farmhouseId: item.id })}
@@ -105,7 +125,8 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
         </View>
       </View>
     </TouchableOpacity>
-  );
+    );
+  };
 
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
@@ -240,10 +261,13 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
         renderEmptyState()
       ) : (
         <FlatList
-          data={farmhouses}
+          key={`farm-list-${numColumns}`}
+          data={paddedFarmhouses}
           renderItem={renderFarmhouse}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
+          keyExtractor={(item, index) => item?.id ?? `pad-${index}`}
+          numColumns={numColumns}
+          columnWrapperStyle={numColumns > 1 ? { gap: cardGap } : undefined}
+          contentContainerStyle={[styles.listContent, { paddingHorizontal: hPad }]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
@@ -394,7 +418,6 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   listContent: {
-    padding: 20,
     paddingTop: 8,
     paddingBottom: 20,
   },
@@ -406,6 +429,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   farmCard: {
+    flex: 1,
     borderRadius: 12,
     marginBottom: 16,
     borderWidth: 1,

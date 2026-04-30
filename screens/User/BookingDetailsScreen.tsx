@@ -57,6 +57,8 @@ interface Farmhouse {
   mapLink: string;
   capacity: string;
   bedrooms: string;
+  extraGuestPrice: number;
+  maxGuests: number;
   photoUrls: string[];
   timing?: {
     dayUseCheckIn: string;
@@ -173,6 +175,8 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
             mapLink: basicDetails.mapLink || farmhouseData?.mapLink || '',
             capacity: String(basicDetails.capacity || farmhouseData?.capacity || '0'),
             bedrooms: String(basicDetails.bedrooms || farmhouseData?.bedrooms || '0'),
+            extraGuestPrice: Number(farmhouseData?.pricing?.extraGuestPrice || farmhouseData?.extraGuestPrice || 0),
+            maxGuests: Number(farmhouseData?.pricing?.maxGuests || farmhouseData?.maxGuests || 0),
             photoUrls: Array.isArray(farmhouseData?.photoUrls) ? farmhouseData.photoUrls : [],
             timing: farmhouseData?.timing || undefined,
             amenities: farmhouseData?.amenities || {},
@@ -415,9 +419,30 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
 
           <View style={styles.infoRow}>
             <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Number of Guests</Text>
-            <Text style={[styles.infoValue, { color: colors.text }]}>
-              {Number(booking.guests) || 0} guests
-            </Text>
+            <View style={{ alignItems: 'flex-end' }}>
+              <Text style={[styles.infoValue, { color: colors.text }]}>
+                {Number(booking.guests) || 0} guests
+              </Text>
+              {(() => {
+                const guests = Number(booking.guests) || 0;
+                const baseCap = Number(farmhouse?.capacity) || 0;
+                const extraPrice = farmhouse?.extraGuestPrice || 0;
+                const extraGuests = Math.max(0, guests - baseCap);
+                if (extraGuests > 0 && extraPrice > 0 && baseCap > 0) {
+                  const [sy, sm, sd] = (booking.checkInDate || '').split('-').map(Number);
+                  const [ey, em, ed] = (booking.checkOutDate || '').split('-').map(Number);
+                  const nights = booking.bookingType === 'dayuse' ? 1
+                    : Math.max(1, Math.round((new Date(ey, em - 1, ed).getTime() - new Date(sy, sm - 1, sd).getTime()) / 86400000));
+                  const charge = extraGuests * extraPrice * nights;
+                  return (
+                    <Text style={{ fontSize: 12, color: '#F59E0B', marginTop: 2 }}>
+                      +{extraGuests} extra × ₹{extraPrice}{nights > 1 ? ` × ${nights}n` : ''} = ₹{charge}
+                    </Text>
+                  );
+                }
+                return null;
+              })()}
+            </View>
           </View>
 
           <View style={styles.infoRow}>
@@ -486,7 +511,12 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
               <Text style={[styles.statValue, { color: colors.text }]}>
                 {farmhouse.capacity || '0'}
               </Text>
-              <Text style={[styles.statLabel, { color: colors.placeholder }]}>Max Guests</Text>
+              <Text style={[styles.statLabel, { color: colors.placeholder }]}>Base Capacity</Text>
+              {farmhouse.maxGuests > 0 && farmhouse.maxGuests > Number(farmhouse.capacity) && (
+                <Text style={{ fontSize: 10, color: colors.placeholder, textAlign: 'center' }}>
+                  Max {farmhouse.maxGuests} w/ extras
+                </Text>
+              )}
             </View>
 
             <View style={[styles.statBox, { backgroundColor: colors.background }]}>

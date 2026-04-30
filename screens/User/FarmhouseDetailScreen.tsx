@@ -428,77 +428,86 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     return now.toISOString().split('T')[0];
   };
 
-  const isDateUnavailable = (dateString: string) => {
+  const fmtDate = (s: string) => {
+    const d = new Date(s + 'T00:00:00');
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  type UnavailReason = 'past' | 'outside_window' | 'booked' | 'blocked' | null;
+
+  const getUnavailReason = (dateString: string): UnavailReason => {
     const minDate = getMinimumDate();
     const maxDate = getMaximumDate();
-    return dateString < minDate || dateString > maxDate || unavailableDates.includes(dateString);
+    if (dateString < minDate) return 'past';
+    if (dateString > maxDate) return 'outside_window';
+    if (farmhouse.bookedDates?.includes(dateString)) return 'booked';
+    if (farmhouse.blockedDates?.includes(dateString)) return 'blocked';
+    return null;
+  };
+
+  const isDateUnavailable = (dateString: string) => getUnavailReason(dateString) !== null;
+
+  const showUnavailDialog = (reason: UnavailReason, dateString?: string) => {
+    const minDate = getMinimumDate();
+    const maxDate = getMaximumDate();
+    const window = farmhouse.bookingWindowDays ?? 90;
+    const msgs: Record<NonNullable<UnavailReason>, string> = {
+      past: `Earliest available date is ${fmtDate(minDate)}.`,
+      outside_window: `This farmhouse accepts bookings up to ${window} days ahead (until ${fmtDate(maxDate)}).`,
+      booked: `${dateString ? fmtDate(dateString) + ' is' : 'This date is'} already booked by another guest.`,
+      blocked: `${dateString ? fmtDate(dateString) + ' has' : 'This date has'} been blocked by the owner.`,
+    };
+    showDialog({ title: 'Date Unavailable', message: msgs[reason!], type: 'warning' });
   };
 
   const handleDateSelect = (day: DateData) => {
     const dateString = day.dateString;
-    
-    // Check if clicked date is unavailable
-    if (isDateUnavailable(dateString)) {
-      showDialog({
-        title: 'Unavailable',
-        message: 'This date is already booked or blocked.',
-        type: 'warning'
-      });
+
+    const reason = getUnavailReason(dateString);
+    if (reason) {
+      showUnavailDialog(reason, dateString);
       return;
     }
 
-    // First click - select start date
     if (!selectedDates.start) {
       setSelectedDates({ start: dateString, end: dateString });
       return;
     }
-    
-    // Click on same date - deselect
+
     if (selectedDates.start && selectedDates.start === selectedDates.end) {
       if (dateString === selectedDates.start) {
         setSelectedDates({});
         return;
       }
-      
-      // Selecting end date - validate range first
+
       if (dateString < selectedDates.start) {
-        // User clicked earlier date, make it new start
         setSelectedDates({ start: dateString, end: dateString });
         return;
       }
-      
-      // Check if any date in range is booked
+
       const start = new Date(selectedDates.start);
       const end = new Date(dateString);
       let current = new Date(start);
-      let hasConflict = false;
-      
+      let conflictDate: string | null = null;
+      let conflictReason: UnavailReason = null;
+
       while (current <= end) {
-        const checkDateString = current.toISOString().split('T')[0];
-        if (isDateUnavailable(checkDateString)) {
-          hasConflict = true;
-          break;
-        }
+        const check = current.toISOString().split('T')[0];
+        const r = getUnavailReason(check);
+        if (r) { conflictDate = check; conflictReason = r; break; }
         current.setDate(current.getDate() + 1);
       }
-      
-      if (hasConflict) {
-        showDialog({
-          title: 'Invalid Range',
-          message: 'Your selection includes an unavailable date. Please choose a different range.',
-          type: 'warning'
-        });
-        // Reset to single date
+
+      if (conflictDate && conflictReason) {
+        showUnavailDialog(conflictReason, conflictDate);
         setSelectedDates({ start: dateString, end: dateString });
         return;
       }
-      
-      // Range is valid - set it
+
       setSelectedDates({ start: selectedDates.start, end: dateString });
       return;
     }
-    
-    // Already have a range - start new selection
+
     setSelectedDates({ start: dateString, end: dateString });
   };
 
@@ -561,6 +570,13 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
+  const calculateExtraGuestCharge = () => {
+    if (guestCount <= farmhouse.capacity) return 0;
+    const extra = guestCount - farmhouse.capacity;
+    const units = getBookingType() === 'day-use' ? 1 : calculateNights();
+    return extra * extraGuestPrice * units;
+  };
+
   const getBookingType = () => {
     return calculateNights() === 0 ? 'day-use' : 'overnight';
   };
@@ -605,6 +621,9 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
       bookingType: getBookingType(),
       capacity: farmhouse.capacity,
       rooms: rooms,
+      extraGuestCharge: calculateExtraGuestCharge(),
+      extraGuestCount: Math.max(0, guestCount - farmhouse.capacity),
+      extraGuestRate: extraGuestPrice,
     });
   };
 
@@ -933,11 +952,13 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
               onDayPress={handleDateSelect}
               minDate={getMinimumDate()}
               maxDate={getMaximumDate()}
+              current={getMinimumDate()}
+              pastScrollRange={0}
               markingType={'period'}
               renderArrow={(direction) =>
                 direction === 'left'
-                  ? <ChevronLeft size={22} color={isDark ? '#D4AF37' : '#B8860B'} />
-                  : <ChevronRight size={22} color={isDark ? '#D4AF37' : '#B8860B'} />
+                  ? <ChevronLeft size={22} color="#D4AF37" />
+                  : <ChevronRight size={22} color="#D4AF37" />
               }
               theme={{
                 backgroundColor: colors.cardBackground,
@@ -953,10 +974,33 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
             {selectedDates.start && selectedDates.end && (
               <View style={[styles.bookingSummary, { backgroundColor: isDark ? 'rgba(212,175,55,0.15)' : 'rgba(212,175,55,0.1)', borderColor: '#D4AF37' }]}>
-                <View style={styles.summaryRow}>
-                  <Text style={[styles.summaryLabel, { color: colors.text }]}>Total ({getBookingType() === 'day-use' ? 'Day Use' : `${calculateNights()} ${calculateNights() === 1 ? 'night' : 'nights'}`}):</Text>
-                  <Text style={[styles.totalValue, { color: '#D4AF37' }]}>₹{calculateTotalPrice()}</Text>
-                </View>
+                {(() => {
+                  const type = getBookingType();
+                  const nights = calculateNights();
+                  const extraCharge = calculateExtraGuestCharge();
+                  const baseCharge = calculateTotalPrice() - extraCharge;
+                  const label = type === 'day-use' ? 'Day Use' : `${nights} ${nights === 1 ? 'night' : 'nights'}`;
+                  return (
+                    <>
+                      <View style={styles.summaryRow}>
+                        <Text style={[styles.summaryLabel, { color: colors.placeholder }]}>Accommodation ({label}):</Text>
+                        <Text style={[styles.summaryLabel, { color: colors.text }]}>₹{baseCharge}</Text>
+                      </View>
+                      {extraCharge > 0 && (
+                        <View style={styles.summaryRow}>
+                          <Text style={[styles.summaryLabel, { color: '#F59E0B' }]}>
+                            Extra guests ({guestCount - farmhouse.capacity} × ₹{extraGuestPrice}{type !== 'day-use' ? ` × ${nights}n` : ''}):
+                          </Text>
+                          <Text style={[styles.summaryLabel, { color: '#F59E0B' }]}>₹{extraCharge}</Text>
+                        </View>
+                      )}
+                      <View style={[styles.summaryRow, { borderTopWidth: extraCharge > 0 ? 0.5 : 0, borderTopColor: '#D4AF37', marginTop: extraCharge > 0 ? 6 : 0, paddingTop: extraCharge > 0 ? 6 : 0 }]}>
+                        <Text style={[styles.summaryLabel, { color: colors.text, fontWeight: '700' }]}>Total:</Text>
+                        <Text style={[styles.totalValue, { color: '#D4AF37' }]}>₹{calculateTotalPrice()}</Text>
+                      </View>
+                    </>
+                  );
+                })()}
               </View>
             )}
           </View>
