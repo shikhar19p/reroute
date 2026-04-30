@@ -9,6 +9,7 @@ interface NetworkState {
 
 interface NetworkContextType extends NetworkState {
   checkOnline: () => boolean;
+  offlineDuration: number;
 }
 
 const NetworkContext = createContext<NetworkContextType>({
@@ -24,18 +25,27 @@ export function NetworkProvider({ children }: { children: ReactNode }) {
     isInternetReachable: true,
     wasOffline: false,
   });
+  const [offlineDuration, setOfflineDuration] = useState(0);
   const wentOfflineRef = useRef(false);
+  const offlineStartRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (Platform.OS === 'web') {
-      const setOnline = () =>
+      const setOnline = () => {
+        if (offlineStartRef.current) {
+          const duration = Date.now() - offlineStartRef.current;
+          setOfflineDuration(duration);
+          offlineStartRef.current = null;
+        }
         setState(prev => ({
           isConnected: true,
           isInternetReachable: true,
           wasOffline: wentOfflineRef.current,
         }));
+      };
       const setOffline = () => {
         wentOfflineRef.current = true;
+        offlineStartRef.current = Date.now();
         setState({ isConnected: false, isInternetReachable: false, wasOffline: false });
       };
       window.addEventListener('online', setOnline);
@@ -57,8 +67,14 @@ export function NetworkProvider({ children }: { children: ReactNode }) {
 
       if (!online) {
         wentOfflineRef.current = true;
+        offlineStartRef.current = Date.now();
         setState({ isConnected: false, isInternetReachable: false, wasOffline: false });
       } else {
+        if (offlineStartRef.current) {
+          const duration = Date.now() - offlineStartRef.current;
+          setOfflineDuration(duration);
+          offlineStartRef.current = null;
+        }
         setState({
           isConnected: true,
           isInternetReachable: reachable,
@@ -74,6 +90,7 @@ export function NetworkProvider({ children }: { children: ReactNode }) {
       const online = connected && reachable !== false;
       if (!online) {
         wentOfflineRef.current = true;
+        offlineStartRef.current = Date.now();
         setState({ isConnected: false, isInternetReachable: false, wasOffline: false });
       }
     });
@@ -95,7 +112,7 @@ export function NetworkProvider({ children }: { children: ReactNode }) {
   const checkOnline = () => state.isConnected;
 
   return (
-    <NetworkContext.Provider value={{ ...state, checkOnline }}>
+    <NetworkContext.Provider value={{ ...state, checkOnline, offlineDuration }}>
       {children}
     </NetworkContext.Provider>
   );

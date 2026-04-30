@@ -2,6 +2,7 @@ import React, { ComponentType } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import ErrorBoundary from './ErrorBoundary';
+import { trackUserAction, addBreadcrumb } from '../utils/sentryUtils';
 
 interface ScreenErrorBoundaryProps {
   screenName: string;
@@ -38,6 +39,10 @@ export function withScreenErrorBoundary<P extends object>(
     <ErrorBoundary
       fallback={<ScreenErrorFallback screenName={screenName} />}
       onError={(error) => {
+        addBreadcrumb(`Screen error: ${screenName}`, {
+          screenName,
+          errorMessage: error.message,
+        }, 'error');
         console.error(`Error in ${screenName}:`, error);
       }}
     >
