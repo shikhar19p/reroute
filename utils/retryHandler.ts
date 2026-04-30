@@ -25,7 +25,9 @@ const DEFAULT_CONFIG: Required<RetryConfig> = {
       message.includes('network') ||
       message.includes('timeout') ||
       message.includes('econnrefused') ||
-      message.includes('enotfound')
+      message.includes('enotfound') ||
+      message.includes('offline') ||
+      message.includes('no internet')
     ) {
       return true;
     }
@@ -35,6 +37,8 @@ const DEFAULT_CONFIG: Required<RetryConfig> = {
     if (code === 'INVALID_ARGUMENT') return false;
     if (code === 'NOT_FOUND') return false;
     if (code === 'ALREADY_EXISTS') return false;
+    if (code === 'UNAVAILABLE') return true;
+    if (code === 'DEADLINE_EXCEEDED') return true;
 
     // Retry on server errors (5xx)
     if (code >= 500) return true;

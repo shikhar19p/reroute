@@ -1,6 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
 import * as Sentry from '@sentry/react-native';
+import { captureException, addBreadcrumb } from '../utils/sentryUtils';
 
 interface Props {
   children: ReactNode;
@@ -54,30 +55,31 @@ class ErrorBoundary extends Component<Props, State> {
 
     this.setState({ errorInfo, errorCount, isRecoverable });
 
-    Sentry.captureException(error, {
+    // Add breadcrumb for error boundary catch
+    addBreadcrumb('Error caught by ErrorBoundary', {
+      message: errorMessage,
+      isFatal,
+      errorCount,
+      componentStack: errorInfo.componentStack,
+    }, isFatal ? 'fatal' : 'error');
+
+    // Capture exception with enhanced context
+    captureException(error, {
       level: isFatal ? 'fatal' : 'error',
+      operation: 'ErrorBoundary',
       tags: {
-        errorBoundary: 'true',
-        recoverable: isRecoverable.toString(),
-        errorCount: errorCount.toString(),
+        'error_boundary': 'true',
+        'recoverable': isRecoverable.toString(),
+        'error_count': errorCount.toString(),
+        'error_type': isFatal ? 'fatal' : 'recoverable',
       },
-      contexts: {
-        react: {
-          componentStack: errorInfo.componentStack,
-        },
-        error: {
-          message: errorMessage,
-          isFatal,
-          recovered: false,
-        },
+      context: {
+        message: errorMessage,
+        isFatal,
+        errorCount,
+        componentStack: errorInfo.componentStack.substring(0, 500),
+        recovered: false,
       },
-      breadcrumbs: [
-        {
-          message: 'Error caught by ErrorBoundary',
-          level: 'error',
-          data: { errorMessage },
-        },
-      ],
     });
 
     if (__DEV__) {
