@@ -88,7 +88,7 @@ const BookingCard = React.memo(({
       <View style={styles.actionRow}>
         {isPending ? (
           <TouchableOpacity
-            style={[styles.viewButton, { backgroundColor: '#FF9800' }]}
+            style={[styles.viewButton, { backgroundColor: colors.statusPending }]}
             onPress={navigateToContinuePayment}
           >
             <Text style={[styles.buttonText, { color: '#fff' }]}>Continue Payment</Text>
@@ -103,10 +103,10 @@ const BookingCard = React.memo(({
         )}
         {canCancel && (
           <TouchableOpacity
-            style={[styles.cancelButton, { borderColor: '#F44336' }]}
+            style={[styles.cancelButton, { borderColor: colors.error }]}
             onPress={() => handleCancelBooking(item)}
           >
-            <Text style={[styles.cancelButtonText, { color: '#F44336' }]}>Cancel</Text>
+            <Text style={[styles.cancelButtonText, { color: colors.error }]}>Cancel</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -181,10 +181,10 @@ export default function BookingsScreen({ navigation }: any) {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'confirmed': return '#4CAF50';
-      case 'pending': return '#FF9800';
-      case 'cancelled': return '#F44336';
-      case 'completed': return '#2196F3';
+      case 'confirmed': return colors.statusConfirmed;
+      case 'pending': return colors.statusPending;
+      case 'cancelled': return colors.statusCancelled;
+      case 'completed': return colors.statusCompleted;
       default: return colors.placeholder;
     }
   };

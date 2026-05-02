@@ -172,7 +172,7 @@ export default function OwnerBookingDetailScreen({ route, navigation }: Props) {
           <View style={styles.infoRow}>
             <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Payment Status</Text>
             <View style={[styles.paymentBadge, {
-              backgroundColor: booking.paymentStatus === 'paid' ? '#10B981' : '#F59E0B'
+              backgroundColor: booking.paymentStatus === 'paid' ? colors.statusConfirmed : colors.statusPending
             }]}>
               <Text style={styles.paymentBadgeText}>
                 {(booking.paymentStatus || 'pending').toUpperCase()}
@@ -194,7 +194,7 @@ export default function OwnerBookingDetailScreen({ route, navigation }: Props) {
         {booking.status === 'cancelled' && (
           <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
             <View style={[styles.cancelledHeader, { backgroundColor: isDark ? 'rgba(239, 68, 68, 0.1)' : '#FEE2E2' }]}>
-              <Text style={styles.cancelledTitle}>Booking Cancelled</Text>
+              <Text style={[styles.cancelledTitle, { color: colors.error }]}>Booking Cancelled</Text>
             </View>
 
             {(booking as any).cancelledAt && (
@@ -222,7 +222,7 @@ export default function OwnerBookingDetailScreen({ route, navigation }: Props) {
               <>
                 <View style={styles.infoRow}>
                   <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Refund Amount</Text>
-                  <Text style={[styles.refundAmount, { color: '#10B981' }]}>
+                  <Text style={[styles.refundAmount, { color: colors.success }]}>
                     ₹{Number((booking as any).refundAmount).toLocaleString('en-IN')}
                   </Text>
                 </View>
@@ -239,9 +239,9 @@ export default function OwnerBookingDetailScreen({ route, navigation }: Props) {
                 <View style={styles.infoRow}>
                   <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Refund Status</Text>
                   <View style={[styles.paymentBadge, {
-                    backgroundColor: (booking as any).refundStatus === 'completed' ? '#10B981' :
-                                   (booking as any).refundStatus === 'processing' ? '#F59E0B' :
-                                   (booking as any).refundStatus === 'failed' ? '#EF4444' : '#6B7280'
+                    backgroundColor: (booking as any).refundStatus === 'completed' ? colors.statusConfirmed :
+                                   (booking as any).refundStatus === 'processing' ? colors.statusPending :
+                                   (booking as any).refundStatus === 'failed' ? colors.error : colors.placeholder
                   }]}>
                     <Text style={styles.paymentBadgeText}>
                       {((booking as any).refundStatus || 'Pending').toUpperCase()}
@@ -281,7 +281,7 @@ export default function OwnerBookingDetailScreen({ route, navigation }: Props) {
             </TouchableOpacity>
           )}
           {(booking.status === 'pending' || booking.status === 'confirmed') && (
-            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#ef4444' }]} onPress={handleOwnerCancel}>
+            <TouchableOpacity style={[styles.actionBtn, { backgroundColor: colors.error }]} onPress={handleOwnerCancel}>
               <Text style={[styles.actionText, { color: '#fff' }]}>Cancel & Refund</Text>
             </TouchableOpacity>
           )}
@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     alignItems: 'center',
   },
-  cancelledTitle: { fontSize: 15, fontWeight: '700', color: '#EF4444' },
+  cancelledTitle: { fontSize: 15, fontWeight: '700' },
   noRefundBox: {
     padding: 12,
     borderRadius: 8,
