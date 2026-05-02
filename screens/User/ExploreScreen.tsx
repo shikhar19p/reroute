@@ -6,6 +6,7 @@ import {
   useWindowDimensions, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import AnimatedImage from '../../components/AnimatedImage';
+import { FilterChip } from '../../components/FilterChip';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Heart, Search, SlidersHorizontal, ArrowUpDown, Bell, Share2, Star, MapPin, LogOut, Calendar, CheckCircle, AlertCircle, Clock, Building2, X as XIcon, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { Calendar as RNCalendar, DateData } from 'react-native-calendars';
@@ -168,6 +169,21 @@ export default function ExploreScreen({ navigation }: any) {
   const [showSortModal, setShowSortModal] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const insets = useSafeAreaInsets();
+  const AMENITY_OPTIONS: { key: string; label: string }[] = [
+    { key: 'pool', label: 'Pool' },
+    { key: 'wifi', label: 'WiFi' },
+    { key: 'ac', label: 'AC' },
+    { key: 'parking', label: 'Parking' },
+    { key: 'kitchen', label: 'Kitchen' },
+    { key: 'bbq', label: 'BBQ' },
+    { key: 'bonfire', label: 'Bonfire' },
+    { key: 'hotTub', label: 'Hot Tub' },
+    { key: 'djMusicSystem', label: 'DJ System' },
+    { key: 'projector', label: 'Projector' },
+    { key: 'outdoorSeating', label: 'Outdoor Seating' },
+    { key: 'restaurant', label: 'Restaurant' },
+  ];
+
   const [filters, setFilters] = useState({
     location: '',
     minPrice: '',
@@ -176,6 +192,7 @@ export default function ExploreScreen({ navigation }: any) {
     propertyType: '' as '' | 'farmhouse' | 'resort',
     checkIn: '',
     checkOut: '',
+    amenities: [] as string[],
   });
   const [calPickerFor, setCalPickerFor] = useState<'checkIn' | 'checkOut' | null>(null);
   const todayStr = new Date().toISOString().split('T')[0];
@@ -184,8 +201,8 @@ export default function ExploreScreen({ navigation }: any) {
     d.setMonth(d.getMonth() + 3);
     return d.toISOString().split('T')[0];
   }, []);
-  const filtersActive = filters.location !== '' || filters.minPrice !== '' || filters.maxPrice !== '' || filters.minCapacity !== '' || filters.propertyType !== '' || filters.checkIn !== '';
-  const clearFilters = () => setFilters({ location: '', minPrice: '', maxPrice: '', minCapacity: '', propertyType: '', checkIn: '', checkOut: '' });
+  const filtersActive = filters.location !== '' || filters.minPrice !== '' || filters.maxPrice !== '' || filters.minCapacity !== '' || filters.propertyType !== '' || filters.checkIn !== '' || filters.amenities.length > 0;
+  const clearFilters = () => setFilters({ location: '', minPrice: '', maxPrice: '', minCapacity: '', propertyType: '', checkIn: '', checkOut: '', amenities: [] });
 
   const [adminNotifications, setAdminNotifications] = useState<any[]>([]);
 
@@ -353,6 +370,12 @@ export default function ExploreScreen({ navigation }: any) {
       result = result.filter(f => (f.propertyType || 'farmhouse') === filters.propertyType);
     }
 
+    if (filters.amenities.length > 0) {
+      result = result.filter(f =>
+        filters.amenities.every(key => !!(f.amenities as any)?.[key])
+      );
+    }
+
     if (filters.checkIn && filters.checkOut && filters.checkIn <= filters.checkOut) {
       const toLocalDate = (d: Date) =>
         `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -494,12 +517,74 @@ export default function ExploreScreen({ navigation }: any) {
         </View>
 
         {filtersActive && (
-          <View style={[styles.activeFilterRow, { paddingHorizontal: hPad }]}>
-            <Text style={[styles.activeFilterText, { color: colors.placeholder }]}>Filters active</Text>
-            <TouchableOpacity onPress={clearFilters} style={[styles.clearFilterBtn, { borderColor: colors.buttonBackground }]}>
-              <Text style={[styles.clearFilterBtnText, { color: colors.buttonBackground }]}>Clear all</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ paddingHorizontal: hPad, marginBottom: 8 }}
+            contentContainerStyle={{ gap: 8, alignItems: 'center' }}
+          >
+            {filters.location !== '' && (
+              <FilterChip
+                label={`📍 ${filters.location}`}
+                onRemove={() => setFilters(f => ({ ...f, location: '' }))}
+                color={colors.buttonBackground}
+                textColor={colors.buttonText}
+                small
+              />
+            )}
+            {(filters.minPrice !== '' || filters.maxPrice !== '') && (
+              <FilterChip
+                label={`₹${filters.minPrice || '0'}–${filters.maxPrice || '∞'}`}
+                onRemove={() => setFilters(f => ({ ...f, minPrice: '', maxPrice: '' }))}
+                color={colors.buttonBackground}
+                textColor={colors.buttonText}
+                small
+              />
+            )}
+            {filters.minCapacity !== '' && (
+              <FilterChip
+                label={`${filters.minCapacity}+ guests`}
+                onRemove={() => setFilters(f => ({ ...f, minCapacity: '' }))}
+                color={colors.buttonBackground}
+                textColor={colors.buttonText}
+                small
+              />
+            )}
+            {filters.propertyType !== '' && (
+              <FilterChip
+                label={filters.propertyType === 'resort' ? 'Resort' : 'Farmhouse'}
+                onRemove={() => setFilters(f => ({ ...f, propertyType: '' }))}
+                color={colors.buttonBackground}
+                textColor={colors.buttonText}
+                small
+              />
+            )}
+            {filters.checkIn !== '' && (
+              <FilterChip
+                label={`${filters.checkIn}${filters.checkOut ? ` → ${filters.checkOut}` : ''}`}
+                onRemove={() => setFilters(f => ({ ...f, checkIn: '', checkOut: '' }))}
+                color={colors.buttonBackground}
+                textColor={colors.buttonText}
+                small
+              />
+            )}
+            {filters.amenities.map(key => {
+              const opt = AMENITY_OPTIONS.find(a => a.key === key);
+              return opt ? (
+                <FilterChip
+                  key={key}
+                  label={opt.label}
+                  onRemove={() => setFilters(f => ({ ...f, amenities: f.amenities.filter(a => a !== key) }))}
+                  color={colors.buttonBackground}
+                  textColor={colors.buttonText}
+                  small
+                />
+              ) : null;
+            })}
+            <TouchableOpacity onPress={clearFilters} style={[styles.clearFilterBtn, { borderColor: '#EF4444' }]}>
+              <Text style={[styles.clearFilterBtnText, { color: '#EF4444' }]}>Clear all</Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
         )}
 
         {loading ? (
@@ -743,6 +828,39 @@ export default function ExploreScreen({ navigation }: any) {
                   </TouchableOpacity>
                 </View>
 
+                <Text style={[styles.filterLabel, { color: colors.text }]}>Amenities</Text>
+                <View style={styles.amenitiesGrid}>
+                  {AMENITY_OPTIONS.map(({ key, label }) => {
+                    const selected = filters.amenities.includes(key);
+                    return (
+                      <TouchableOpacity
+                        key={key}
+                        style={[
+                          styles.amenityChip,
+                          { borderColor: colors.border, backgroundColor: colors.background },
+                          selected && { borderColor: colors.buttonBackground, backgroundColor: colors.buttonBackground + '22' },
+                        ]}
+                        onPress={() =>
+                          setFilters(f => ({
+                            ...f,
+                            amenities: selected
+                              ? f.amenities.filter(a => a !== key)
+                              : [...f.amenities, key],
+                          }))
+                        }
+                      >
+                        <Text style={[
+                          styles.amenityChipText,
+                          { color: colors.placeholder },
+                          selected && { color: colors.buttonBackground, fontWeight: '700' },
+                        ]}>
+                          {label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
                 <Text style={[styles.filterLabel, { color: colors.text }]}>Property Type</Text>
                 <View style={styles.typeFilterRow}>
                   {(['', 'farmhouse', 'resort'] as const).map((type) => (
@@ -965,4 +1083,7 @@ const styles = StyleSheet.create({
   typeFilterRow: { flexDirection: 'row', gap: 10 },
   typeFilterChip: { flex: 1, paddingVertical: 10, borderRadius: 10, borderWidth: 1.5, alignItems: 'center' },
   typeFilterText: { fontSize: 14 },
+  amenitiesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  amenityChip: { paddingVertical: 7, paddingHorizontal: 12, borderRadius: 20, borderWidth: 1.5 },
+  amenityChipText: { fontSize: 13 },
 });
