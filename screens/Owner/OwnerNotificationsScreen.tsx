@@ -260,7 +260,7 @@ export default function OwnerNotificationsScreen({ navigation }: any) {
 
       {loading ? (
         <View style={styles.center}>
-          <ActivityIndicator size="large" color="#D4AF37" />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : notifications.length === 0 ? (
         <View style={styles.center}>
@@ -277,7 +277,7 @@ export default function OwnerNotificationsScreen({ navigation }: any) {
           renderItem={renderItem}
           contentContainerStyle={styles.list}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#D4AF37" colors={['#D4AF37']} />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
           }
         />
       )}

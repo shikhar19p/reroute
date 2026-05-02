@@ -163,6 +163,41 @@ export default function ProfileScreen({ navigation }: any) {
             />
           </View>
 
+          {/* Theme Preview */}
+          <View style={[styles.themePreviewRow, { borderBottomColor: colors.divider }]}>
+            <TouchableOpacity
+              style={[
+                styles.themePreviewCard,
+                { backgroundColor: '#F7F7F7', borderColor: !isDark ? colors.primary : '#E8E8E8', borderWidth: !isDark ? 2 : StyleSheet.hairlineWidth },
+              ]}
+              onPress={() => isDark && toggleTheme()}
+              activeOpacity={0.8}
+            >
+              <View style={styles.themePreviewSwatch}>
+                <View style={[styles.swatchBar, { backgroundColor: '#C5A565' }]} />
+                <View style={[styles.swatchLine, { backgroundColor: '#111111', width: '70%' }]} />
+                <View style={[styles.swatchLine, { backgroundColor: '#555555', width: '50%' }]} />
+              </View>
+              <Text style={[styles.themePreviewLabel, { color: '#111111' }]}>Light</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.themePreviewCard,
+                { backgroundColor: '#111111', borderColor: isDark ? colors.primary : '#1F1F1F', borderWidth: isDark ? 2 : StyleSheet.hairlineWidth },
+              ]}
+              onPress={() => !isDark && toggleTheme()}
+              activeOpacity={0.8}
+            >
+              <View style={styles.themePreviewSwatch}>
+                <View style={[styles.swatchBar, { backgroundColor: '#C5A565' }]} />
+                <View style={[styles.swatchLine, { backgroundColor: '#FFFFFF', width: '70%' }]} />
+                <View style={[styles.swatchLine, { backgroundColor: '#A0A0A0', width: '50%' }]} />
+              </View>
+              <Text style={[styles.themePreviewLabel, { color: '#FFFFFF' }]}>Dark</Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={[styles.menuItem, { borderBottomColor: colors.divider }]}>
             <Text style={[styles.menuText, { color: colors.text }]}>Dark Mode</Text>
             <Switch
@@ -250,4 +285,17 @@ const styles = StyleSheet.create({
     fontSize: 12, fontWeight: '600', textTransform: 'uppercase',
     letterSpacing: 0.8, marginHorizontal: 20, marginTop: 8, marginBottom: 6,
   },
+  themePreviewRow: {
+    flexDirection: 'row', gap: 10,
+    paddingVertical: 14, paddingHorizontal: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  themePreviewCard: {
+    flex: 1, borderRadius: 10, padding: 12,
+    alignItems: 'center', gap: 8,
+  },
+  themePreviewSwatch: { width: '100%', gap: 5 },
+  swatchBar: { height: 6, borderRadius: 3, width: '100%' },
+  swatchLine: { height: 4, borderRadius: 2 },
+  themePreviewLabel: { fontSize: 12, fontWeight: '700' },
 });
