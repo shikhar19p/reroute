@@ -454,8 +454,8 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     const msgs: Record<NonNullable<UnavailReason>, string> = {
       past: `Earliest available date is ${fmtDate(minDate)}.`,
       outside_window: `This farmhouse accepts bookings up to ${window} days ahead (until ${fmtDate(maxDate)}).`,
-      booked: `${dateString ? fmtDate(dateString) + ' is' : 'This date is'} already booked by another guest.`,
-      blocked: `${dateString ? fmtDate(dateString) + ' has' : 'This date has'} been blocked by the owner.`,
+      booked: `${dateString ? fmtDate(dateString) + ' is' : 'This date is'} unavailable for booking.`,
+      blocked: `${dateString ? fmtDate(dateString) + ' is' : 'This date is'} unavailable for booking.`,
     };
     showDialog({ title: 'Date Unavailable', message: msgs[reason!], type: 'warning' });
   };
