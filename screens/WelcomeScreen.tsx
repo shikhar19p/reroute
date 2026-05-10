@@ -37,9 +37,12 @@ export default function WelcomeScreen({ navigation }: any) {
   // On web, hide ImageBackground until fully loaded to prevent top-to-bottom progressive render
   const [bgReady, setBgReady] = useState(Platform.OS !== 'web');
 
+  const IOS_CLIENT_ID = '272634614965-m7ocbk1nja6h1addjage0r3i6qme6hs7.apps.googleusercontent.com';
+
   const [, response, promptAsync] = Google.useAuthRequest({
     webClientId: WEB_CLIENT_ID,
     androidClientId: WEB_CLIENT_ID,
+    iosClientId: IOS_CLIENT_ID,
     selectAccount: true,
     redirectUri,
   });

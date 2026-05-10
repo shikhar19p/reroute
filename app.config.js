@@ -24,11 +24,12 @@ export default {
     },
     ios: {
       supportsTablet: true,
-      bundleIdentifier: "com.rerouteaventures.app"
+      bundleIdentifier: "com.rerouteaventures.app",
+      googleServicesFile: "./GoogleService-Info.plist"
     },
     android: {
       package: "com.rerouteaventures.app",
-      versionCode: 15,
+      versionCode: 19,
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#F9F8EF"
@@ -43,6 +44,8 @@ export default {
       shortName: "ReRoute",
     },
     plugins: [
+      "./plugins/withFmtFix",
+      "./plugins/withRazorpayFix",
       "expo-web-browser",
       [
         "@react-native-google-signin/google-signin",
