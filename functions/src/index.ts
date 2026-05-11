@@ -660,7 +660,7 @@ export const verifyPayment = onCall({ minInstances: 1 }, async (request) => {
       await upsertPaymentRecord({
         bookingId,
         userId: bookingData.userId || bookingData.user_id,
-        amount: rzpPayment.amount,
+        amount: Number(rzpPayment.amount),
         currency: rzpPayment.currency || 'INR',
         status: 'success',
         razorpayPaymentId: razorpay_payment_id,
@@ -1354,7 +1354,10 @@ export const onFarmhouseApprovalChanged = onDocumentUpdated('farmhouses/{farmhou
       return;
     }
 
-    const statusLabel = newStatus === 'approved' ? 'Approved' : newStatus === 'rejected' ? 'Rejected' : 'Updated';
+    const statusLabel = newStatus === 'approved' ? 'Approved'
+      : newStatus === 'rejected' ? 'Rejected'
+      : newStatus === 'pending' ? 'Pending Review'
+      : newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
 
     await sendEmail(
       ownerEmail,
@@ -1373,7 +1376,7 @@ export const onFarmhouseApprovalChanged = onDocumentUpdated('farmhouses/{farmhou
         ? `${farmhouseName} is now live on Reroute!`
         : newStatus === 'rejected'
           ? `${farmhouseName} was not approved. Check the app for details.`
-          : `${farmhouseName} status updated to ${statusLabel}.`;
+          : `Your listing "${farmhouseName}" has been updated. Current status: ${statusLabel}.`;
       sendPushToUser(ownerId, pushTitle, pushBody,
         { farmhouseId, type: 'listing_status' }
       ).catch(() => {});
