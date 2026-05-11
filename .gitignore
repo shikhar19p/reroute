@@ -57,3 +57,6 @@ google-play-key.json
 CONTRIBUTION_*.md
 VALUE_DISTRIBUTION_*.md
 CODEBASE_ANALYSIS.md
+
+# Claude Code local config
+.claude/
