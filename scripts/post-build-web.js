@@ -14,7 +14,7 @@ const DIST = path.join(__dirname, '..', 'dist');
 const WEB = path.join(__dirname, '..', 'web');
 
 // --- 1. Copy static files from web/ to dist/ ---
-const staticFiles = ['robots.txt', 'sitemap.xml', '_redirects'];
+const staticFiles = ['robots.txt', 'sitemap.xml', '_redirects', 'privacy-policy.html', 'terms.html'];
 for (const file of staticFiles) {
   const src = path.join(WEB, file);
   const dest = path.join(DIST, file);

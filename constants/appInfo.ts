@@ -14,10 +14,10 @@ export const APP_INFO = {
   website: 'https://reroute.app',
   
   // Legal Links (REQUIRED for app stores)
-  privacyPolicyUrl: 'https://reroute.app/privacy-policy',
-  termsOfServiceUrl: 'https://reroute.app/terms-of-service',
-  refundPolicyUrl: 'https://reroute.app/refund-policy',
-  cookiePolicyUrl: 'https://reroute.app/cookie-policy',
+  privacyPolicyUrl: 'https://reroute-aventures.web.app/privacy-policy.html',
+  termsOfServiceUrl: 'https://reroute-aventures.web.app/terms.html',
+  refundPolicyUrl: 'https://reroute-aventures.web.app/terms.html',
+  cookiePolicyUrl: 'https://reroute-aventures.web.app/privacy-policy.html',
   
   // Social Media
   social: {
