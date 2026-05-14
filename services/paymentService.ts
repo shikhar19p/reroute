@@ -15,7 +15,7 @@ const functions = getFunctions();
 // Payment configuration
 // NOTE: Razorpay keys are now managed securely in Firebase Functions
 // Client only needs the key ID for checkout UI
-let RAZORPAY_KEY_ID = Constants.expoConfig?.extra?.razorpayKeyId || process.env.RAZORPAY_KEY_ID || 'rzp_test_YOUR_KEY_HERE';
+let RAZORPAY_KEY_ID = Constants.expoConfig?.extra?.razorpayKeyId || process.env.RAZORPAY_KEY_ID || '';
 
 export interface PaymentDetails {
   orderId: string;

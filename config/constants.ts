@@ -231,7 +231,7 @@ export const COLLECTIONS = {
 export const APP_CONFIG = {
   NAME: 'ReRoute',
   VERSION: '1.0.0',
-  SUPPORT_EMAIL: 'support@reroute.app',
+  SUPPORT_EMAIL: 'support@rerouteaventures.org',
   SUPPORT_PHONE: '+91-XXXXXXXXXX', // Update with actual support number
 } as const;
 

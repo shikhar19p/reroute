@@ -78,8 +78,8 @@ export default function ContactUsScreen({ navigation }: any) {
             <ContactLink
               icon={<Mail size={18} color={colors.primary} />}
               label="Email"
-              value="rustiquebyranareddy@gmail.com"
-              onPress={() => Linking.openURL('mailto:rustiquebyranareddy@gmail.com')}
+              value="support@rerouteaventures.org"
+              onPress={() => Linking.openURL('mailto:support@rerouteaventures.org')}
             />
           </View>
 

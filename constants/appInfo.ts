@@ -10,7 +10,7 @@ export const APP_INFO = {
   
   // Company/Developer Info
   company: 'ReRoute Technologies',
-  supportEmail: 'support@reroute.app',
+  supportEmail: 'support@rerouteaventures.org',
   website: 'https://reroute.app',
   
   // Legal Links (REQUIRED for app stores)
@@ -30,7 +30,7 @@ export const APP_INFO = {
   // App Store Links
   appStore: {
     ios: 'https://apps.apple.com/app/reroute/id123456789',
-    android: 'https://play.google.com/store/apps/details?id=com.reroute.app',
+    android: 'https://play.google.com/store/apps/details?id=com.rerouteaventures.app',
   },
   
   // Feature Flags
@@ -59,7 +59,7 @@ export const APP_INFO = {
   // Contact Info
   contact: {
     phone: '+91 82803 53535',
-    email: 'rustiquebyranareddy@gmail.com',
+    email: 'support@rerouteaventures.org',
     address: 'Your Company Address Here',
   },
 };

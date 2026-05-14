@@ -41,10 +41,10 @@ try {
 
   console.log('📦 Package names in google-services.json:', packageNames.join(', '));
 
-  if (packageNames.includes('com.reroute.app')) {
-    console.log('✅ com.reroute.app configuration found!');
+  if (packageNames.includes('com.rerouteaventures.app')) {
+    console.log('✅ com.rerouteaventures.app configuration found!');
   } else {
-    console.warn('⚠️  WARNING: com.reroute.app not found in google-services.json');
+    console.warn('⚠️  WARNING: com.rerouteaventures.app not found in google-services.json');
   }
 
 } catch (error) {

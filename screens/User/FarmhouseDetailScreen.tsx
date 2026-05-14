@@ -388,7 +388,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
         `   Weekday: Rs. ${farmhouse.weeklyNight}/night\n` +
         `   Weekend: Rs. ${farmhouse.weekendNight}/night\n\n` +
         `Book now on ReRoute App!\n` +
-        `Download: https://play.google.com/store/apps/details?id=com.reroute.app`;
+        `Download: https://play.google.com/store/apps/details?id=com.rerouteaventures.app`;
 
       await Share.share({
         message: shareMessage,
@@ -1054,7 +1054,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.contactBtn, { backgroundColor: colors.cardBackground, borderWidth: 1, borderColor: colors.buttonBackground }]}
-                onPress={() => Linking.openURL('mailto:rustiquebyranareddy@gmail.com')}
+                onPress={() => Linking.openURL('mailto:support@rerouteaventures.org')}
                 activeOpacity={0.8}
               >
                 <Mail size={16} color={colors.buttonBackground} />

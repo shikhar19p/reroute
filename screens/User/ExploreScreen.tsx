@@ -256,7 +256,7 @@ export default function ExploreScreen({ navigation }: any) {
         `Capacity: Up to ${farmhouse.capacity} guests\n\n` +
         `Starting from Rs. ${farmhouse.weeklyNight}/night\n\n` +
         `Book now on ReRoute App!\n` +
-        `Download: https://play.google.com/store/apps/details?id=com.reroute.app`;
+        `Download: https://play.google.com/store/apps/details?id=com.rerouteaventures.app`;
 
       await Share.share({
         message: shareMessage,

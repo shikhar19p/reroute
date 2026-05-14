@@ -17,7 +17,7 @@ const isDevelopment = __DEV__;
 // Firebase configuration values
 // These can be overridden by environment variables via expo-constants
 const defaultConfig = {
-  apiKey: 'AIzaSyDMLXQjQSSZRPUdlOeNf1afg2WPPQFSTAI',
+  apiKey: 'AIzaSyBaiOHi0DRWzDB-PcYU5y7Q_VegsFdf6eU',
   authDomain: 'rustique-6b7c4.firebaseapp.com',
   projectId: 'rustique-6b7c4',
   storageBucket: 'rustique-6b7c4.firebasestorage.app',

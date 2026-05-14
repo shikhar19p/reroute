@@ -45,7 +45,7 @@ export default function TermsAndConditionsScreen({ navigation }: any) {
         />
         <Section
           title="5. Cancellations & Refund Policy"
-          body="All cancellation requests must be submitted to our support team at rustiquebyranareddy@gmail.com or +91 82803 53535 with your Booking ID before the check-in time."
+          body="All cancellation requests must be submitted to our support team at support@rerouteaventures.org or +91 82803 53535 with your Booking ID before the check-in time."
         />
         <Section
           title="5a. Refund Eligibility"
@@ -81,7 +81,7 @@ export default function TermsAndConditionsScreen({ navigation }: any) {
         />
         <Section
           title="12. Contact"
-          body="For questions about these terms, reach us at rustiquebyranareddy@gmail.com or +91 82803 53535, or through the Contact Us section in the app."
+          body="For questions about these terms, reach us at support@rerouteaventures.org or +91 82803 53535, or through the Contact Us section in the app."
         />
       </ScrollView>
     </SafeAreaView>

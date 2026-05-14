@@ -602,10 +602,10 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.contactButton, { backgroundColor: colors.background }]}
-            onPress={() => Linking.openURL('mailto:rustiquebyranareddy@gmail.com')}
+            onPress={() => Linking.openURL('mailto:support@rerouteaventures.org')}
           >
             <Mail size={20} color={colors.buttonBackground} />
-            <Text style={[styles.contactText, { color: colors.text }]}>rustiquebyranareddy@gmail.com</Text>
+            <Text style={[styles.contactText, { color: colors.text }]}>support@rerouteaventures.org</Text>
           </TouchableOpacity>
         </View>
 
