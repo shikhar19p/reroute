@@ -28,7 +28,6 @@ export default {
     },
     android: {
       package: "com.rerouteaventures.app",
-      versionCode: 21,
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#F9F8EF"
