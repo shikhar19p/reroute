@@ -22,7 +22,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#F9F8EF"
       },
-      "versionCode": 20
+      "versionCode": 23
     },
     "plugins": [
       "expo-web-browser",

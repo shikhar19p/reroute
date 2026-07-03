@@ -91,7 +91,20 @@
       "Bash(gh run *)",
       "Bash(git config *)",
       "Bash(grep -E \"\\\\.\\(ts|tsx|js|jsx\\)$\")",
-      "Bash(xargs ls *)"
+      "Bash(xargs ls *)",
+      "Bash(eas build *)",
+      "Bash(npm ci *)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(eas build:view b9bbbad5-8fe3-48f3-a25e-ac402845e19f)",
+      "Bash(eas build:list --platform android --limit 1 --json)",
+      "Bash(eas build:list --platform android --limit 1 --json --non-interactive)",
+      "Bash(grep -E '\"node\"' package.json eas.json .nvmrc)",
+      "Bash(npm --version)",
+      "Bash(grep -A5 '\"engines\"' package.json)",
+      "Bash(grep -r '\"node\"' eas.json)",
+      "Bash(eas build:logs b9bbbad5-8fe3-48f3-a25e-ac402845e19f)",
+      "Bash(eas --help)",
+      "Bash(eas build:cancel)"
     ],
     "deny": [],
     "ask": []
