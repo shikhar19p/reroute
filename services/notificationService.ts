@@ -207,16 +207,26 @@ export async function sendBookingConfirmationNotification(
   const title = 'Booking Confirmed! 🎉';
   const body = `Your booking for ${farmhouseName} has been confirmed. Check-in: ${new Date(checkInDate).toLocaleDateString()}`;
 
-  await sendLocalNotification(title, body, { bookingId, type: 'booking_confirmation' });
+  if (Platform.OS !== 'web') {
+    try {
+      await sendLocalNotification(title, body, { bookingId, type: 'booking_confirmation' });
+    } catch (err) {
+      console.error('sendLocalNotification failed (non-fatal):', err);
+    }
+  }
 
-  await saveNotificationToFirestore({
-    userId,
-    title,
-    body,
-    data: { bookingId, farmhouseName },
-    type: 'booking',
-    read: false,
-  });
+  try {
+    await saveNotificationToFirestore({
+      userId,
+      title,
+      body,
+      data: { bookingId, farmhouseName },
+      type: 'booking',
+      read: false,
+    });
+  } catch (err) {
+    console.error('saveNotificationToFirestore failed (non-fatal):', err);
+  }
 }
 
 /**
@@ -231,16 +241,26 @@ export async function sendPaymentSuccessNotification(
   const title = 'Payment Successful ✅';
   const body = `₹${amount} paid successfully for booking #${bookingId.substring(0, 8)}`;
 
-  await sendLocalNotification(title, body, { bookingId, paymentId, type: 'payment_success' });
+  if (Platform.OS !== 'web') {
+    try {
+      await sendLocalNotification(title, body, { bookingId, paymentId, type: 'payment_success' });
+    } catch (err) {
+      console.error('sendLocalNotification failed (non-fatal):', err);
+    }
+  }
 
-  await saveNotificationToFirestore({
-    userId,
-    title,
-    body,
-    data: { bookingId, amount, paymentId },
-    type: 'payment',
-    read: false,
-  });
+  try {
+    await saveNotificationToFirestore({
+      userId,
+      title,
+      body,
+      data: { bookingId, amount, paymentId },
+      type: 'payment',
+      read: false,
+    });
+  } catch (err) {
+    console.error('saveNotificationToFirestore failed (non-fatal):', err);
+  }
 }
 
 /**
@@ -257,16 +277,29 @@ export async function sendCancellationNotification(
     ? `Your booking for ${farmhouseName} has been cancelled. Refund of ₹${refundAmount} will be processed in 5-7 business days.`
     : `Your booking for ${farmhouseName} has been cancelled.`;
 
-  await sendLocalNotification(title, body, { bookingId, type: 'cancellation' });
+  // Local notifications are not supported on web — call safely
+  if (Platform.OS !== 'web') {
+    try {
+      await sendLocalNotification(title, body, { bookingId, type: 'cancellation' });
+    } catch (err) {
+      // Non-fatal: notification failure should not break cancellation flow
+      console.error('sendLocalNotification failed (non-fatal):', err);
+    }
+  }
 
-  await saveNotificationToFirestore({
-    userId,
-    title,
-    body,
-    data: { bookingId, farmhouseName, refundAmount },
-    type: 'cancellation',
-    read: false,
-  });
+  // Persist notification to Firestore for history; don't let failures bubble up
+  try {
+    await saveNotificationToFirestore({
+      userId,
+      title,
+      body,
+      data: { bookingId, farmhouseName, refundAmount },
+      type: 'cancellation',
+      read: false,
+    });
+  } catch (err) {
+    console.error('saveNotificationToFirestore failed (non-fatal):', err);
+  }
 }
 
 /**
@@ -284,21 +317,31 @@ export async function scheduleBookingReminder(
     const title = 'Upcoming Booking Reminder 📅';
     const body = `Your booking at ${farmhouseName} is tomorrow! Don't forget to check-in.`;
 
-    const notificationId = await scheduleNotification(
-      title,
-      body,
-      reminderDate,
-      { bookingId, type: 'booking_reminder' }
-    );
+    if (Platform.OS !== 'web') {
+      try {
+        await scheduleNotification(
+          title,
+          body,
+          reminderDate,
+          { bookingId, type: 'booking_reminder' }
+        );
+      } catch (err) {
+        console.error('scheduleNotification failed (non-fatal):', err);
+      }
+    }
 
-    await saveNotificationToFirestore({
-      userId,
-      title,
-      body,
-      data: { bookingId, farmhouseName, scheduledFor: reminderDate.toISOString() },
-      type: 'reminder',
-      read: false,
-    });
+    try {
+      await saveNotificationToFirestore({
+        userId,
+        title,
+        body,
+        data: { bookingId, farmhouseName, scheduledFor: reminderDate.toISOString() },
+        type: 'reminder',
+        read: false,
+      });
+    } catch (err) {
+      console.error('saveNotificationToFirestore failed (non-fatal):', err);
+    }
 
   }
 }
@@ -316,16 +359,26 @@ export async function sendOwnerBookingNotification(
   const title = 'New Booking Received! 💼';
   const body = `${guestName} booked ${farmhouseName} for ${new Date(checkInDate).toLocaleDateString()}`;
 
-  await sendLocalNotification(title, body, { bookingId, type: 'owner_booking' });
+  if (Platform.OS !== 'web') {
+    try {
+      await sendLocalNotification(title, body, { bookingId, type: 'owner_booking' });
+    } catch (err) {
+      console.error('sendLocalNotification failed (non-fatal):', err);
+    }
+  }
 
-  await saveNotificationToFirestore({
-    userId: ownerId,
-    title,
-    body,
-    data: { bookingId, farmhouseName, guestName },
-    type: 'booking',
-    read: false,
-  });
+  try {
+    await saveNotificationToFirestore({
+      userId: ownerId,
+      title,
+      body,
+      data: { bookingId, farmhouseName, guestName },
+      type: 'booking',
+      read: false,
+    });
+  } catch (err) {
+    console.error('saveNotificationToFirestore failed (non-fatal):', err);
+  }
 }
 
 /**

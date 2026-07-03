@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LogOut, MapPin, Home, ChevronRight, Compass, Bell } from 'lucide-react-native';
 import { useAuth } from '../../authContext';
 import { useOwnerBookings } from '../../GlobalDataContext';
@@ -39,7 +41,23 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
   const { hasDraft, loadDraft, clearDraft } = useFarmRegistration();
   const { data: farmhouses, loading, refreshing, refresh: onRefresh } = useMyFarmhouses();
   const { data: ownerBookings } = useOwnerBookings();
-  const pendingCount = ownerBookings.filter(b => b.status === 'pending').length;
+  const [dismissedUntil, setDismissedUntil] = useState<number>(0);
+
+  const loadDismissed = useCallback(() => {
+    AsyncStorage.getItem('ownerNotifDismissedUntil').then(val => {
+      if (val) setDismissedUntil(parseInt(val, 10));
+    });
+  }, []);
+
+  useEffect(() => { loadDismissed(); }, [loadDismissed]);
+  useFocusEffect(loadDismissed);
+
+  const pendingCount = ownerBookings.filter(b => {
+    if (b.paymentStatus === 'failed') return false;
+    const raw = (b as any).createdAt;
+    const ts = raw?.toDate?.()?.getTime() ?? (typeof raw === 'number' ? raw : new Date(raw || 0).getTime());
+    return ts > dismissedUntil;
+  }).length;
 
   const { width: windowWidth } = useWindowDimensions();
   const numColumns = useMemo(() => {
@@ -163,7 +181,7 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
           <Text style={[styles.headerTitle, { color: colors.text }]}>My Farmhouses</Text>
           <View style={styles.headerActions}>
             <TouchableOpacity
-              style={[styles.switchButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+              style={[styles.switchButton, { backgroundColor: colors.cardBackground }]}
               onPress={() => switchRole('customer')}
             >
               <Compass size={16} color={colors.primary} />
@@ -353,7 +371,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     height: isSmallDevice() ? 40 : 44,
     borderRadius: isSmallDevice() ? 20 : 22,
-    borderWidth: 1,
   },
   switchButtonText: {
     fontSize: 13,

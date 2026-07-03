@@ -660,7 +660,7 @@ export const verifyPayment = onCall({ minInstances: 1 }, async (request) => {
       await upsertPaymentRecord({
         bookingId,
         userId: bookingData.userId || bookingData.user_id,
-        amount: rzpPayment.amount,
+        amount: Number(rzpPayment.amount),
         currency: rzpPayment.currency || 'INR',
         status: 'success',
         razorpayPaymentId: razorpay_payment_id,
@@ -1052,10 +1052,30 @@ async function handlePaymentSuccess(payment: any) {
     const bookingSnap = await db.collection('bookings').doc(bookingId).get();
     const booking = bookingSnap.data();
 
+    // If cleanup cancelled this booking before the webhook arrived, restore the dates
+    if (booking?.status === 'cancelled' && booking?.farmhouseId && booking?.checkInDate && booking?.checkOutDate) {
+      try {
+        const farmhouseRef = db.collection('farmhouses').doc(booking.farmhouseId);
+        const datesToRestore: string[] = [];
+        const start = new Date(booking.checkInDate);
+        const end = new Date(booking.checkOutDate);
+        for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          datesToRestore.push(d.toISOString().split('T')[0]);
+        }
+        await farmhouseRef.update({
+          bookedDates: admin.firestore.FieldValue.arrayUnion(...datesToRestore),
+        });
+        logger.info('Restored farmhouse dates for paid-but-cleaned-up booking:', { bookingId, farmhouseId: booking.farmhouseId });
+      } catch (dateErr: any) {
+        logger.error('Failed to restore dates after webhook confirmation:', { bookingId, error: dateErr?.message });
+      }
+    }
+
     await db.collection('bookings').doc(bookingId).update({
       paymentStatus: 'paid',
       status: 'confirmed',
       transactionId: paymentId,
+      cancellationReason: admin.firestore.FieldValue.delete(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 

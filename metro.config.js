@@ -5,6 +5,9 @@ const config = getDefaultConfig(__dirname);
 // Improve file watching stability
 config.watchFolders = [__dirname];
 
+// Reduce Metro concurrency on Windows to avoid EMFILE / too many open files
+config.maxWorkers = 2;
+
 // Ignore problematic directories that cause watch errors on Windows
 config.resolver.blacklistRE = /node_modules\/\.expo-modules-core.*\.cxx|android\/\.cxx|ios\/build/;
 
