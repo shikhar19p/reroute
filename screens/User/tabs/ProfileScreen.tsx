@@ -12,6 +12,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useScrollHandler, useTabBarVisibility } from '../../../context/TabBarVisibilityContext';
 import { useDialog } from '../../../components/CustomDialog';
 import { ChevronRight, LogOut, Home, HelpCircle, FileText, Shield, Phone, Mail } from 'lucide-react-native';
+import { setPushNotificationsEnabled } from '../../../services/notificationService';
 
 interface UserProfile {
   name: string;
@@ -50,6 +51,7 @@ export default function ProfileScreen({ navigation }: any) {
           phone: data.phone || user.phoneNumber || 'Not Provided',
           age: data.age, address: data.address, gender: data.gender,
         });
+        setNotificationsEnabled(data.pushNotificationsEnabled !== false);
       } else {
         setProfile({
           name: user.displayName || 'Guest User',
@@ -63,6 +65,11 @@ export default function ProfileScreen({ navigation }: any) {
       setLoading(false);
     }
   }, [user]);
+
+  const handleToggleNotifications = (value: boolean) => {
+    setNotificationsEnabled(value);
+    if (user) setPushNotificationsEnabled(user.uid, value).catch(() => {});
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -157,45 +164,10 @@ export default function ProfileScreen({ navigation }: any) {
             <Text style={[styles.menuText, { color: colors.text }]}>Push Notifications</Text>
             <Switch
               value={notificationsEnabled}
-              onValueChange={setNotificationsEnabled}
+              onValueChange={handleToggleNotifications}
               trackColor={{ false: colors.border, true: colors.primary }}
               thumbColor={notificationsEnabled ? '#FFFFFF' : '#F5F5F5'}
             />
-          </View>
-
-          {/* Theme Preview */}
-          <View style={[styles.themePreviewRow, { borderBottomColor: colors.divider }]}>
-            <TouchableOpacity
-              style={[
-                styles.themePreviewCard,
-                { backgroundColor: '#F7F7F7', borderColor: !isDark ? colors.primary : '#E8E8E8', borderWidth: !isDark ? 2 : StyleSheet.hairlineWidth },
-              ]}
-              onPress={() => isDark && toggleTheme()}
-              activeOpacity={0.8}
-            >
-              <View style={styles.themePreviewSwatch}>
-                <View style={[styles.swatchBar, { backgroundColor: '#C5A565' }]} />
-                <View style={[styles.swatchLine, { backgroundColor: '#111111', width: '70%' }]} />
-                <View style={[styles.swatchLine, { backgroundColor: '#555555', width: '50%' }]} />
-              </View>
-              <Text style={[styles.themePreviewLabel, { color: '#111111' }]}>Light</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.themePreviewCard,
-                { backgroundColor: '#111111', borderColor: isDark ? colors.primary : '#1F1F1F', borderWidth: isDark ? 2 : StyleSheet.hairlineWidth },
-              ]}
-              onPress={() => !isDark && toggleTheme()}
-              activeOpacity={0.8}
-            >
-              <View style={styles.themePreviewSwatch}>
-                <View style={[styles.swatchBar, { backgroundColor: '#C5A565' }]} />
-                <View style={[styles.swatchLine, { backgroundColor: '#FFFFFF', width: '70%' }]} />
-                <View style={[styles.swatchLine, { backgroundColor: '#A0A0A0', width: '50%' }]} />
-              </View>
-              <Text style={[styles.themePreviewLabel, { color: '#FFFFFF' }]}>Dark</Text>
-            </TouchableOpacity>
           </View>
 
           <View style={[styles.menuItem, { borderBottomColor: colors.divider }]}>

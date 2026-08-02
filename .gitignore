@@ -31,9 +31,9 @@ yarn-error.*
 *.pem
 
 # local env files
-.env*.local
-.env
+.env*
 !.env.example
+google-services.staging.json
 
 # Firebase & Google Play sensitive files
 firebaseConfig-prod.ts

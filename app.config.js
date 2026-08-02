@@ -1,5 +1,11 @@
+const appJson = require('./app.json');
+
 const IS_PROD = process.env.ENVIRONMENT === 'production';
 const IS_PREVIEW = process.env.ENVIRONMENT === 'preview';
+// Signal on FIREBASE_PROJECT_ID (not ENVIRONMENT) so this works whether the value
+// came from .env.staging locally or from the EAS "development" environment's vars —
+// both set FIREBASE_PROJECT_ID to the staging project regardless of ENVIRONMENT's value.
+const IS_STAGING_BACKEND = process.env.FIREBASE_PROJECT_ID === 'reroute-aventures-dev';
 
 const getAppName = () => {
   if (IS_PROD) return 'ReRoute Aventures';
@@ -27,14 +33,21 @@ export default {
       bundleIdentifier: "com.rerouteaventures.app"
     },
     android: {
-      package: "com.rerouteaventures.app",
-      versionCode: 22,
+      package: IS_STAGING_BACKEND ? "com.rerouteaventures.app.dev" : "com.rerouteaventures.app",
+      // app.json is the single mutable source — EAS's autoIncrement (production
+      // profile, appVersionSource: "local") writes the bumped value there.
+      // app.config.js just reflects it; a plain object export here would otherwise
+      // fully replace app.json's expo block with no per-field fallback (verified:
+      // omitting this key resolves to `undefined`, not app.json's value).
+      versionCode: appJson.expo.android.versionCode,
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#F9F8EF"
       },
       edgeToEdgeEnabled: true,
-      googleServicesFile: "./google-services.json"
+      googleServicesFile: IS_STAGING_BACKEND
+        ? (process.env.GOOGLE_SERVICES_FILE || "./google-services.staging.json")
+        : "./google-services.json"
     },
     web: {
       favicon: "./assets/favicon.png",

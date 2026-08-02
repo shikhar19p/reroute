@@ -592,6 +592,16 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
   }, [ready, user?.uid, user?.role]);
 
   // ==================== OWNER BOOKINGS ====================
+  // Depend on a content-based key (sorted id list), not the myFarmhouses array
+  // reference — that listener uses includeMetadataChanges and produces a new
+  // array on every metadata blip / farmhouse doc write (e.g. bookedDates
+  // updates from bookings), which would otherwise tear down and restart these
+  // listeners continuously, leaving allBookingsLoading stuck true.
+  const myFarmhouseIdsKey = useMemo(
+    () => myFarmhouses.map(f => f.id).sort().join(','),
+    [myFarmhouses]
+  );
+
   useEffect(() => {
     if (!ready) return;
     if (!user?.uid || user.role !== 'owner') {
@@ -600,7 +610,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    const farmhouseIds = myFarmhouses.map(f => f.id);
+    const farmhouseIds = myFarmhouseIdsKey ? myFarmhouseIdsKey.split(',') : [];
     if (farmhouseIds.length === 0) {
       setAllBookingsForMyFarmhouses([]);
       setAllBookingsLoading(false);
@@ -658,7 +668,7 @@ export function GlobalDataProvider({ children }: { children: ReactNode }) {
     });
 
     return () => unsubs.forEach(u => u());
-  }, [ready, user?.uid, user?.role, myFarmhouses]);
+  }, [ready, user?.uid, user?.role, myFarmhouseIdsKey]);
 
   // ==================== REFRESH FUNCTIONS ====================
 

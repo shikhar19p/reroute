@@ -21,7 +21,7 @@ export interface CancellationPolicy {
 export const DEFAULT_CANCELLATION_POLICY: CancellationPolicy = {
   freeCancellationDays: 1, // 50% refund if cancelled 1+ days before
   partialRefundDays: 1, // No refund if cancelled within 24 hours
-  partialRefundPercentage: 50,
+  partialRefundPercentage: 0,
   processingFee: 0, // No processing fee
 };
 
@@ -40,20 +40,25 @@ export function calculateRefundAmount(
   totalAmount: number,
   checkInDate: string,
   isOwnerCancellation: boolean = false,
-  policy: CancellationPolicy = DEFAULT_CANCELLATION_POLICY
+  policy: CancellationPolicy = DEFAULT_CANCELLATION_POLICY,
+  platformFee: number = 0
 ): {
   refundAmount: number;
   refundPercentage: number;
   processingFee: number;
   reason: string;
 } {
-  // If owner cancels, always give 100% refund
+  // Platform fee is never refunded, no matter who cancels or when.
+  const refundableAmount = Math.max(0, totalAmount - platformFee);
+  const feeNote = platformFee > 0 ? ` (₹${platformFee} platform fee is non-refundable)` : '';
+
+  // If owner cancels, always give 100% refund of the refundable amount
   if (isOwnerCancellation) {
     return {
-      refundAmount: totalAmount,
+      refundAmount: refundableAmount,
       refundPercentage: 100,
       processingFee: 0,
-      reason: 'Full refund - Cancelled by property owner',
+      reason: `Full refund - Cancelled by property owner${feeNote}`,
     };
   }
 
@@ -72,23 +77,24 @@ export function calculateRefundAmount(
     };
   }
 
-  // Within 24 hours of check-in - 50% refund
+  // Within 24 hours of check-in - no refund
   if (hoursUntilCheckIn < threshold) {
-    const refundAmount = (totalAmount * REFUND_POLICY.PARTIAL_REFUND_PERCENTAGE) / 100;
+    const refundAmount = (refundableAmount * REFUND_POLICY.PARTIAL_REFUND_PERCENTAGE) / 100;
     return {
       refundAmount,
       refundPercentage: REFUND_POLICY.PARTIAL_REFUND_PERCENTAGE,
       processingFee: REFUND_POLICY.PROCESSING_FEE_RUPEES,
-      reason: `50% refund - Cancellation within 24 hours of check-in (${Math.floor(hoursUntilCheckIn)} hours remaining)`,
+      reason: `No refund - Cancellation within 24 hours of check-in (${Math.floor(hoursUntilCheckIn)} hours remaining)`,
     };
   }
 
-  // More than 24 hours before check-in - 100% refund
+  // More than 24 hours before check-in - 50% refund
+  const refundAmount = (refundableAmount * REFUND_POLICY.FULL_REFUND_PERCENTAGE) / 100;
   return {
-    refundAmount: totalAmount,
+    refundAmount,
     refundPercentage: REFUND_POLICY.FULL_REFUND_PERCENTAGE,
     processingFee: 0,
-    reason: `100% refund - Cancelled ${Math.floor(hoursUntilCheckIn)} hours before check-in`,
+    reason: `50% refund - Cancelled ${Math.floor(hoursUntilCheckIn)} hours before check-in${feeNote}`,
   };
 }
 
@@ -126,7 +132,9 @@ export async function cancelBookingWithRefund(
     const refundCalc = calculateRefundAmount(
       booking.totalPrice,
       booking.checkInDate,
-      isOwnerCancellation
+      isOwnerCancellation,
+      DEFAULT_CANCELLATION_POLICY,
+      booking.platformFee || 0
     );
 
     // Update booking status
@@ -249,13 +257,15 @@ export function getCancellationPolicyDescription(
   return `
 Cancellation Policy:
 
-• Cancel more than 24 hours before check-in: 100% refund
+• Cancel more than 24 hours before check-in: 50% refund
 
-• Cancel within 24 hours of check-in: 50% refund
+• Cancel within 24 hours of check-in: No refund
 
-• Owner cancellation: 100% refund (full amount returned)
+• Owner cancellation: 100% refund of the refundable amount
 
 • No refund for cancellations after check-in time
+
+• The platform fee is non-refundable in all cases
 
 • Refunds are processed within 5-7 business days to your original payment method
   `.trim();
@@ -284,7 +294,10 @@ export async function previewCancellationRefund(
 
     const refundCalc = calculateRefundAmount(
       booking.totalPrice,
-      booking.checkInDate
+      booking.checkInDate,
+      false,
+      DEFAULT_CANCELLATION_POLICY,
+      booking.platformFee || 0
     );
 
     return {

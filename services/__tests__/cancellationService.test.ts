@@ -73,39 +73,47 @@ describe('calculateRefundAmount', () => {
     });
   });
 
-  describe('within 24 hours of check-in (50% refund)', () => {
-    it('returns 50% refund when 12 hours remain', () => {
+  describe('within 24 hours of check-in (no refund)', () => {
+    it('returns 0% refund when 12 hours remain', () => {
       const result = calculateRefundAmount(10000, hoursFromNow(12));
+      expect(result.refundAmount).toBe(0);
+      expect(result.refundPercentage).toBe(0);
+      expect(result.reason).toMatch(/no refund/i);
+    });
+
+    it('returns 0% refund when 1 hour remains', () => {
+      const result = calculateRefundAmount(8000, hoursFromNow(1));
+      expect(result.refundAmount).toBe(0);
+      expect(result.refundPercentage).toBe(0);
+    });
+  });
+
+  describe('more than 24 hours before check-in (50% refund)', () => {
+    it('returns 50% refund when 48 hours remain', () => {
+      const result = calculateRefundAmount(10000, hoursFromNow(48));
       expect(result.refundAmount).toBe(5000);
       expect(result.refundPercentage).toBe(50);
+      expect(result.processingFee).toBe(0);
       expect(result.reason).toMatch(/50%/);
     });
 
-    it('returns 50% refund when 1 hour remains', () => {
-      const result = calculateRefundAmount(8000, hoursFromNow(1));
-      expect(result.refundAmount).toBe(4000);
+    it('returns 50% refund when 7 days remain', () => {
+      const result = calculateRefundAmount(15000, hoursFromNow(168));
+      expect(result.refundAmount).toBe(7500);
       expect(result.refundPercentage).toBe(50);
     });
 
     it('handles odd amounts correctly (50% of 9999)', () => {
-      const result = calculateRefundAmount(9999, hoursFromNow(10));
+      const result = calculateRefundAmount(9999, hoursFromNow(10 + 24));
       expect(result.refundAmount).toBe(4999.5);
     });
-  });
 
-  describe('more than 24 hours before check-in (100% refund)', () => {
-    it('returns 100% refund when 48 hours remain', () => {
-      const result = calculateRefundAmount(10000, hoursFromNow(48));
-      expect(result.refundAmount).toBe(10000);
-      expect(result.refundPercentage).toBe(100);
-      expect(result.processingFee).toBe(0);
-      expect(result.reason).toMatch(/100%/);
-    });
-
-    it('returns 100% refund when 7 days remain', () => {
-      const result = calculateRefundAmount(15000, hoursFromNow(168));
-      expect(result.refundAmount).toBe(15000);
-      expect(result.refundPercentage).toBe(100);
+    it('excludes the non-refundable platform fee from the refund base', () => {
+      const result = calculateRefundAmount(10500, hoursFromNow(48), false, undefined, 500);
+      // refundable base = 10500 - 500 = 10000, 50% of that = 5000
+      expect(result.refundAmount).toBe(5000);
+      expect(result.refundPercentage).toBe(50);
+      expect(result.reason).toMatch(/platform fee/i);
     });
   });
 
@@ -113,7 +121,7 @@ describe('calculateRefundAmount', () => {
     it('handles zero total amount', () => {
       const result = calculateRefundAmount(0, hoursFromNow(48));
       expect(result.refundAmount).toBe(0);
-      expect(result.refundPercentage).toBe(100);
+      expect(result.refundPercentage).toBe(50);
     });
 
     it('uses default policy when none provided', () => {
@@ -137,7 +145,7 @@ describe('getCancellationPolicyDescription', () => {
     expect(desc).toMatch(/24 hours/i);
   });
 
-  it('mentions 100% refund', () => {
+  it('mentions 100% refund for owner cancellation', () => {
     const desc = getCancellationPolicyDescription();
     expect(desc).toMatch(/100%/);
   });
@@ -200,27 +208,27 @@ describe('cancelBookingWithRefund', () => {
     await expect(cancelBookingWithRefund('booking1', 'user1')).rejects.toThrow('already cancelled');
   });
 
-  it('successfully cancels with 100% refund when > 24h before check-in', async () => {
+  it('successfully cancels with 50% refund when > 24h before check-in', async () => {
     (doc as jest.Mock).mockReturnValue('ref');
     (getDoc as jest.Mock).mockResolvedValueOnce(makeBookingSnap());
     (updateDoc as jest.Mock).mockResolvedValue(undefined);
 
     const result = await cancelBookingWithRefund('booking1', 'user1', 'changed plans');
     expect(result.success).toBe(true);
-    expect(result.refundAmount).toBe(10000);
-    expect(result.refundPercentage).toBe(100);
+    expect(result.refundAmount).toBe(5000);
+    expect(result.refundPercentage).toBe(50);
     expect(updateDoc).toHaveBeenCalledWith('ref', expect.objectContaining({ status: 'cancelled' }));
   });
 
-  it('successfully cancels with 50% refund when < 24h before check-in', async () => {
+  it('successfully cancels with 0% refund when < 24h before check-in', async () => {
     (doc as jest.Mock).mockReturnValue('ref');
     (getDoc as jest.Mock).mockResolvedValueOnce(makeBookingSnap({ checkInDate: hoursFromNow(5) }));
     (updateDoc as jest.Mock).mockResolvedValue(undefined);
 
     const result = await cancelBookingWithRefund('booking1', 'user1');
     expect(result.success).toBe(true);
-    expect(result.refundAmount).toBe(5000);
-    expect(result.refundPercentage).toBe(50);
+    expect(result.refundAmount).toBe(0);
+    expect(result.refundPercentage).toBe(0);
   });
 
   it('owner cancellation bypasses userId check and gives 100% refund', async () => {

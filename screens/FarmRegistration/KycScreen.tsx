@@ -145,8 +145,11 @@ export default function KycScreen({ navigation }: KycScreenProps) {
   }, [farm, isSubmitting, navigation]);
 
   const toggleTerms = () => {
-    const current = farm.kyc.agreedToTerms;
-    setField(['kyc', 'agreedToTerms'], !current);
+    if (farm.kyc.agreedToTerms) {
+      setField(['kyc', 'agreedToTerms'], false);
+    } else {
+      setShowTermsModal(true);
+    }
   };
 
   return (
@@ -576,13 +579,6 @@ export default function KycScreen({ navigation }: KycScreenProps) {
         </ScrollView>
 
         <View style={styles.footer}>
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.secondaryButtonText}>Back</Text>
-          </TouchableOpacity>
           <TouchableOpacity
             style={styles.primaryButton}
             onPress={handleSubmit}

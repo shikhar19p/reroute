@@ -19,6 +19,7 @@ import {
 } from '../../services/paymentService';
 import { parseError } from '../../utils/errorHandler';
 import { CreditCard, Check, Square, CheckSquare } from 'lucide-react-native';
+import { calculatePlatformFee, PAYMENT_CONFIG } from '../../config/constants';
 
 type RegistrationFeeScreenProps = {
   navigation: NativeStackNavigationProp<any, any>;
@@ -32,6 +33,8 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
   const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   const REGISTRATION_FEE = farm.propertyType === 'resort' ? 5000 : 2000;
+  const platformFee = calculatePlatformFee(REGISTRATION_FEE);
+  const totalDue = REGISTRATION_FEE + platformFee;
 
   const handlePayment = async () => {
     if (!agreedToTerms) {
@@ -56,7 +59,7 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
 
     try {
       await completePaymentFlow(
-        REGISTRATION_FEE,
+        totalDue,
         'INR',
         'registration-' + Date.now(),
         user.uid,
@@ -121,8 +124,20 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
 
           <View style={styles.feeCard}>
             <Text style={styles.feeLabel}>Registration Fee</Text>
-            <Text style={styles.feeAmount}>₹{REGISTRATION_FEE.toLocaleString('en-IN')}</Text>
+            <Text style={styles.feeAmount}>₹{totalDue.toLocaleString('en-IN')}</Text>
             <Text style={styles.feeNote}>One-time payment · Non-refundable</Text>
+            <View style={styles.feeBreakdown}>
+              <View style={styles.feeBreakdownRow}>
+                <Text style={styles.feeBreakdownLabel}>Registration Fee</Text>
+                <Text style={styles.feeBreakdownValue}>₹{REGISTRATION_FEE.toLocaleString('en-IN')}</Text>
+              </View>
+              <View style={styles.feeBreakdownRow}>
+                <Text style={styles.feeBreakdownLabel}>
+                  Platform Fee ({(PAYMENT_CONFIG.PLATFORM_FEE_PERCENTAGE * 100).toFixed(0)}%, non-refundable)
+                </Text>
+                <Text style={styles.feeBreakdownValue}>₹{platformFee.toLocaleString('en-IN')}</Text>
+              </View>
+            </View>
           </View>
 
           <View style={styles.benefitsContainer}>
@@ -171,14 +186,6 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
 
         <View style={styles.footer}>
           <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.8}
-            disabled={isProcessing}
-          >
-            <Text style={styles.secondaryButtonText}>Back</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
             style={[
               styles.primaryButton,
               (!agreedToTerms || isProcessing) && styles.buttonDisabled,
@@ -190,7 +197,7 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
             {isProcessing ? (
               <ActivityIndicator size="small" color="#FFFFFF" />
             ) : (
-              <Text style={styles.primaryButtonText}>Pay ₹{REGISTRATION_FEE.toLocaleString('en-IN')}</Text>
+              <Text style={styles.primaryButtonText}>Pay ₹{totalDue.toLocaleString('en-IN')}</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -267,6 +274,29 @@ const styles = StyleSheet.create({
   feeNote: {
     fontSize: 13,
     color: '#9CA3AF',
+  },
+  feeBreakdown: {
+    width: '100%',
+    marginTop: 16,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    gap: 8,
+  },
+  feeBreakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  feeBreakdownLabel: {
+    flex: 1,
+    fontSize: 13,
+    color: '#6B7280',
+  },
+  feeBreakdownValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
   },
   benefitsContainer: {
     width: '100%',

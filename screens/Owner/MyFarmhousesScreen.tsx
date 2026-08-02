@@ -42,6 +42,37 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
   const { data: farmhouses, loading, refreshing, refresh: onRefresh } = useMyFarmhouses();
   const { data: ownerBookings } = useOwnerBookings();
   const [dismissedUntil, setDismissedUntil] = useState<number>(0);
+  const [draftPromptShown, setDraftPromptShown] = useState(false);
+
+  // Surface the resume-draft prompt the moment we know about it, instead of
+  // waiting for the user to notice and tap the banner.
+  useEffect(() => {
+    if (hasDraft && !draftPromptShown) {
+      setDraftPromptShown(true);
+      showDialog({
+        title: 'Resume Draft?',
+        message: 'You have a saved draft of your farmhouse registration. Would you like to continue where you left off?',
+        type: 'info',
+        buttons: [
+          {
+            text: 'Delete Draft',
+            style: 'destructive',
+            onPress: async () => {
+              await clearDraft();
+            }
+          },
+          {
+            text: 'Resume',
+            style: 'default',
+            onPress: async () => {
+              await loadDraft();
+              navigation.navigate('FarmBasicDetails' as never);
+            }
+          }
+        ]
+      });
+    }
+  }, [hasDraft, draftPromptShown, showDialog, clearDraft, loadDraft, navigation]);
 
   const loadDismissed = useCallback(() => {
     AsyncStorage.getItem('ownerNotifDismissedUntil').then(val => {
@@ -181,7 +212,7 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
           <Text style={[styles.headerTitle, { color: colors.text }]}>My Farmhouses</Text>
           <View style={styles.headerActions}>
             <TouchableOpacity
-              style={[styles.switchButton, { backgroundColor: colors.cardBackground }]}
+              style={[styles.switchButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
               onPress={() => switchRole('customer')}
             >
               <Compass size={16} color={colors.primary} />
@@ -371,6 +402,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     height: isSmallDevice() ? 40 : 44,
     borderRadius: isSmallDevice() ? 20 : 22,
+    borderWidth: 1,
   },
   switchButtonText: {
     fontSize: 13,

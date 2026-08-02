@@ -82,10 +82,6 @@ const FarmhouseDetailScreenBase = Platform.OS === 'web'
   : require('./screens/User/FarmhouseDetailScreen').default;
 const FarmhouseDetailScreen = Platform.OS === 'web' ? FarmhouseDetailScreenBase : withScreenErrorBoundary(FarmhouseDetailScreenBase, 'Farmhouse Details');
 
-const AllAmenitiesScreen = Platform.OS === 'web'
-  ? React.lazy(() => import('./screens/User/AllAmenitiesScreen'))
-  : require('./screens/User/AllAmenitiesScreen').default;
-
 const AllReviewsScreen = Platform.OS === 'web'
   ? React.lazy(() => import('./screens/User/AllReviewsScreen'))
   : require('./screens/User/AllReviewsScreen').default;
@@ -198,7 +194,6 @@ function prefetchLazyScreens() {
     () => import('./screens/User/tabs/WishlistScreen'),
     () => import('./screens/User/tabs/ProfileScreen'),
     () => import('./screens/User/BookingDetailsScreen'),
-    () => import('./screens/User/AllAmenitiesScreen'),
     () => import('./screens/User/AllReviewsScreen'),
     () => import('./screens/User/EditProfileScreen'),
     () => import('./screens/User/PrivacyPolicyScreen'),
@@ -531,11 +526,6 @@ function AppNavigator() {
             <Stack.Screen
               name="FarmhouseDetail"
               component={FarmhouseDetailScreen}
-              options={{ headerShown: false }}
-            />
-            <Stack.Screen
-              name="AllAmenities"
-              component={AllAmenitiesScreen}
               options={{ headerShown: false }}
             />
             <Stack.Screen

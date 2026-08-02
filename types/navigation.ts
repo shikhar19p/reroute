@@ -161,7 +161,6 @@ export type RootStackParamList = {
   // User
   UserHome: { screen?: string };
   FarmhouseDetail: { farmhouse: Farmhouse; draftData?: any };
-  AllAmenities: { amenities: string[] };
   AllReviews: { farmhouseId: string };
   BookingConfirmation: {
     farmhouseId: string;

@@ -45,14 +45,18 @@ export default function TermsAndConditionsScreen({ navigation }: any) {
         />
         <Section
           title="5. Cancellations & Refund Policy"
-          body="All cancellation requests must be submitted to our support team at rustiquebyranareddy@gmail.com or +91 82803 53535 with your Booking ID before the check-in time."
+          body="All cancellation requests must be submitted to our support team at support@rerouteaventures.org or +91 82803 53535 with your Booking ID before the check-in time."
         />
         <Section
           title="5a. Refund Eligibility"
-          body={"Cancelled more than 24 hours before check-in: 100% refund of the booking amount.\n\nCancelled within 24 hours of check-in: 50% refund.\n\nNo-show or cancellation after check-in has commenced: No refund (0%)."}
+          body={"Cancelled more than 24 hours before check-in: 50% refund of the booking amount.\n\nCancelled within 24 hours of check-in: No refund (0%).\n\nNo-show or cancellation after check-in has commenced: No refund (0%)."}
         />
         <Section
-          title="5b. Refund Processing"
+          title="5b. Platform Fee"
+          body="A platform fee of 3% of the booking amount is charged on every booking and is non-refundable under any cancellation scenario, including cancellations by the property owner."
+        />
+        <Section
+          title="5c. Refund Processing"
           body="Approved refunds are processed within 5–7 business days to the original payment method. Razorpay processing fees (if any) are non-refundable. You will be notified by email once the refund is initiated."
         />
         <Section
@@ -81,7 +85,7 @@ export default function TermsAndConditionsScreen({ navigation }: any) {
         />
         <Section
           title="12. Contact"
-          body="For questions about these terms, reach us at rustiquebyranareddy@gmail.com or +91 82803 53535, or through the Contact Us section in the app."
+          body="For questions about these terms, reach us at support@rerouteaventures.org or +91 82803 53535, or through the Contact Us section in the app."
         />
       </ScrollView>
     </SafeAreaView>

@@ -10,6 +10,15 @@
     "web": "expo start --web",
     "web:prod": "expo export --platform web --output-dir dist && node scripts/post-build-web.js",
     "web:minify": "EXPO_WEB_MINIFY=true expo start --web",
+    "web:highmem": "set NODE_OPTIONS=--max-old-space-size=8192&& expo start --web -c",
+    "start:staging": "dotenv -e .env.staging -- expo start",
+    "web:staging": "dotenv -e .env.staging -- expo start --web",
+    "android:staging": "dotenv -e .env.staging -- expo run:android",
+    "web:staging:highmem": "dotenv -e .env.staging -v NODE_OPTIONS=--max-old-space-size=8192 -- expo start --web -c",
+    "use:staging": "firebase use staging",
+    "use:prod": "firebase use production",
+    "deploy:staging": "firebase use staging && firebase deploy --only functions,firestore:rules,firestore:indexes,storage --project reroute-aventures-dev",
+    "deploy:prod": "firebase use production && firebase deploy --only functions,firestore:rules,firestore:indexes,storage --project rustique-6b7c4",
     "ensure-firebase": "node scripts/ensure-google-services.js",
     "postinstall": "patch-package",
     "test": "jest",
@@ -46,8 +55,8 @@
     "firebase": "^12.3.0",
     "lottie-react-native": "^7.3.4",
     "lucide-react-native": "^0.544.0",
-    "react": "19.2.0",
-    "react-dom": "19.2.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-calendars": "^1.1313.0",
     "react-native-gesture-handler": "~2.28.0",
@@ -69,6 +78,7 @@
     "@testing-library/react-native": "^13.3.3",
     "@types/jest": "29.5.14",
     "@types/react": "~19.1.0",
+    "dotenv-cli": "^11.0.0",
     "jest": "~29.7.0",
     "jest-expo": "~54.0.0",
     "patch-package": "^8.0.1",
@@ -76,6 +86,7 @@
   },
   "private": true,
   "overrides": {
-    "@react-native-async-storage/async-storage": "^2.2.0"
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "react-test-renderer": "19.1.0"
   }
 }

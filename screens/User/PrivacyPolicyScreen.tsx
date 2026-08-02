@@ -57,7 +57,7 @@ export default function PrivacyPolicyScreen({ navigation }: any) {
         />
         <Section
           title="8. Your Rights"
-          body="You have the right to access, correct, or delete your personal data. To exercise these rights, contact us at rustiquebyranareddy@gmail.com or +91 82803 53535. We will respond within 30 days."
+          body="You have the right to access, correct, or delete your personal data. To exercise these rights, contact us at support@rerouteaventures.org or +91 82803 53535. We will respond within 30 days."
         />
         <Section
           title="9. Changes to This Policy"
@@ -65,7 +65,7 @@ export default function PrivacyPolicyScreen({ navigation }: any) {
         />
         <Section
           title="10. Contact"
-          body="For any privacy-related queries, reach us at rustiquebyranareddy@gmail.com or +91 82803 53535, or through the Contact Us section in the app."
+          body="For any privacy-related queries, reach us at support@rerouteaventures.org or +91 82803 53535, or through the Contact Us section in the app."
         />
       </ScrollView>
     </SafeAreaView>

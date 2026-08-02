@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "rustique-6b7c4"
+    "default": "rustique-6b7c4",
+    "production": "rustique-6b7c4",
+    "staging": "reroute-aventures-dev"
   }
 }

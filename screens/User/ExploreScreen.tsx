@@ -2,13 +2,13 @@ import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet, StatusBar,
-  Modal, TextInput, FlatList, Share, ActivityIndicator, RefreshControl,
+  Modal, TextInput, FlatList, ActivityIndicator, RefreshControl,
   useWindowDimensions, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import AnimatedImage from '../../components/AnimatedImage';
 import { FilterChip } from '../../components/FilterChip';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Heart, Search, SlidersHorizontal, ArrowUpDown, Bell, Share2, Star, MapPin, LogOut, Calendar, CheckCircle, AlertCircle, Clock, Building2, X as XIcon, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { Heart, Search, SlidersHorizontal, ArrowUpDown, Bell, Star, MapPin, LogOut, Calendar, CheckCircle, AlertCircle, Clock, Building2, X as XIcon, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { Calendar as RNCalendar, DateData } from 'react-native-calendars';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -30,7 +30,6 @@ const FarmhouseCard = React.memo(({
   farmhouseRating,
   isInWishlist,
   onPress,
-  onShare,
   onToggleWishlist,
   cardStyle,
 }: {
@@ -39,7 +38,6 @@ const FarmhouseCard = React.memo(({
   farmhouseRating: number | undefined;
   isInWishlist: boolean;
   onPress: () => void;
-  onShare: () => void;
   onToggleWishlist: () => void;
   cardStyle?: object;
 }) => (
@@ -55,13 +53,6 @@ const FarmhouseCard = React.memo(({
       />
 
       <View style={styles.imageActions}>
-        <TouchableOpacity
-          onPress={onShare}
-          style={styles.actionButton}
-        >
-          <Share2 size={18} color="#666" />
-        </TouchableOpacity>
-
         <TouchableOpacity
           onPress={onToggleWishlist}
           style={styles.actionButton}
@@ -245,32 +236,6 @@ export default function ExploreScreen({ navigation }: any) {
     }
   };
 
-  const handleShare = async (farmhouse: FarmhouseType) => {
-    try {
-      const actualRating = farmhouseRatings[farmhouse.id];
-      const ratingText = actualRating ? actualRating.toFixed(1) : 'New';
-      
-      const shareMessage = `${farmhouse.name}\n\n` +
-        `Location: ${farmhouse.location}\n` +
-        `Rating: ${ratingText}${actualRating ? '/5' : ''}\n` +
-        `Capacity: Up to ${farmhouse.capacity} guests\n\n` +
-        `Starting from Rs. ${farmhouse.weeklyNight}/night\n\n` +
-        `Book now on ReRoute App!\n` +
-        `Download: https://play.google.com/store/apps/details?id=com.reroute.app`;
-
-      await Share.share({
-        message: shareMessage,
-        title: `${farmhouse.name} - ReRoute`,
-      });
-    } catch (error) {
-      showDialog({
-        title: 'Error',
-        message: 'Could not share farmhouse',
-        type: 'error'
-      });
-    }
-  };
-
   const handleNotifications = () => {
     setShowNotificationsModal(true);
   };
@@ -445,11 +410,10 @@ export default function ExploreScreen({ navigation }: any) {
         farmhouseRating={farmhouseRatings[item.id]}
         isInWishlist={isInWishlist(item.id)}
         onPress={() => navigation.navigate('FarmhouseDetail', { farmhouse: item })}
-        onShare={() => handleShare(item)}
         onToggleWishlist={() => toggleWishlist(item)}
       />
     );
-  }, [colors, farmhouseRatings, isInWishlist, navigation, handleShare, toggleWishlist]);
+  }, [colors, farmhouseRatings, isInWishlist, navigation, toggleWishlist]);
 
   if (error) {
     return (
@@ -479,23 +443,29 @@ export default function ExploreScreen({ navigation }: any) {
             {isOwnerWithFarms && (
               <TouchableOpacity
                 onPress={() => switchRole('owner')}
-                style={[styles.notificationButton, styles.ownerSwitchBtn]}
+                style={[styles.ownerSwitchBtn, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
                 accessibilityLabel="Switch to owner view"
               >
                 <Building2 size={18} color={colors.primary} />
                 <Text style={[styles.ownerSwitchLabel, { color: colors.primary }]}>Owner</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={handleNotifications} style={styles.notificationButton}>
+            <TouchableOpacity
+              onPress={handleNotifications}
+              style={[styles.headerIconButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+            >
               {notificationItems.length > 0 && (
                 <View style={styles.notificationBadge}>
                   <Text style={styles.notificationBadgeText}>{notificationItems.length > 9 ? '9+' : notificationItems.length}</Text>
                 </View>
               )}
-              <Bell size={22} color={colors.text} />
+              <Bell size={20} color={colors.text} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleLogout} style={styles.notificationButton}>
-              <LogOut size={22} color={colors.text} />
+            <TouchableOpacity
+              onPress={handleLogout}
+              style={[styles.headerIconButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+            >
+              <LogOut size={20} color="#EF4444" />
             </TouchableOpacity>
           </View>
         </View>
@@ -709,8 +679,8 @@ export default function ExploreScreen({ navigation }: any) {
           activeOpacity={1}
           onPress={() => setShowSortModal(false)}
         >
-          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
-            <View style={[styles.modalContent, { backgroundColor: colors.cardBackground }]}>
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()} style={{ width: '100%' }}>
+            <View style={[styles.modalContent, { backgroundColor: colors.cardBackground, paddingBottom: Math.max(insets.bottom, 16) }]}>
               <Text style={[styles.modalTitle, { color: colors.text }]}>Sort By</Text>
             {[
               { label: 'Name (A-Z)', value: 'name' },
@@ -754,7 +724,7 @@ export default function ExploreScreen({ navigation }: any) {
       <Modal visible={showFilterModal} transparent animationType="slide">
         <KeyboardAvoidingView
           style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}
         >
         <TouchableOpacity
           style={styles.modalOverlay}
@@ -1008,7 +978,24 @@ const styles = StyleSheet.create({
   userName: { fontSize: 18, fontWeight: '600' },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   notificationButton: { padding: 8, position: 'relative' },
-  ownerSwitchBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 16 },
+  headerIconButton: {
+    width: isSmallDevice() ? 40 : 44,
+    height: isSmallDevice() ? 40 : 44,
+    borderRadius: isSmallDevice() ? 20 : 22,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  ownerSwitchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    height: isSmallDevice() ? 40 : 44,
+    borderRadius: isSmallDevice() ? 20 : 22,
+    borderWidth: 1,
+  },
   ownerSwitchLabel: { fontSize: 12, fontWeight: '700' },
   notificationBadge: { position: 'absolute', top: 4, right: 4, backgroundColor: '#EF4444', borderRadius: 8, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center', zIndex: 1 },
   notificationBadgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },

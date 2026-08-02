@@ -17,6 +17,7 @@ import { createBooking, cleanupPendingBooking } from '../../services/bookingServ
 import { parseError } from '../../utils/errorHandler';
 import { completePaymentFlow, savePaymentRecord } from '../../services/paymentService';
 import { useIsConnected } from '../../context/NetworkContext';
+import { calculatePlatformFee, PAYMENT_CONFIG } from '../../config/constants';
 
 const { width } = Dimensions.get('window');
 
@@ -171,6 +172,8 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
 
   const discountAmount = calculateDiscount();
   const finalPrice = totalPrice - discountAmount;
+  const platformFee = calculatePlatformFee(finalPrice);
+  const grandTotal = finalPrice + platformFee;
 
   const handleConfirmBooking = async () => {
     if (!isConnected) {
@@ -201,7 +204,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
     }
 
     // Validate price is greater than 0
-    if (finalPrice <= 0) {
+    if (grandTotal <= 0) {
       showDialog({
         title: 'Invalid amount',
         message: 'Booking amount must be greater than ₹0.',
@@ -226,9 +229,10 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
         checkInDate: startDate,
         checkOutDate: endDate,
         guests: guestCount,
-        totalPrice: finalPrice,
+        totalPrice: grandTotal,
         originalPrice: totalPrice,
         discountApplied: discountAmount,
+        platformFee,
         couponCode: appliedCoupon?.code || null,
         bookingType: bookingType === 'day-use' ? 'dayuse' : 'overnight' as 'dayuse' | 'overnight',
         status: 'pending' as 'pending',
@@ -257,7 +261,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
       setLoadingMessage('Preparing payment...');
 
       const paymentResponse = await completePaymentFlow(
-        finalPrice, // amount in rupees
+        grandTotal, // amount in rupees (accommodation + non-refundable platform fee)
         'INR',
         bookingId,
         user.uid,
@@ -284,7 +288,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
       // Show success immediately — booking is confirmed server-side
       showDialog({
         title: 'Booking confirmed',
-        message: `₹${finalPrice} paid. You're all set for ${farmhouseDetails?.name || farmhouseName}.`,
+        message: `₹${grandTotal} paid. You're all set for ${farmhouseDetails?.name || farmhouseName}.`,
         type: 'success',
         buttons: [{
           text: 'View Details',
@@ -306,7 +310,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
       savePaymentRecord(
         bookingId,
         user.uid,
-        finalPrice * 100,
+        grandTotal * 100,
         'INR',
         paymentResponse
       ).catch(err => console.error('savePaymentRecord failed (non-critical):', err));
@@ -526,10 +530,16 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
               </Text>
             </View>
           )}
+          <View style={styles.billingRow}>
+            <Text style={[styles.billingLabel, { color: colors.placeholder }]}>
+              Platform fee ({(PAYMENT_CONFIG.PLATFORM_FEE_PERCENTAGE * 100).toFixed(0)}%, non-refundable):
+            </Text>
+            <Text style={[styles.billingValue, { color: colors.text }]}>₹{platformFee}</Text>
+          </View>
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <View style={styles.billingRow}>
             <Text style={[styles.finalTotalLabel, { color: colors.text }]}>Total Amount:</Text>
-            <Text style={[styles.finalTotalValue, { color: colors.buttonBackground }]}>₹{finalPrice}</Text>
+            <Text style={[styles.finalTotalValue, { color: colors.buttonBackground }]}>₹{grandTotal}</Text>
           </View>
         </View>
 
@@ -614,7 +624,11 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
 
         {/* Terms & Conditions */}
         <View style={[styles.termsCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-          <TouchableOpacity style={styles.termsRow} onPress={() => setAgreedToTerms(!agreedToTerms)} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.termsRow}
+            onPress={() => (agreedToTerms ? setAgreedToTerms(false) : setShowTermsModal(true))}
+            activeOpacity={0.7}
+          >
             {agreedToTerms
               ? <CheckCircle size={22} color={colors.buttonBackground} />
               : <Square size={22} color="#9CA3AF" />
@@ -643,9 +657,10 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
    • Prices may vary based on availability, demand, and dates.
 
 3. Cancellation & Refund Policy
-   • Cancel more than 24 hours before check-in: 100% refund.
-   • Cancel within 24 hours of check-in: 50% refund.
+   • Cancel more than 24 hours before check-in: 50% refund.
+   • Cancel within 24 hours of check-in: No refund.
    • No refund for no-shows or cancellations after check-in time.
+   • The platform fee (${(PAYMENT_CONFIG.PLATFORM_FEE_PERCENTAGE * 100).toFixed(0)}% of the booking amount) is non-refundable in all cases.
 
 4. Check-in & Check-out
    • Users must strictly follow the check-in and check-out timings.
@@ -695,7 +710,7 @@ GENERAL TERMS
 
       <View style={[styles.bottomBar, { backgroundColor: colors.cardBackground, borderTopColor: colors.border }]}>
         <View>
-          <Text style={[styles.bottomPrice, { color: colors.buttonBackground }]}>₹{finalPrice}</Text>
+          <Text style={[styles.bottomPrice, { color: colors.buttonBackground }]}>₹{grandTotal}</Text>
           {discountAmount > 0 && (
             <Text style={[styles.bottomOriginalPrice, { color: colors.placeholder }]}>₹{totalPrice}</Text>
           )}

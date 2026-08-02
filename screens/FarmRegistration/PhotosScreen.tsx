@@ -165,6 +165,9 @@ export default function PhotosScreen({ navigation }: PhotosScreenProps) {
         </View>
 
         <Text style={styles.subtitle}>Add photos to showcase your property</Text>
+        <Text style={styles.dimensionHint}>
+          For the best look across phones and listing cards, use landscape photos at least 1600×1200px (4:3) or 1920×1080px (16:9).
+        </Text>
 
         <View style={styles.grid}>
           {farm.photos.map((photo, index) => (
@@ -197,13 +200,6 @@ export default function PhotosScreen({ navigation }: PhotosScreenProps) {
       </ScrollView>
 
       <View style={styles.footer}>
-        <TouchableOpacity
-          style={styles.secondaryButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.secondaryButtonText}>Back</Text>
-        </TouchableOpacity>
         <TouchableOpacity
           style={[styles.primaryButton, farm.photos.length < 1 && styles.buttonDisabled]}
           onPress={() => navigation.navigate('FarmAmenitiesGames')}
@@ -255,7 +251,13 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 15,
     color: '#6B7280',
+    marginBottom: 8,
+  },
+  dimensionHint: {
+    fontSize: 12,
+    color: '#9CA3AF',
     marginBottom: 24,
+    lineHeight: 17,
   },
   grid: {
     flexDirection: 'row',

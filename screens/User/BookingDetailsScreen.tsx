@@ -30,6 +30,7 @@ interface Booking {
   totalPrice: number;
   originalPrice: number;
   discountApplied: number;
+  platformFee?: number;
   paymentStatus: string;
   status: string;
   userEmail: string;
@@ -53,6 +54,7 @@ interface Farmhouse {
   city: string;
   contactPhone1: string;
   contactPhone2: string;
+  ownerEmail: string;
   description: string;
   mapLink: string;
   capacity: string;
@@ -138,6 +140,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
         totalPrice: Number(rawBookingData?.totalPrice) || 0,
         originalPrice: Number(rawBookingData?.originalPrice || rawBookingData?.totalPrice) || 0,
         discountApplied: Number(rawBookingData?.discountApplied) || 0,
+        platformFee: rawBookingData?.platformFee ? Number(rawBookingData.platformFee) : undefined,
         paymentStatus: rawBookingData?.paymentStatus || 'pending',
         status: rawBookingData?.status || 'pending',
         userEmail: rawBookingData?.userEmail || '',
@@ -171,6 +174,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
             city: basicDetails.city || farmhouseData?.city || '',
             contactPhone1: basicDetails.contactPhone1 || farmhouseData?.contactPhone1 || '',
             contactPhone2: basicDetails.contactPhone2 || farmhouseData?.contactPhone2 || '',
+            ownerEmail: basicDetails.ownerEmail || farmhouseData?.ownerEmail || '',
             description: basicDetails.description || farmhouseData?.description || '',
             mapLink: basicDetails.mapLink || farmhouseData?.mapLink || '',
             capacity: String(basicDetails.capacity || farmhouseData?.capacity || '0'),
@@ -189,6 +193,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
             city: '',
             contactPhone1: '',
             contactPhone2: '',
+            ownerEmail: '',
             description: '',
             mapLink: '',
             capacity: '0',
@@ -587,6 +592,43 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
         </View>
         )}
 
+        {/* Property Owner Contact */}
+        {(farmhouse?.contactPhone1 || farmhouse?.contactPhone2 || farmhouse?.ownerEmail) && (
+          <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Property Owner</Text>
+            <Text style={[styles.contactNote, { color: colors.placeholder }]}>
+              Contact the owner directly for check-in coordination or property-specific questions.
+            </Text>
+            {!!farmhouse.contactPhone1 && (
+              <TouchableOpacity
+                style={[styles.contactButton, { backgroundColor: colors.background }]}
+                onPress={() => callOwner(farmhouse.contactPhone1)}
+              >
+                <Phone size={20} color={colors.buttonBackground} />
+                <Text style={[styles.contactText, { color: colors.text }]}>{farmhouse.contactPhone1}</Text>
+              </TouchableOpacity>
+            )}
+            {!!farmhouse.contactPhone2 && (
+              <TouchableOpacity
+                style={[styles.contactButton, { backgroundColor: colors.background }]}
+                onPress={() => callOwner(farmhouse.contactPhone2)}
+              >
+                <Phone size={20} color={colors.buttonBackground} />
+                <Text style={[styles.contactText, { color: colors.text }]}>{farmhouse.contactPhone2}</Text>
+              </TouchableOpacity>
+            )}
+            {!!farmhouse.ownerEmail && (
+              <TouchableOpacity
+                style={[styles.contactButton, { backgroundColor: colors.background }]}
+                onPress={() => Linking.openURL(`mailto:${farmhouse.ownerEmail}`)}
+              >
+                <Mail size={20} color={colors.buttonBackground} />
+                <Text style={[styles.contactText, { color: colors.text }]}>{farmhouse.ownerEmail}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         {/* Support Contact */}
         <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Need Help?</Text>
@@ -602,10 +644,10 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.contactButton, { backgroundColor: colors.background }]}
-            onPress={() => Linking.openURL('mailto:rustiquebyranareddy@gmail.com')}
+            onPress={() => Linking.openURL('mailto:support@rerouteaventures.org')}
           >
             <Mail size={20} color={colors.buttonBackground} />
-            <Text style={[styles.contactText, { color: colors.text }]}>rustiquebyranareddy@gmail.com</Text>
+            <Text style={[styles.contactText, { color: colors.text }]}>support@rerouteaventures.org</Text>
           </TouchableOpacity>
         </View>
 
@@ -645,18 +687,26 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
           </View>
 
           {Number(booking.discountApplied || 0) > 0 && (
-            <>
-              <View style={styles.infoRow}>
-                <Text style={[styles.discountLabel, { color: '#10B981' }]}>
-                  {`Discount${booking.couponCode ? ` (${booking.couponCode})` : ''}`}
-                </Text>
-                <Text style={[styles.discountValue, { color: '#10B981' }]}>
-                  -₹{Number(booking.discountApplied).toLocaleString('en-IN')}
-                </Text>
-              </View>
-              <View style={[styles.divider, { backgroundColor: colors.border }]} />
-            </>
+            <View style={styles.infoRow}>
+              <Text style={[styles.discountLabel, { color: '#10B981' }]}>
+                {`Discount${booking.couponCode ? ` (${booking.couponCode})` : ''}`}
+              </Text>
+              <Text style={[styles.discountValue, { color: '#10B981' }]}>
+                -₹{Number(booking.discountApplied).toLocaleString('en-IN')}
+              </Text>
+            </View>
           )}
+
+          {Number(booking.platformFee || 0) > 0 && (
+            <View style={styles.infoRow}>
+              <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Platform Fee (non-refundable)</Text>
+              <Text style={[styles.infoValue, { color: colors.text }]}>
+                ₹{Number(booking.platformFee).toLocaleString('en-IN')}
+              </Text>
+            </View>
+          )}
+
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
           <View style={styles.infoRow}>
             <Text style={[styles.totalLabel, { color: colors.text }]}>Total Paid</Text>

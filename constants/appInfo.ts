@@ -10,7 +10,7 @@ export const APP_INFO = {
   
   // Company/Developer Info
   company: 'ReRoute Technologies',
-  supportEmail: 'support@reroute.app',
+  supportEmail: 'support@rerouteaventures.org',
   website: 'https://reroute.app',
   
   // Legal Links (REQUIRED for app stores)
@@ -59,7 +59,7 @@ export const APP_INFO = {
   // Contact Info
   contact: {
     phone: '+91 82803 53535',
-    email: 'rustiquebyranareddy@gmail.com',
+    email: 'support@rerouteaventures.org',
     address: 'Your Company Address Here',
   },
 };

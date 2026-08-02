@@ -1,19 +1,19 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
-  Linking, Share, TextInput, FlatList, RefreshControl, useWindowDimensions, Modal,
+  Linking, TextInput, FlatList, RefreshControl, useWindowDimensions, Modal,
 } from 'react-native';
 import LocationMapView from '../../components/LocationMapView';
 import AnimatedImage from '../../components/AnimatedImage';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Heart, MapPin, Users, Home, Star, Clock, Share2, Phone, Mail, X, ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { ArrowLeft, Heart, MapPin, Users, Home, Star, Clock, Phone, Mail, X, ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
 import { useScrollHandler } from '../../context/TabBarVisibilityContext';
 import { useDialog } from '../../components/CustomDialog';
 import { RootStackScreenProps, Farmhouse } from '../../types/navigation';
-import { collection, query, where, onSnapshot, orderBy as firestoreOrderBy, limit, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy as firestoreOrderBy, limit, doc, getDoc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { useAuth } from '../../authContext';
 
@@ -53,6 +53,11 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loadingReviews, setLoadingReviews] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showAddReview, setShowAddReview] = useState(false);
+  const [newRating, setNewRating] = useState(5);
+  const [newComment, setNewComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [showAllAmenities, setShowAllAmenities] = useState(false);
 
   // Fullscreen image viewer
   const [fullscreenVisible, setFullscreenVisible] = useState(false);
@@ -376,33 +381,6 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     }
   };
 
-  const handleShare = async () => {
-    try {
-      const ratingText = averageRating > 0 ? `${averageRating.toFixed(1)}/5` : 'New Property';
-      const shareMessage = `${farmhouse.name}\n\n` +
-        `Location: ${farmhouse.location}\n` +
-        `Rating: ${ratingText} (${reviews.length} ${reviews.length === 1 ? 'review' : 'reviews'})\n` +
-        `Capacity: Up to ${farmhouse.capacity} guests\n` +
-        `${farmhouse.bedrooms} Bedrooms\n\n` +
-        `Pricing:\n` +
-        `   Weekday: Rs. ${farmhouse.weeklyNight}/night\n` +
-        `   Weekend: Rs. ${farmhouse.weekendNight}/night\n\n` +
-        `Book now on ReRoute App!\n` +
-        `Download: https://play.google.com/store/apps/details?id=com.reroute.app`;
-
-      await Share.share({
-        message: shareMessage,
-        title: `${farmhouse.name} - ReRoute`,
-      });
-    } catch (error) {
-      showDialog({
-        title: 'Error',
-        message: 'Could not share farmhouse',
-        type: 'error'
-      });
-    }
-  };
-
   const getISTHour = () => {
     // IST = UTC+5:30
     const now = new Date();
@@ -698,6 +676,53 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
     );
   };
 
+  const renderRatingPicker = () => (
+    <View style={[styles.starsRow, { gap: 6 }]}>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <TouchableOpacity key={star} onPress={() => setNewRating(star)} disabled={submittingReview}>
+          <Star
+            size={28}
+            color="#FCD34D"
+            fill={star <= newRating ? '#FCD34D' : 'transparent'}
+          />
+        </TouchableOpacity>
+      ))}
+    </View>
+  );
+
+  const handleAddReview = async () => {
+    if (!user) {
+      showDialog({ title: 'Sign in required', message: 'Sign in to write a review.', type: 'error' });
+      return;
+    }
+    if (!newComment.trim()) {
+      showDialog({ title: 'Review required', message: 'Please enter a comment.', type: 'warning' });
+      return;
+    }
+
+    try {
+      setSubmittingReview(true);
+      await addDoc(collection(db, 'farmhouses', farmhouse.id, 'reviews'), {
+        userId: user.uid,
+        userName: user.displayName || 'Anonymous',
+        rating: newRating,
+        comment: newComment.trim(),
+        date: new Date().toISOString(),
+        createdAt: serverTimestamp(),
+      });
+
+      setNewComment('');
+      setNewRating(5);
+      setShowAddReview(false);
+      showDialog({ title: 'Thank you!', message: 'Your review has been posted.', type: 'success' });
+    } catch (error) {
+      console.error('Error adding review:', error);
+      showDialog({ title: 'Error', message: 'Could not post your review. Please try again.', type: 'error' });
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
   const renderReview = useCallback(({ item }: { item: Review }) => (
     <View style={[styles.reviewCardHorizontal, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
       <View style={styles.reviewHeader}>
@@ -766,9 +791,6 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
               <ArrowLeft size={24} color="#000" />
             </TouchableOpacity>
             <View style={styles.rightActions}>
-              <TouchableOpacity style={styles.actionButton} onPress={handleShare}>
-                <Share2 size={22} color="#666" />
-              </TouchableOpacity>
               <TouchableOpacity style={styles.actionButton} onPress={toggleWishlist}>
                 <Heart size={22} color={isInWishlist(farmhouse.id) ? "#EF4444" : "#666"} fill={isInWishlist(farmhouse.id) ? "#EF4444" : "transparent"} />
               </TouchableOpacity>
@@ -851,18 +873,23 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
           </View>
 
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Amenities</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('AllAmenities', { amenities: amenitiesList })}>
-                <Text style={[styles.viewAllText, { color: colors.buttonBackground }]}>View All</Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Amenities</Text>
             <View style={styles.amenitiesGrid}>
-              {amenitiesList.slice(0, 6).map((amenity, index) => (
+              {(showAllAmenities ? amenitiesList : amenitiesList.slice(0, 6)).map((amenity, index) => (
                 <View key={index} style={[styles.amenityChip, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
                   <Text style={[styles.amenityText, { color: colors.text }]}>{amenity}</Text>
                 </View>
               ))}
+              {amenitiesList.length > 6 && (
+                <TouchableOpacity
+                  onPress={() => setShowAllAmenities((v) => !v)}
+                  style={[styles.amenityChip, { backgroundColor: colors.cardBackground, borderColor: colors.buttonBackground }]}
+                >
+                  <Text style={[styles.amenityText, { color: colors.buttonBackground, fontWeight: '600' }]}>
+                    {showAllAmenities ? 'Show Less' : 'View All'}
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 
@@ -1015,11 +1042,18 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>Reviews</Text>
-              <TouchableOpacity onPress={() => navigation.navigate('AllReviews', { farmhouseId: farmhouse.id })}>
-                <Text style={[styles.viewAllText, { color: colors.buttonBackground }]}>View All</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                <TouchableOpacity onPress={() => setShowAddReview(true)} accessibilityLabel="Write a review">
+                  <Plus size={20} color={colors.buttonBackground} />
+                </TouchableOpacity>
+                {reviews.length > 0 && (
+                  <TouchableOpacity onPress={() => navigation.navigate('AllReviews', { farmhouseId: farmhouse.id })}>
+                    <Text style={[styles.viewAllText, { color: colors.buttonBackground }]}>View All</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
-            
+
             {loadingReviews ? (
               <Text style={[styles.loadingText, { color: colors.placeholder }]}>Loading reviews...</Text>
             ) : reviews.length === 0 ? (
@@ -1054,7 +1088,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.contactBtn, { backgroundColor: colors.cardBackground, borderWidth: 1, borderColor: colors.buttonBackground }]}
-                onPress={() => Linking.openURL('mailto:rustiquebyranareddy@gmail.com')}
+                onPress={() => Linking.openURL('mailto:support@rerouteaventures.org')}
                 activeOpacity={0.8}
               >
                 <Mail size={16} color={colors.buttonBackground} />
@@ -1111,6 +1145,44 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
               <Text style={[styles.phoneModalBtnText, { color: colors.text }]}>Edit Profile Instead</Text>
             </TouchableOpacity>
             <TouchableOpacity style={{ alignItems: 'center', marginTop: 12 }} onPress={() => setShowPhoneModal(false)}>
+              <Text style={{ color: colors.placeholder, fontSize: 14 }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showAddReview} transparent animationType="slide" onRequestClose={() => setShowAddReview(false)}>
+        <View style={styles.phoneModalOverlay}>
+          <View style={[styles.phoneModalCard, { backgroundColor: colors.cardBackground }]}>
+            <Text style={[styles.phoneModalTitle, { color: colors.text }]}>Write a Review</Text>
+            <Text style={[styles.phoneModalSubtitle, { color: colors.placeholder }]}>
+              Share your experience at {farmhouse.name}.
+            </Text>
+            {renderRatingPicker()}
+            <TextInput
+              style={[styles.reviewTextInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
+              placeholder="Share your experience..."
+              placeholderTextColor={colors.placeholder}
+              multiline
+              numberOfLines={4}
+              value={newComment}
+              onChangeText={setNewComment}
+              editable={!submittingReview}
+            />
+            <TouchableOpacity
+              style={[styles.phoneModalBtn, { backgroundColor: colors.buttonBackground, opacity: submittingReview ? 0.7 : 1 }]}
+              onPress={handleAddReview}
+              disabled={submittingReview}
+            >
+              <Text style={[styles.phoneModalBtnText, { color: colors.buttonText }]}>
+                {submittingReview ? 'Posting...' : 'Post Review'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={{ alignItems: 'center', marginTop: 12 }}
+              onPress={() => { setShowAddReview(false); setNewComment(''); setNewRating(5); }}
+              disabled={submittingReview}
+            >
               <Text style={{ color: colors.placeholder, fontSize: 14 }}>Cancel</Text>
             </TouchableOpacity>
           </View>
@@ -1189,6 +1261,7 @@ const styles = StyleSheet.create({
   phoneModalTitle: { fontSize: 18, fontWeight: '700', marginBottom: 8 },
   phoneModalSubtitle: { fontSize: 14, marginBottom: 20, lineHeight: 20 },
   phoneInput: { height: 50, borderRadius: 10, paddingHorizontal: 14, fontSize: 16, borderWidth: 1, marginBottom: 16 },
+  reviewTextInput: { height: 110, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15, borderWidth: 1, marginTop: 16, marginBottom: 16, textAlignVertical: 'top' },
   phoneModalBtn: { height: 50, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   phoneModalBtnText: { fontSize: 16, fontWeight: '600' },
   section: { marginTop: 24 },

@@ -44,43 +44,69 @@ function getRazorpay(): Razorpay {
   return _razorpay;
 }
 
-// ─── Nodemailer transporter ───────────────────────────────────────────────────
-// Set these in Firebase Functions config or .env:
-//   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM, ADMIN_EMAIL
-const smtpTransporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587'),
-  secure: false, // TLS
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+// ─── Email channels ──────────────────────────────────────────────────────────
+// Three dedicated mailboxes — each with its own SMTP credentials and sender.
+// Set env vars in functions/.env or via `firebase functions:secrets:set`:
+//   BOOKINGS_EMAIL, BOOKINGS_PASSWORD  → booking confirmations & cancellations
+//   PAYMENTS_EMAIL, PAYMENTS_PASSWORD  → payment receipts & refund notifications
+//   SUPPORT_EMAIL,  SUPPORT_PASSWORD   → support, listings, approvals, general
+//   SMTP_HOST, SMTP_PORT              → shared Zoho SMTP server
+//   ADMIN_EMAIL                       → internal admin notifications
 
-const FROM_EMAIL = process.env.SMTP_FROM || 'noreply@reroute.app';
+const SMTP_HOST = process.env.SMTP_HOST || 'smtppro.zoho.in';
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465');
+
+const BOOKINGS_EMAIL = process.env.BOOKINGS_EMAIL || 'bookings@rerouteaventures.org';
+const BOOKINGS_PASSWORD = process.env.BOOKINGS_PASSWORD || '';
+const PAYMENTS_EMAIL = process.env.PAYMENTS_EMAIL || 'payments@rerouteaventures.org';
+const PAYMENTS_PASSWORD = process.env.PAYMENTS_PASSWORD || '';
+const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'support@rerouteaventures.org';
+const SUPPORT_PASSWORD = process.env.SUPPORT_PASSWORD || '';
+
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || '';
-// Bank details update notifications go to this address
-const BANK_UPDATE_EMAIL = process.env.BANK_UPDATE_EMAIL || 'rustiquebyranareddy@gmail.com';
+const BANK_UPDATE_EMAIL = process.env.BANK_UPDATE_EMAIL || SUPPORT_EMAIL;
+
+type EmailChannel = 'bookings' | 'payments' | 'support';
+
+const channelConfig: Record<EmailChannel, { email: string; password: string; label: string }> = {
+  bookings: { email: BOOKINGS_EMAIL, password: BOOKINGS_PASSWORD, label: 'Reroute Bookings' },
+  payments: { email: PAYMENTS_EMAIL, password: PAYMENTS_PASSWORD, label: 'Reroute Payments' },
+  support:  { email: SUPPORT_EMAIL,  password: SUPPORT_PASSWORD,  label: 'Reroute' },
+};
+
+const transporterCache = new Map<EmailChannel, nodemailer.Transporter>();
+
+function getTransporter(channel: EmailChannel): nodemailer.Transporter {
+  if (!transporterCache.has(channel)) {
+    const cfg = channelConfig[channel];
+    transporterCache.set(channel, nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: true,
+      auth: { user: cfg.email, pass: cfg.password },
+    }));
+  }
+  return transporterCache.get(channel)!;
+}
 
 // ─── Email helper ─────────────────────────────────────────────────────────────
-async function sendEmail(to: string | string[], subject: string, html: string): Promise<void> {
+async function sendEmail(to: string | string[], subject: string, html: string, channel: EmailChannel = 'support'): Promise<void> {
   if (!to || (Array.isArray(to) && to.length === 0)) return;
-  const smtpUser = process.env.SMTP_USER;
-  if (!smtpUser) {
-    logger.warn('Email skipped — SMTP_USER not configured. Set SMTP_USER env var.', { subject });
+  const cfg = channelConfig[channel];
+  if (!cfg.password) {
+    logger.warn(`Email skipped — ${channel} channel not configured (${cfg.email} has no password).`, { subject });
     return;
   }
   try {
-    await smtpTransporter.sendMail({
-      from: `"Reroute" <${FROM_EMAIL}>`,
+    await getTransporter(channel).sendMail({
+      from: `"${cfg.label}" <${cfg.email}>`,
       to: Array.isArray(to) ? to.join(', ') : to,
       subject,
       html,
     });
-    logger.info('Email sent:', { to, subject });
+    logger.info('Email sent:', { to, subject, channel });
   } catch (err) {
-    // Never let email failure crash payment/booking flows
-    logger.error('Email send failed (non-fatal):', { to, subject, err });
+    logger.error('Email send failed (non-fatal):', { to, subject, channel, err });
   }
 }
 
@@ -112,7 +138,7 @@ function baseLayout(content: string): string {
         <tr style="background:#f5f5f5;">
           <td style="padding:20px 32px;text-align:center;color:#888;font-size:12px;">
             <p style="margin:0;">© ${new Date().getFullYear()} Reroute. All rights reserved.</p>
-            <p style="margin:4px 0 0;">If you did not make this booking, please contact <a href="mailto:support@reroute.app" style="color:#4CAF50;">support@reroute.app</a></p>
+            <p style="margin:4px 0 0;">If you did not make this booking, please contact <a href="mailto:support@rerouteaventures.org" style="color:#4CAF50;">support@rerouteaventures.org</a></p>
           </td>
         </tr>
       </table>
@@ -123,6 +149,7 @@ function baseLayout(content: string): string {
 }
 
 function bookingConfirmationUserEmail(b: any): string {
+  const hasOwnerContact = b.ownerPhone || b.ownerPhone2 || b.ownerEmail;
   return baseLayout(`
     <h2 style="color:#4CAF50;margin-top:0;">Booking Confirmed</h2>
     <p>Hi <strong>${b.userName}</strong>,</p>
@@ -143,7 +170,15 @@ function bookingConfirmationUserEmail(b: any): string {
       <p style="margin:0;font-size:14px;color:#2E7D32;"><strong>Check-in Time:</strong> 11:00 AM &nbsp;|&nbsp; <strong>Check-out Time:</strong> 11:00 AM</p>
     </div>
 
-    <p style="color:#555;">For any queries, contact the property owner or reach out to us at <a href="mailto:support@reroute.app" style="color:#4CAF50;">support@reroute.app</a>.</p>
+    ${hasOwnerContact ? `
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;margin:20px 0;">
+      <tr style="background:#f9f9f9;"><td colspan="2" style="padding:10px 16px;font-weight:bold;color:#555;">Property Owner Contact</td></tr>
+      ${b.ownerPhone ? `<tr><td style="padding:12px 16px;font-weight:bold;width:45%;color:#555;">Phone</td><td style="padding:12px 16px;">${b.ownerPhone}</td></tr>` : ''}
+      ${b.ownerPhone2 ? `<tr style="background:#f9f9f9;"><td style="padding:12px 16px;font-weight:bold;color:#555;">Alternate Phone</td><td style="padding:12px 16px;">${b.ownerPhone2}</td></tr>` : ''}
+      ${b.ownerEmail ? `<tr><td style="padding:12px 16px;font-weight:bold;color:#555;">Email</td><td style="padding:12px 16px;">${b.ownerEmail}</td></tr>` : ''}
+    </table>` : ''}
+
+    <p style="color:#555;">For any queries, contact the property owner or reach out to us at <a href="mailto:support@rerouteaventures.org" style="color:#4CAF50;">support@rerouteaventures.org</a>.</p>
     <p style="margin-bottom:0;">We hope you enjoy your stay.</p>
   `);
 }
@@ -212,7 +247,7 @@ function cancellationUserEmail(b: any, refundAmount: number, refundPercentage: n
       <p style="margin:0;font-size:14px;color:#E65100;">${reason}</p>
     </div>`}
 
-    <p style="color:#555;">If you have any questions, contact us at <a href="mailto:support@reroute.app" style="color:#4CAF50;">support@reroute.app</a>.</p>
+    <p style="color:#555;">If you have any questions, contact us at <a href="mailto:support@rerouteaventures.org" style="color:#4CAF50;">support@rerouteaventures.org</a>.</p>
   `);
 }
 
@@ -273,7 +308,7 @@ function refundStatusEmail(b: any, refundAmount: number, refundId: string | null
     </div>` : `
     <p>We were unable to process your refund of <strong>₹${refundAmount}</strong> for the cancelled booking at <strong>${b.farmhouseName}</strong>.</p>
     <div style="background:#FFEBEE;border-left:4px solid #F44336;padding:16px;border-radius:4px;margin:20px 0;">
-      <p style="margin:0;font-size:14px;color:#C62828;">Our team has been notified and will process your refund manually. Please contact <a href="mailto:support@reroute.app" style="color:#F44336;">support@reroute.app</a> with your Booking ID for faster resolution.</p>
+      <p style="margin:0;font-size:14px;color:#C62828;">Our team has been notified and will process your refund manually. Please contact <a href="mailto:support@rerouteaventures.org" style="color:#F44336;">support@rerouteaventures.org</a> with your Booking ID for faster resolution.</p>
     </div>`}
 
     <p style="color:#555;">Booking ID: <code>${b.id || b.bookingId}</code></p>
@@ -289,6 +324,8 @@ async function sendPushToUser(
 ): Promise<void> {
   try {
     const userDoc = await db.collection('users').doc(userId).get();
+    // Default to enabled for users who never touched the setting
+    if (userDoc.data()?.pushNotificationsEnabled === false) return;
     const tokens: string[] = userDoc.data()?.fcmTokens || [];
     if (!tokens.length) return;
 
@@ -322,6 +359,7 @@ async function broadcastPushToAllUsers(title: string, body: string, data?: Recor
     const usersSnap = await db.collection('users').get();
     const tokenToUserId = new Map<string, string>();
     usersSnap.forEach(doc => {
+      if (doc.data().pushNotificationsEnabled === false) return;
       (doc.data().fcmTokens as string[] || []).forEach(t => tokenToUserId.set(t, doc.id));
     });
 
@@ -424,10 +462,17 @@ async function sendBookingConfirmationEmails(bookingId: string, transactionId: s
     const b: any = { bookingId, ...bookingDoc.data() };
 
     // Parallelise farmhouse + owner email fetches — was 3 sequential round-trips, now 1
-    const [farmhouseDoc, ownerEmail] = await Promise.all([
+    const [farmhouseDoc, ownerEmailFromUsers] = await Promise.all([
       b.farmhouseId ? db.collection('farmhouses').doc(b.farmhouseId).get() : Promise.resolve(null),
       getOwnerEmail(b.farmhouseId),
     ]);
+
+    const farmhouseBasic = farmhouseDoc?.exists ? (farmhouseDoc.data()?.basicDetails || farmhouseDoc.data()) : null;
+    // Prefer the email denormalized onto the farmhouse doc at registration time;
+    // fall back to the users/{ownerId} lookup for older listings that predate it.
+    const ownerEmail = farmhouseBasic?.ownerEmail || ownerEmailFromUsers;
+    const ownerPhone = farmhouseBasic?.contactPhone1 || null;
+    const ownerPhone2 = farmhouseBasic?.contactPhone2 || null;
 
     // Firestore notification + FCM push for owner (in-app + mobile)
     if (farmhouseDoc?.exists) {
@@ -467,7 +512,8 @@ async function sendBookingConfirmationEmails(bookingId: string, transactionId: s
       await sendEmail(
         b.userEmail,
         `[Booking] Confirmed — ${b.farmhouseName} | Reroute`,
-        bookingConfirmationUserEmail({ ...b, transactionId })
+        bookingConfirmationUserEmail({ ...b, transactionId, ownerPhone, ownerPhone2, ownerEmail }),
+        'bookings'
       );
     }
 
@@ -476,7 +522,8 @@ async function sendBookingConfirmationEmails(bookingId: string, transactionId: s
       await sendEmail(
         ownerEmail,
         `[Booking] New Booking Received — ${b.farmhouseName} | Reroute`,
-        bookingConfirmationOwnerEmail(b)
+        bookingConfirmationOwnerEmail(b),
+        'bookings'
       );
     }
 
@@ -485,7 +532,8 @@ async function sendBookingConfirmationEmails(bookingId: string, transactionId: s
       await sendEmail(
         ADMIN_EMAIL,
         `[Booking] New — ${b.farmhouseName}`,
-        bookingConfirmationAdminEmail({ ...b, transactionId })
+        bookingConfirmationAdminEmail({ ...b, transactionId }),
+        'bookings'
       );
     }
   } catch (err) {
@@ -842,14 +890,16 @@ export const processRefund = onCall(async (request) => {
             refundStatus === 'completed'
               ? `[Refund] Processed — ₹${actualRefundRupees} | Reroute`
               : `[Refund] Initiated — ₹${actualRefundRupees} | Reroute`,
-            refundStatusEmail(bData, actualRefundRupees, refund.id, 'processed')
+            refundStatusEmail(bData, actualRefundRupees, refund.id, 'processed'),
+            'payments'
           );
         }
         if (ADMIN_EMAIL) {
           await sendEmail(
             ADMIN_EMAIL,
             `[Refund] ${refundStatus} — Booking ${bookingId}`,
-            refundStatusEmail(bData, actualRefundRupees, refund.id, 'processed')
+            refundStatusEmail(bData, actualRefundRupees, refund.id, 'processed'),
+            'payments'
           );
         }
         // FCM push for user
@@ -912,7 +962,8 @@ export const notifyBookingCancellation = onCall(async (request) => {
       await sendEmail(
         b.userEmail,
         `[Cancellation] Booking Cancelled — ${b.farmhouseName} | Reroute`,
-        cancellationUserEmail(b, refundAmount, refundPercentage, reason)
+        cancellationUserEmail(b, refundAmount, refundPercentage, reason),
+        'bookings'
       );
     }
 
@@ -930,7 +981,8 @@ export const notifyBookingCancellation = onCall(async (request) => {
       await sendEmail(
         ownerEmail,
         `[Cancellation] Booking Cancelled — ${b.farmhouseName} | Reroute`,
-        cancellationOwnerEmail(b, reason, isOwnerCancellation, refundAmount, refundPercentage)
+        cancellationOwnerEmail(b, reason, isOwnerCancellation, refundAmount, refundPercentage),
+        'bookings'
       );
     }
 
@@ -938,7 +990,8 @@ export const notifyBookingCancellation = onCall(async (request) => {
       await sendEmail(
         ADMIN_EMAIL,
         `[Cancellation] Booking Cancelled — ${b.farmhouseName}`,
-        cancellationAdminEmail(b, refundAmount, refundPercentage, reason, isOwnerCancellation)
+        cancellationAdminEmail(b, refundAmount, refundPercentage, reason, isOwnerCancellation),
+        'bookings'
       );
     }
 
@@ -948,14 +1001,16 @@ export const notifyBookingCancellation = onCall(async (request) => {
         await sendEmail(
           ADMIN_EMAIL,
           `[Refund] URGENT — Refund Failed for Booking ${bookingId}`,
-          refundStatusEmail(b, refundAmount, null, 'failed')
+          refundStatusEmail(b, refundAmount, null, 'failed'),
+          'payments'
         );
       }
       if (b.userEmail) {
         await sendEmail(
           b.userEmail,
           '[Refund] Processing Issue — Reroute',
-          refundStatusEmail(b, refundAmount, null, 'failed')
+          refundStatusEmail(b, refundAmount, null, 'failed'),
+          'payments'
         );
       }
     }
@@ -1192,7 +1247,8 @@ async function handleRefundUpdate(refund: any) {
             sendEmail(
               b.userEmail,
               `[Refund] Processed — ₹${refundAmount} | Reroute`,
-              refundStatusEmail(b, refundAmount, refundId, 'processed')
+              refundStatusEmail(b, refundAmount, refundId, 'processed'),
+              'payments'
             ).catch(() => {});
           }
           if (b.userId) {
@@ -1240,7 +1296,7 @@ function newListingOwnerEmail(farmhouseName: string, ownerName: string): string 
       </p>
     </div>
 
-    <p style="color:#555;">For any queries, reach out to us at <a href="mailto:support@reroute.app" style="color:#4CAF50;">support@reroute.app</a>.</p>
+    <p style="color:#555;">For any queries, reach out to us at <a href="mailto:support@rerouteaventures.org" style="color:#4CAF50;">support@rerouteaventures.org</a>.</p>
   `);
 }
 
@@ -1271,7 +1327,7 @@ function approvalStatusEmail(farmhouseName: string, ownerName: string, newStatus
     ${isRejected ? `
     <div style="background:#FFEBEE;border-left:4px solid #F44336;padding:16px;border-radius:4px;margin:20px 0;">
       <p style="margin:0;font-size:14px;color:#C62828;">
-        If you believe this is a mistake or need clarification, please contact <a href="mailto:support@reroute.app" style="color:#F44336;">support@reroute.app</a>.
+        If you believe this is a mistake or need clarification, please contact <a href="mailto:support@rerouteaventures.org" style="color:#F44336;">support@rerouteaventures.org</a>.
       </p>
     </div>` : ''}
 

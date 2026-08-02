@@ -1,8 +1,38 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-import { collection, addDoc, serverTimestamp, query, where, getDocs, orderBy, limit, doc, updateDoc, arrayUnion } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { collection, addDoc, serverTimestamp, query, where, getDocs, orderBy, limit, doc, updateDoc, arrayUnion, setDoc } from 'firebase/firestore';
 import { db } from '../firebaseConfig';
+
+const PUSH_PREF_KEY = '@reroute_push_notifications_enabled';
+
+/**
+ * Whether this device should show push/local notification banners.
+ * Notification-center history (Firestore `notifications` docs) is unaffected —
+ * this only gates the OS-level banner/sound.
+ */
+export async function isPushNotificationsEnabled(): Promise<boolean> {
+  try {
+    const stored = await AsyncStorage.getItem(PUSH_PREF_KEY);
+    return stored !== 'false'; // default enabled
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Persist the push notification preference locally (fast read for local
+ * notifications) and on the user doc (so Cloud Functions can gate FCM sends).
+ */
+export async function setPushNotificationsEnabled(userId: string, enabled: boolean): Promise<void> {
+  await AsyncStorage.setItem(PUSH_PREF_KEY, enabled ? 'true' : 'false');
+  try {
+    await setDoc(doc(db, 'users', userId), { pushNotificationsEnabled: enabled }, { merge: true });
+  } catch {
+    // Non-fatal — local pref still applies on this device
+  }
+}
 
 // Configure notification behavior (skip on web - not supported)
 if (Platform.OS !== 'web') {
@@ -92,7 +122,8 @@ export async function sendLocalNotification(
   title: string,
   body: string,
   data?: any
-): Promise<string> {
+): Promise<string | null> {
+  if (!(await isPushNotificationsEnabled())) return null;
   try {
     const notificationId = await Notifications.scheduleNotificationAsync({
       content: {
@@ -119,7 +150,8 @@ export async function scheduleNotification(
   body: string,
   triggerDate: Date,
   data?: any
-): Promise<string> {
+): Promise<string | null> {
+  if (!(await isPushNotificationsEnabled())) return null;
   try {
     const notificationId = await Notifications.scheduleNotificationAsync({
       content: {

@@ -118,13 +118,6 @@ export default function RulesRestrictionsScreen({ navigation }: RulesRestriction
 
       <View style={styles.footer}>
         <TouchableOpacity
-          style={styles.secondaryButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.secondaryButtonText}>Back</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
           style={styles.primaryButton}
           onPress={() => navigation.navigate('FarmKyc')}
           activeOpacity={0.8}

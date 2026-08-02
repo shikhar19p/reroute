@@ -262,6 +262,12 @@ const cloneForPathSegment = (value: any): any => {
 };
 
 const DRAFT_STORAGE_KEY = 'farm_registration_draft';
+const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 1 week
+
+interface StoredDraft {
+  farm: Farm;
+  savedAt: number;
+}
 
 export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
@@ -282,7 +288,8 @@ export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) 
       const hasData = farm.name || farm.contactPhone1 || farm.city || farm.area || farm.photos.length > 0;
 
       if (hasData) {
-        await storageSet(draftKey, JSON.stringify(farm));
+        const stored: StoredDraft = { farm, savedAt: Date.now() };
+        await storageSet(draftKey, JSON.stringify(stored));
         setHasDraft(true);
       }
     } catch (error) {
@@ -297,14 +304,15 @@ export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) 
       const draftData = await storageGet(draftKey);
 
       if (draftData) {
-        const parsedDraft = JSON.parse(draftData);
-        // Validate parsed draft has expected structure
-        if (parsedDraft && typeof parsedDraft === 'object' && 'kyc' in parsedDraft) {
-          setFarm(parsedDraft);
+        const parsed = JSON.parse(draftData);
+        // Validate parsed draft has expected structure and isn't past the 1-week limit
+        const isExpired = !parsed?.savedAt || (Date.now() - parsed.savedAt) > DRAFT_MAX_AGE_MS;
+        if (parsed?.farm && typeof parsed.farm === 'object' && 'kyc' in parsed.farm && !isExpired) {
+          setFarm(parsed.farm);
           setHasDraft(true);
           return true;
         }
-        // Corrupted draft - clear it
+        // Corrupted or expired draft - clear it
         await storageRemove(draftKey);
         setHasDraft(false);
         return false;
@@ -333,7 +341,18 @@ export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) 
       try {
         const draftKey = getDraftKey();
         const draftData = await storageGet(draftKey);
-        setHasDraft(!!draftData);
+        if (draftData) {
+          const parsed = JSON.parse(draftData);
+          const isExpired = !parsed?.savedAt || (Date.now() - parsed.savedAt) > DRAFT_MAX_AGE_MS;
+          if (isExpired) {
+            await storageRemove(draftKey);
+            setHasDraft(false);
+          } else {
+            setHasDraft(true);
+          }
+        } else {
+          setHasDraft(false);
+        }
         setIsInitialized(true);
       } catch (error) {
         console.warn('Error checking for draft:', error);
@@ -349,18 +368,24 @@ export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) 
   }, [user, getDraftKey]);
 
   // Auto-save draft when farm data changes (debounced).
-  // Only save when there is actual user-entered data — avoids spurious draft detection on fresh mount.
+  // Only persist when there is actual user-entered data — avoids spurious draft
+  // detection on fresh mount. If the user clears the fields back out (e.g. typed
+  // something, then deleted it before leaving), clear any previously-saved draft
+  // too, so a stale snapshot doesn't linger and falsely trigger "Resume Draft?".
   useEffect(() => {
     if (!isInitialized) return;
     const hasData = farm.name.trim() || farm.contactPhone1.trim() || farm.city.trim();
-    if (!hasData) return;
 
     const timeoutId = setTimeout(() => {
-      saveDraft();
+      if (hasData) {
+        saveDraft();
+      } else if (hasDraft) {
+        clearDraft();
+      }
     }, 1000);
 
     return () => clearTimeout(timeoutId);
-  }, [farm, saveDraft, isInitialized]);
+  }, [farm, saveDraft, clearDraft, hasDraft, isInitialized]);
 
   const resetFarm = useCallback(async () => {
     setFarm(createInitialFarm());

@@ -15,7 +15,7 @@ const FAQS = [
   },
   {
     q: 'What is Day Use vs Overnight?',
-    a: 'Day Use bookings are for a single day (typically 9 AM – 6 PM) and are priced per day. Overnight bookings span one or more nights (typically check-in 12 PM – check-out 11 AM next day) and are priced per night.',
+    a: 'Day Use bookings are for a single day and are priced per day. Overnight bookings span one or more nights and are priced per night. Exact check-in/check-out times are set by each property owner and shown on the farmhouse\'s page before you book.',
   },
   {
     q: 'Can I cancel a booking?',

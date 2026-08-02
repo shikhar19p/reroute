@@ -6,6 +6,8 @@ Farmhouse & resort booking app built with React Native + Expo (bare workflow), F
 - Quick Start
 - Project Structure
 - Environment Setup
+- Dev (Staging) vs Prod — Switching Between Them
+- EAS Versioning & Building the AAB
 - Google Sign-In Setup
 - Android Build Guide
 - Common Errors & Fixes
@@ -76,6 +78,137 @@ ENVIRONMENT=development
 ```
 
 These are read by `app.config.js` and exposed via `expo-constants`.
+
+For a full staging/dev backend (separate Firebase project, safe to break), copy this into `.env.staging` instead — see the next section for the values and how to switch between the two.
+
+## Dev (Staging) vs Prod — Switching Between Them
+
+There are two full, independent Firebase backends:
+
+| | Prod | Staging (dev) |
+| --- | --- | --- |
+| Firebase project | `rustique-6b7c4` | `reroute-aventures-dev` |
+| Env file | `.env` | `.env.staging` |
+| Android package | `com.rerouteaventures.app` | `com.rerouteaventures.app.dev` |
+| `google-services.json` | `google-services.json` (root) | `google-services.staging.json` (gitignored — pull fresh via `firebase apps:sdkconfig` if missing, see below) |
+| Razorpay | live keys | **also live keys, same account** — staging is a full mirror of prod except the database. No test-mode safety net; real charges happen on staging bookings too. |
+| Email (Zoho) | `bookings@` / `payments@` / `support@rerouteaventures.org` | same mailboxes, same subjects (no `[STAGING]` tag) |
+
+`app.config.js` decides which backend a build talks to by checking `FIREBASE_PROJECT_ID` (not `ENVIRONMENT` — that var is reused by EAS profile names like `development`/`preview`/`production` for a different purpose, the app *display name*). Whichever env source sets `FIREBASE_PROJECT_ID=reroute-aventures-dev` is what flips `IS_STAGING_BACKEND` and switches the Android package + `google-services` file together.
+
+### Local development
+
+```bash
+# Prod (reads .env)
+npm run web            # web
+npm start               # Expo Go / dev client
+npm run android          # native Android build
+
+# Staging (reads .env.staging via dotenv-cli)
+npm run web:staging
+npm run start:staging
+npm run android:staging
+npm run web:staging:highmem   # staging + the Node heap bump for slow machines
+```
+
+If `npm run web:highmem` shows prod data, that's expected — it was never wired to `.env.staging`. Use `web:staging:highmem` for staging + the memory fix together.
+
+### Firebase CLI (deploys, rules, functions)
+
+```bash
+npm run use:staging     # firebase use staging
+npm run use:prod        # firebase use production
+
+npm run deploy:staging  # functions + firestore rules/indexes + storage -> reroute-aventures-dev
+npm run deploy:prod     # same, -> rustique-6b7c4
+```
+
+`.firebaserc` holds the project aliases:
+
+```json
+{
+  "projects": {
+    "default": "rustique-6b7c4",
+    "production": "rustique-6b7c4",
+    "staging": "reroute-aventures-dev"
+  }
+}
+```
+
+### Cloud Functions env vars
+
+Functions don't read the root `.env*` files at deploy time — each project gets its own dotenv file inside `functions/`, auto-loaded by `firebase deploy` based on which project you're deploying to:
+
+```text
+functions/.env.rustique-6b7c4          # prod (if present locally; prod's real config lives as deployed env vars)
+functions/.env.reroute-aventures-dev   # staging
+```
+
+Add/change a key, then redeploy just the affected functions to apply it:
+
+```bash
+npx firebase deploy --only functions:verifyPayment,functions:razorpayWebhook --project reroute-aventures-dev --force
+```
+
+`--force` is required whenever any function has `minInstances` set (currently `createOrder`, `verifyPayment`) — Firebase asks for confirmation on cost-increasing changes.
+
+### EAS cloud builds (dev-client / preview / production)
+
+EAS build profiles (`eas.json`) pull config from EAS's own per-environment variable store, not from local `.env*` files (those never leave your machine for cloud builds). Only the `development` profile is wired to staging; `preview`/`production` use prod (the hardcoded fallback values in `app.config.js`/`firebaseConfig.ts`).
+
+```bash
+eas env:list development                 # see what's set
+eas env:create development --name KEY --value VALUE --visibility plaintext --non-interactive --force
+eas env:create development --name GOOGLE_SERVICES_FILE --value ./google-services.staging.json --type file --non-interactive --force
+```
+
+If you re-provision the staging Firebase project (new Android SHA-1, new OAuth client, etc.), re-download the config and re-upload it as the file-type env var — EAS cloud builds clone a fresh checkout and never see gitignored local files.
+
+## EAS Versioning & Building the AAB
+
+### ⚠️ Known issue — versionCode source of truth
+
+Both `app.json` and `app.config.js` currently define `android.versionCode` with **different values** (`app.json` has been auto-incremented by EAS past what `app.config.js` hardcodes). Since `app.config.js` exports a plain object (not a function that spreads `app.json`'s config), **`app.config.js` always wins at build/runtime** — `app.json`'s value is silently ignored. This means EAS's `autoIncrement: true` (production profile) has been bumping a number nobody actually reads, while every build has kept using whatever's hardcoded in `app.config.js`.
+
+**Before your next production build**, reconcile these two files manually — check both `app.json` → `expo.android.versionCode` and `app.config.js` → `android.versionCode`, and set both to one number higher than whatever's currently live on the Play Store. Repeated identical versionCodes get **rejected** by Play Store upload, not silently ignored.
+
+The durable fix (not yet applied) is to delete `versionCode` from `app.config.js` entirely and let `app.json` be the single mutable source EAS auto-increments — or keep it in `app.config.js` but read it dynamically from `app.json` instead of hardcoding. Worth doing before this bites a real release.
+
+### Building the AAB (Play Store bundle)
+
+```bash
+eas build --platform android --profile production
+```
+
+This uses `eas.json`'s `production` profile: `buildType: "app-bundle"` (produces an `.aab`, not `.apk`), `autoIncrement: true`. Runs entirely on EAS's servers — no local Android SDK needed. Download link is printed when it finishes, also visible at `expo.dev` under your project's Builds tab.
+
+### Building an APK instead (for sideloading / internal testing)
+
+```bash
+eas build --platform android --profile preview     # signed APK, internal distribution
+eas build --platform android --profile development  # debug-signed dev-client APK, staging backend
+```
+
+### Submitting to Play Store
+
+```bash
+eas submit --platform android --profile production
+```
+
+Uses `google-play-key.json` (service account key, gitignored — must exist locally, not checked in) and uploads to the `internal` track (`eas.json` → `submit.production.android.track`).
+
+### Local AAB/APK build (no EAS, for release-signing testing)
+
+```bash
+npm run android:release   # ensures google-services.json, then gradlew assembleRelease (APK)
+```
+
+For a local **bundle** (`.aab`) instead of APK:
+
+```bash
+cd android && ./gradlew.bat bundleRelease && cd ..
+# output: android/app/build/outputs/bundle/release/app-release.aab
+```
 
 ## Google Sign-In Setup
 
@@ -372,12 +505,16 @@ git log --oneline origin/master2 | head -10
 
 ## Key IDs & References
 
+| Item | Prod | Staging |
+| --- | --- | --- |
+| Package name | `com.rerouteaventures.app` | `com.rerouteaventures.app.dev` |
+| Firebase project | `rustique-6b7c4` | `reroute-aventures-dev` |
+| Web Client ID | `272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com` | `900563025830-5sp460g5i2debc9d6i0uo7k6lt93g1hk.apps.googleusercontent.com` |
+
 | Item | Value |
 | --- | --- |
-| Package name | `com.rerouteaventures.app` |
-| Firebase project | `rustique-6b7c4` |
 | EAS project ID | `b4fd15d4-8419-4cd7-b47a-ba697e65979e` |
-| Web Client ID | `272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com` |
-| Debug keystore SHA1 | `25:99:69:2B:9E:2A:AB:CE:68:40:C1:5B:C7:E2:63:52:10:01:16:85` |
+| Debug keystore SHA1 (registered on both Firebase projects) | `25:99:69:2B:9E:2A:AB:CE:68:40:C1:5B:C7:E2:63:52:10:01:16:85` |
 | Expo username | `shikahr_19` |
 | Auth proxy URL | `https://auth.expo.io/@shikahr_19/reroute` |
+| Zoho support mailbox (shared prod + staging) | `support@rerouteaventures.org` / `bookings@...` / `payments@...` |

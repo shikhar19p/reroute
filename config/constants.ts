@@ -12,8 +12,8 @@
 // ============================================================================
 
 export const PAYMENT_CONFIG = {
-  // Platform fees as percentage (2% = 0.02)
-  PLATFORM_FEE_PERCENTAGE: 0.02,
+  // Platform fee as percentage (3% = 0.03). Non-refundable under all cancellations.
+  PLATFORM_FEE_PERCENTAGE: 0.03,
 
   // Fixed processing fee in INR
   PROCESSING_FEE: 50,
@@ -231,7 +231,7 @@ export const COLLECTIONS = {
 export const APP_CONFIG = {
   NAME: 'ReRoute',
   VERSION: '1.0.0',
-  SUPPORT_EMAIL: 'support@reroute.app',
+  SUPPORT_EMAIL: 'support@rerouteaventures.org',
   SUPPORT_PHONE: '+91-XXXXXXXXXX', // Update with actual support number
 } as const;
 

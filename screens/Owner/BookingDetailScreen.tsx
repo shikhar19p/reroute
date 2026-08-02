@@ -162,6 +162,24 @@ export default function OwnerBookingDetailScreen({ route, navigation }: Props) {
         <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Payment Details</Text>
 
+          {Number((booking as any).discountApplied || 0) > 0 && (
+            <View style={styles.infoRow}>
+              <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Discount Applied</Text>
+              <Text style={[styles.infoValue, { color: '#10B981' }]}>
+                -₹{Number((booking as any).discountApplied).toLocaleString('en-IN')}
+              </Text>
+            </View>
+          )}
+
+          {Number((booking as any).platformFee || 0) > 0 && (
+            <View style={styles.infoRow}>
+              <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Platform Fee (non-refundable)</Text>
+              <Text style={[styles.infoValue, { color: colors.text }]}>
+                ₹{Number((booking as any).platformFee).toLocaleString('en-IN')}
+              </Text>
+            </View>
+          )}
+
           <View style={styles.infoRow}>
             <Text style={[styles.infoLabel, { color: colors.placeholder }]}>Total Price</Text>
             <Text style={[styles.totalValue, { color: colors.buttonBackground }]}>

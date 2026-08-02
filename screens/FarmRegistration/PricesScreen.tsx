@@ -104,11 +104,19 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
     const rows: (number | null)[][] = [];
     for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isAtCurrentMonth = year === today.getFullYear() && month === today.getMonth();
+
     return (
       <View>
         <View style={styles.calHeader}>
-          <TouchableOpacity onPress={() => setViewDate(new Date(year, month - 1, 1))} style={styles.calNav}>
-            <Text style={styles.calNavText}>‹</Text>
+          <TouchableOpacity
+            onPress={() => !isAtCurrentMonth && setViewDate(new Date(year, month - 1, 1))}
+            style={styles.calNav}
+            disabled={isAtCurrentMonth}
+          >
+            <Text style={[styles.calNavText, isAtCurrentMonth && { opacity: 0.3 }]}>‹</Text>
           </TouchableOpacity>
           <Text style={styles.calMonthText}>{MONTHS[month]} {year}</Text>
           <TouchableOpacity onPress={() => setViewDate(new Date(year, month + 1, 1))} style={styles.calNav}>
@@ -120,15 +128,20 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
         </View>
         {rows.map((row, ri) => (
           <View key={ri} style={styles.calRow}>
-            {row.map((day, ci) => (
-              day ? (
-                <TouchableOpacity key={ci} style={styles.calDay} onPress={() => handleDateSelect(day)}>
-                  <Text style={styles.calDayText}>{day}</Text>
+            {row.map((day, ci) => {
+              if (!day) return <View key={ci} style={styles.calDay} />;
+              const isPast = new Date(year, month, day) < today;
+              return (
+                <TouchableOpacity
+                  key={ci}
+                  style={styles.calDay}
+                  onPress={() => !isPast && handleDateSelect(day)}
+                  disabled={isPast}
+                >
+                  <Text style={[styles.calDayText, isPast && { opacity: 0.3 }]}>{day}</Text>
                 </TouchableOpacity>
-              ) : (
-                <View key={ci} style={styles.calDay} />
-              )
-            ))}
+              );
+            })}
           </View>
         ))}
       </View>
@@ -404,13 +417,6 @@ export default function PricesScreen({ navigation }: PricesScreenProps) {
         </Modal>
 
         <View style={styles.footer}>
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.secondaryButtonText}>Back</Text>
-          </TouchableOpacity>
           <TouchableOpacity
             style={styles.primaryButton}
             onPress={handleSubmit}

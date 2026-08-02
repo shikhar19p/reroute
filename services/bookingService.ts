@@ -33,6 +33,7 @@ export interface Booking {
   totalPrice: number;
   originalPrice?: number;
   discountApplied?: number;
+  platformFee?: number; // Non-refundable platform fee included in totalPrice
   couponCode?: string | null;
   bookingType: 'dayuse' | 'overnight';
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed';

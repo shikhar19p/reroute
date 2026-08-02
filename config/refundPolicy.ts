@@ -5,10 +5,14 @@
  * ============================================================
  *
  * Rules (applied in order):
- *  1. Owner cancels                                  → 100% refund
- *  2. User cancels > 24 hours before check-in        → 100% refund
- *  3. User cancels within 24 hours of check-in       → 50% refund
+ *  1. Owner cancels                                  → 100% refund (of the refundable amount)
+ *  2. User cancels > 24 hours before check-in        → 50% refund
+ *  3. User cancels within 24 hours of check-in        → No refund
  *  4. User cancels after check-in                    → No refund
+ *
+ * The platform fee (PLATFORM_FEE_PERCENTAGE in config/constants.ts) is
+ * NEVER refunded, regardless of who cancels or when — it is deducted from
+ * the refund base before any percentage above is applied.
  *
  * All percentages are integers (0–100).
  * ESTIMATED_REFUND_DAYS is shown to users as a display string only.
@@ -25,10 +29,10 @@ export const REFUND_POLICY = {
   // kept for backward compatibility
   PARTIAL_REFUND_THRESHOLD_HOURS: 24,
 
-  // ── Refund percentages ────────────────────────────────────
+  // ── Refund percentages (applied to the amount minus platform fee) ──
   OWNER_CANCELLATION_PERCENTAGE: 100,   // Owner cancels → full refund
-  FULL_REFUND_PERCENTAGE: 100,          // User cancels >24h before → 100% back
-  PARTIAL_REFUND_PERCENTAGE: 50,        // User cancels <24h before → 50% back
+  FULL_REFUND_PERCENTAGE: 50,           // User cancels >24h before → 50% back
+  PARTIAL_REFUND_PERCENTAGE: 0,         // User cancels <24h before → 0% back
   NO_REFUND_PERCENTAGE: 0,              // User cancels after check-in → nothing
 
   // ── Processing fee ────────────────────────────────────────
@@ -41,9 +45,10 @@ export const REFUND_POLICY = {
 /** Human-readable policy summary shown in the app. */
 export function getRefundPolicyText(): string {
   return (
-    `• Cancel more than 24 hours before check-in: 100% refund\n` +
-    `• Cancel within 24 hours of check-in: 50% refund\n` +
+    `• Cancel more than 24 hours before check-in: 50% refund\n` +
+    `• Cancel within 24 hours of check-in: No refund\n` +
     `• Owner cancels: 100% refund\n` +
+    `• Platform fee is non-refundable in all cases\n` +
     `• Refunds processed in ${REFUND_POLICY.ESTIMATED_REFUND_DAYS}`
   );
 }
