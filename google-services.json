@@ -30,6 +30,14 @@
           }
         },
         {
+          "client_id": "272634614965-l88n079kduq901bcbkkto9nk7u2527bk.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.rerouteaventures.app",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
           "client_id": "272634614965-rvtougefbkkbqvjq2ifqtnu8qupmldhb.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

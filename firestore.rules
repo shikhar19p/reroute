@@ -18,15 +18,26 @@ service cloud.firestore {
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // 'role'/'roles' double as the app's self-service owner/customer switch
+    // (see authContext.tsx switchRole) AND the admin gate above — so self-writes
+    // must be constrained to the safe enum, never blocked outright.
+    function selfRoleChangeIsSafe() {
+      return (!('role' in request.resource.data) || request.resource.data.role in ['owner', 'customer'])
+        && (!('roles' in request.resource.data) || request.resource.data.roles.hasOnly(['owner', 'customer']));
+    }
+
     // ========== Users Collection ==========
     match /users/{userId} {
       // Users can only read their own profile; admins can read any
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isAuthenticated();
-      allow update: if (isOwner(userId) && (
-        // Prevent updates to critical immutable fields
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['createdAt', 'email', 'uid'])
-      )) || isAdmin();
+
+      allow create: if isOwner(userId) && selfRoleChangeIsSafe();
+
+      allow update: if (isOwner(userId)
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['createdAt', 'email', 'uid'])
+        && selfRoleChangeIsSafe()
+      ) || isAdmin();
+
       allow delete: if isAdmin();
     }
 
@@ -42,8 +53,14 @@ service cloud.firestore {
         // Farmhouse owner can update their listing (except status, approvedAt, ownerId)
         ((resource.data.ownerId == request.auth.uid || resource.data.owner_id == request.auth.uid)
           && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status', 'approvedAt', 'ownerId', 'owner_id']))
-        // Any authenticated user can update bookedDates (booking flow)
-        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bookedDates']))
+        // Any authenticated user can update bookedDates (booking flow).
+        // NOTE: this only bounds the blast radius of a single write (defense in
+        // depth) — it does not verify the dates correspond to a real booking.
+        // Closing this fully requires moving bookedDates writes into a Cloud
+        // Function tied to an actual paid booking record.
+        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bookedDates'])
+            && request.resource.data.bookedDates.size() <= resource.data.bookedDates.size() + 60
+            && resource.data.bookedDates.size() <= request.resource.data.bookedDates.size() + 60)
         || isAdmin()
       );
 
@@ -70,6 +87,10 @@ service cloud.firestore {
     }
 
     // ========== Bookings Collection ==========
+    // NOTE: `create` does not (and, without a pricing-aware Cloud Function,
+    // safely cannot) validate totalPrice/total_amount against the farmhouse's
+    // real rate. createOrder trusts this stored value as the payment amount to
+    // verify against, so this is a known open item — flagged, not fixed here.
     match /bookings/{bookingId} {
       allow read: if isAuthenticated() && (
         resource.data.userId == request.auth.uid
@@ -90,7 +111,10 @@ service cloud.firestore {
         // Farmhouse owner can cancel bookings for their property
         || (resource.data.farmhouseId != null
             && get(/databases/$(database)/documents/farmhouses/$(resource.data.farmhouseId)).data.ownerId == request.auth.uid
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancellationReason', 'cancelledAt', 'refundAmount', 'refundPercentage', 'processingFee', 'updatedAt']))
+            // paymentStatus included: owner "Mark Paid" (bookingService.ts
+            // updatePaymentStatus) writes {paymentStatus, updatedAt} for manual/
+            // offline payments — was missing here, silently rejected before.
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'cancellationReason', 'cancelledAt', 'refundAmount', 'refundPercentage', 'processingFee', 'updatedAt', 'paymentStatus']))
         || isAdmin()
       );
 
@@ -129,7 +153,10 @@ service cloud.firestore {
       allow read: if true;
 
       allow create: if isAuthenticated()
-        && (request.resource.data.userId == request.auth.uid || request.resource.data.user_id == request.auth.uid);
+        && (request.resource.data.userId == request.auth.uid || request.resource.data.user_id == request.auth.uid)
+        && request.resource.data.rating is number
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5;
 
       allow update: if isAuthenticated() && (
         (resource.data.userId == request.auth.uid || resource.data.user_id == request.auth.uid)
@@ -143,9 +170,13 @@ service cloud.firestore {
     }
 
     // ========== Audit Logs Collection ==========
+    // create is self-attribution only. Traced every logAuditEvent call site
+    // (booking create/cancel by guest or owner, favorites, role switch) —
+    // the userId argument is always the acting user's own uid, never someone
+    // else's, so this doesn't break any real flow.
     match /audit_logs/{logId} {
       allow read: if isAdmin();
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
       allow update, delete: if isAdmin();
     }
 
@@ -165,11 +196,16 @@ service cloud.firestore {
 
       allow create: if isAdmin();
 
-      // Users may only increment current_uses; admins can change anything
+      // Users may only increment usedCount by exactly 1, and only up to the
+      // usage limit. Field name matches services/couponService.ts (usedCount /
+      // usageLimit) — the previous rule referenced current_uses, a field the
+      // app never writes, so this self-serve path was silently rejecting every
+      // non-admin request.
       allow update: if isAdmin() || (
         isAuthenticated() &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['current_uses']) &&
-        request.resource.data.current_uses == resource.data.current_uses + 1
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usedCount']) &&
+        request.resource.data.usedCount == resource.data.usedCount + 1 &&
+        resource.data.usedCount < resource.data.usageLimit
       );
 
       allow delete: if isAdmin();
@@ -186,6 +222,13 @@ service cloud.firestore {
     }
 
     // ========== Notifications Collection ==========
+    // NOTE: create is intentionally still open to any authenticated user.
+    // sendOwnerBookingNotification writes a notification with userId set to
+    // the farmhouse OWNER while request.auth.uid is the guest who booked — a
+    // legitimate cross-user write from the client (see notificationService.ts).
+    // Restricting to self-attribution breaks that feature. Real fix is moving
+    // notification creation server-side (Cloud Functions already do this for
+    // several triggers) and locking this collection down like payment_orders.
     match /notifications/{notificationId} {
       allow read: if isAuthenticated() && (
         resource.data.userId == request.auth.uid || isAdmin()
@@ -203,6 +246,11 @@ service cloud.firestore {
     }
 
     // ========== Payments Collection ==========
+    // Traced both same-named `updatePaymentStatus` helpers: the one that
+    // writes here (paymentService.ts) has zero importers anywhere in the
+    // client — dead code. Safe to lock status/amount/razorpay* transitions to
+    // Cloud Functions only; self-update is left for any other non-financial
+    // field the owning user might legitimately touch.
     match /payments/{paymentId} {
       allow read: if isAuthenticated() && (
         resource.data.userId == request.auth.uid || isAdmin()
@@ -214,8 +262,12 @@ service cloud.firestore {
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.status == 'pending';
 
-      allow update: if isAuthenticated() && (
-        resource.data.userId == request.auth.uid || isAdmin()
+      allow update: if isAdmin() || (
+        isAuthenticated()
+        && resource.data.userId == request.auth.uid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(
+          ['status', 'amount', 'currency', 'razorpayPaymentId', 'razorpayOrderId', 'razorpaySignature', 'userId']
+        )
       );
 
       allow delete: if isAdmin();
@@ -232,8 +284,15 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Client legitimately records its own coupon redemption here
+    // (services/couponService.ts recordCouponUsage) — previously hard-locked
+    // to `if false`, which silently broke coupon usage tracking for every
+    // non-admin user (including the "already used this coupon" check, since
+    // it queries this collection and it was always empty).
     match /couponUsage/{docId} {
-      allow read, write: if false;
+      allow read: if false;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if false;
     }
   }
 }

@@ -530,12 +530,14 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
               </Text>
             </View>
           )}
-          <View style={styles.billingRow}>
-            <Text style={[styles.billingLabel, { color: colors.placeholder }]}>
-              Platform fee ({(PAYMENT_CONFIG.PLATFORM_FEE_PERCENTAGE * 100).toFixed(0)}%, non-refundable):
-            </Text>
-            <Text style={[styles.billingValue, { color: colors.text }]}>₹{platformFee}</Text>
-          </View>
+          {platformFee > 0 && (
+            <View style={styles.billingRow}>
+              <Text style={[styles.billingLabel, { color: colors.placeholder }]}>
+                Platform fee ({(PAYMENT_CONFIG.PLATFORM_FEE_PERCENTAGE * 100).toFixed(0)}%, non-refundable):
+              </Text>
+              <Text style={[styles.billingValue, { color: colors.text }]}>₹{platformFee}</Text>
+            </View>
+          )}
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <View style={styles.billingRow}>
             <Text style={[styles.finalTotalLabel, { color: colors.text }]}>Total Amount:</Text>

@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ArrowLeft, Edit, MapPin, Users, Home, Star, Plus, Trash2, Calendar, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import LocationMapView from '../../components/LocationMapView';
+import AmenitiesSection from '../../components/AmenitiesSection';
 import { useTheme } from '../../context/ThemeContext';
 import { Farmhouse } from '../../services/farmhouseService';
 import { useDialog } from '../../components/CustomDialog';
@@ -406,20 +407,7 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
             {renderCalendarModal()}
           </View>
 
-          {/* Amenities */}
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Amenities</Text>
-            <View style={styles.amenitiesGrid}>
-              {amenitiesList.map((amenity, index) => (
-                <View
-                  key={index}
-                  style={[styles.amenityChip, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
-                >
-                  <Text style={[styles.amenityText, { color: colors.text }]}>{amenity}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
+          <AmenitiesSection amenitiesList={amenitiesList} />
 
           {/* Location Map */}
           <View style={styles.section}>
@@ -787,20 +775,6 @@ const styles = StyleSheet.create({
   customPriceValue: {
     fontSize: 18,
     fontWeight: 'bold',
-  },
-  amenitiesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  amenityChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  amenityText: {
-    fontSize: 14,
   },
   map: {
     width: '100%',

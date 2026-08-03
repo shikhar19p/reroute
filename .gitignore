@@ -33,6 +33,10 @@ yarn-error.*
 # local env files
 .env*
 !.env.example
+
+# Local Secret Manager values for firebase emulator (functions:secrets:set uses
+# Secret Manager directly; this file is only for `firebase emulators:start`)
+.secret.local
 google-services.staging.json
 
 # Firebase & Google Play sensitive files

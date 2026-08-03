@@ -5,7 +5,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ArrowLeft } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { Booking, updateBookingStatus, updatePaymentStatus } from '../../services/bookingService';
-import { cancelBookingWithRefund } from '../../services/cancellationService';
+import { cancelBookingWithRefund, calculateRefundAmount } from '../../services/cancellationService';
 import { useDialog } from '../../components/CustomDialog';
 import { useAuth } from '../../authContext';
 import { getStatusColor } from '../../utils/statusColors';
@@ -72,9 +72,11 @@ export default function OwnerBookingDetailScreen({ route, navigation }: Props) {
       return;
     }
 
+    const preview = calculateRefundAmount(booking.totalPrice, booking.checkInDate, true, undefined, booking.platformFee || 0);
+
     showDialog({
       title: 'Cancel booking',
-      message: `Cancel this booking? The guest will receive a full refund of ₹${booking.totalPrice}.`,
+      message: `Cancel this booking? The guest will receive a full refund of ₹${preview.refundAmount.toLocaleString('en-IN')} (${preview.refundPercentage}%).`,
       type: 'warning',
       buttons: [
         { text: 'No, Keep Booking', style: 'cancel' },

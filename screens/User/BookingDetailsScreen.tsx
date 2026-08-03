@@ -1,22 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
-  ActivityIndicator, Linking, Dimensions, RefreshControl
+  ActivityIndicator, Linking, RefreshControl
 } from 'react-native';
-import AnimatedImage from '../../components/AnimatedImage';
+import ImageGallery from '../../components/ImageGallery';
 import LocationMapView from '../../components/LocationMapView';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ArrowLeft, Calendar, MapPin, Phone, Mail, Clock, AlertCircle,
-  CheckCircle, ChevronLeft, ChevronRight, Home, Users,
+  CheckCircle, Home, Users,
   Droplet, Flame, Tv, Shield
 } from 'lucide-react-native';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { useTheme } from '../../context/ThemeContext';
 import { useScrollHandler } from '../../context/TabBarVisibilityContext';
-
-const { width } = Dimensions.get('window');
 
 interface Booking {
   id: string;
@@ -95,7 +93,6 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
   const [refreshing, setRefreshing] = useState(false);
   const [booking, setBooking] = useState<Booking | null>(null);
   const [farmhouse, setFarmhouse] = useState<Farmhouse | null>(null);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   useEffect(() => {
     // Always fetch fresh from Firestore if we have any ID
@@ -252,18 +249,6 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
     }
   };
 
-  const nextImage = () => {
-    if (farmhouse?.photoUrls && farmhouse.photoUrls.length > 0) {
-      setCurrentImageIndex((prev) => (prev + 1) % farmhouse.photoUrls.length);
-    }
-  };
-
-  const prevImage = () => {
-    if (farmhouse?.photoUrls && farmhouse.photoUrls.length > 0) {
-      setCurrentImageIndex((prev) => (prev - 1 + farmhouse.photoUrls.length) % farmhouse.photoUrls.length);
-    }
-  };
-
   const openMap = () => {
     if (farmhouse?.mapLink) {
       Linking.openURL(farmhouse.mapLink);
@@ -343,40 +328,7 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
         </View>
 
         {farmhouse && farmhouse.photoUrls && farmhouse.photoUrls.length > 0 && (
-          <View style={styles.imageSection}>
-            <AnimatedImage
-              uri={farmhouse.photoUrls[currentImageIndex]}
-              style={styles.farmhouseImage}
-              resizeMode="cover"
-            />
-            {farmhouse.photoUrls.length > 1 && (
-              <>
-                <TouchableOpacity 
-                  onPress={prevImage}
-                  style={[styles.imageNavButton, styles.imageNavLeft, { backgroundColor: colors.cardBackground }]}
-                >
-                  <ChevronLeft size={24} color={colors.text} />
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  onPress={nextImage}
-                  style={[styles.imageNavButton, styles.imageNavRight, { backgroundColor: colors.cardBackground }]}
-                >
-                  <ChevronRight size={24} color={colors.text} />
-                </TouchableOpacity>
-                <View style={styles.imageIndicators}>
-                  {farmhouse.photoUrls.map((_, idx) => (
-                    <View
-                      key={idx}
-                      style={[
-                        styles.indicator,
-                        idx === currentImageIndex && styles.activeIndicator
-                      ]}
-                    />
-                  ))}
-                </View>
-              </>
-            )}
-          </View>
+          <ImageGallery images={farmhouse.photoUrls} height={280} />
         )}
 
         <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
@@ -886,34 +838,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12
   },
   statusText: { color: 'white', fontSize: 14, fontWeight: '700', letterSpacing: 0.5 },
-  imageSection: { position: 'relative' },
-  farmhouseImage: { width: width, height: 280 },
-  imageNavButton: { 
-    position: 'absolute', 
-    top: '50%', 
-    transform: [{ translateY: -20 }],
-    padding: 8, 
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5
-  },
-  imageNavLeft: { left: 16 },
-  imageNavRight: { right: 16 },
-  imageIndicators: { 
-    position: 'absolute', 
-    bottom: 16, 
-    left: 0, 
-    right: 0,
-    flexDirection: 'row', 
-    justifyContent: 'center',
-    gap: 6
-  },
-  indicator: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.5)' },
-  activeIndicator: { width: 24, backgroundColor: 'white' },
-  card: { 
+  card: {
     marginHorizontal: 16, 
     marginTop: 16, 
     padding: 20, 

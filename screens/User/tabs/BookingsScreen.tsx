@@ -192,10 +192,10 @@ export default function BookingsScreen({ navigation }: any) {
   const handleCancelBooking = async (booking: Booking) => {
     if (!user) return;
 
-    const preview = calculateRefundAmount(booking.totalPrice, booking.checkInDate);
+    const preview = calculateRefundAmount(booking.totalPrice, booking.checkInDate, false, undefined, booking.platformFee || 0);
     const refundLine = preview.refundPercentage > 0
       ? `\n\nRefund: ₹${preview.refundAmount.toLocaleString('en-IN')} (${preview.refundPercentage}%) — 5–7 business days.`
-      : '\n\nNo refund — cancellation after check-in time.';
+      : `\n\n${preview.reason}`;
 
     showDialog({
       title: 'Cancel Booking',

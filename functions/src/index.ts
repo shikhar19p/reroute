@@ -10,6 +10,7 @@
  */
 
 import { logger } from 'firebase-functions';
+import { defineSecret } from 'firebase-functions/params';
 import { onCall, onRequest, HttpsError } from 'firebase-functions/v2/https';
 import { onDocumentCreated, onDocumentUpdated } from 'firebase-functions/v2/firestore';
 import * as admin from 'firebase-admin';
@@ -19,11 +20,25 @@ import * as nodemailer from 'nodemailer';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
-// Load env: prefer functions/.env (deployed with functions), fall back to root .env for local dev
+// Load env: prefer functions/.env (deployed with functions), fall back to root .env for local dev.
+// Only non-secret config (SMTP host/port, sender addresses, RAZORPAY_KEY_ID) should live here now —
+// actual credentials are declared as Secret Manager params below.
 const functionsEnvPath = path.resolve(__dirname, '../.env');
 const rootEnvPath = path.resolve(__dirname, '../../.env');
 dotenv.config({ path: functionsEnvPath });
 dotenv.config({ path: rootEnvPath }); // no-op if already set by the above
+
+// ─── Secret Manager params ────────────────────────────────────────────────────
+// Values are set with `firebase functions:secrets:set NAME` (prompts for the value,
+// stores it encrypted in Google Secret Manager — never touches disk or git).
+// Each exported function below must list the params it needs in its `secrets: [...]`
+// option, or `.value()` will be empty at runtime even if the secret exists.
+const razorpayKeySecretParam = defineSecret('RAZORPAY_KEY_SECRET');
+const razorpayWebhookSecretParam = defineSecret('RAZORPAY_WEBHOOK_SECRET');
+const bookingsPasswordParam = defineSecret('BOOKINGS_PASSWORD');
+const paymentsPasswordParam = defineSecret('PAYMENTS_PASSWORD');
+const supportPasswordParam = defineSecret('SUPPORT_PASSWORD');
+const encryptionSecretParam = defineSecret('ENCRYPTION_SECRET');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -34,8 +49,8 @@ const db = admin.firestore();
 let _razorpay: Razorpay | null = null;
 function getRazorpay(): Razorpay {
   if (!_razorpay) {
-    const key_id = process.env.RAZORPAY_KEY_ID;
-    const key_secret = process.env.RAZORPAY_KEY_SECRET;
+    const key_id = process.env.RAZORPAY_KEY_ID; // publishable key ID — not a secret
+    const key_secret = razorpayKeySecretParam.value();
     if (!key_id) {
       throw new HttpsError('internal', 'Payment gateway not configured — set RAZORPAY_KEY_ID');
     }
@@ -57,21 +72,27 @@ const SMTP_HOST = process.env.SMTP_HOST || 'smtppro.zoho.in';
 const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465');
 
 const BOOKINGS_EMAIL = process.env.BOOKINGS_EMAIL || 'bookings@rerouteaventures.org';
-const BOOKINGS_PASSWORD = process.env.BOOKINGS_PASSWORD || '';
 const PAYMENTS_EMAIL = process.env.PAYMENTS_EMAIL || 'payments@rerouteaventures.org';
-const PAYMENTS_PASSWORD = process.env.PAYMENTS_PASSWORD || '';
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'support@rerouteaventures.org';
-const SUPPORT_PASSWORD = process.env.SUPPORT_PASSWORD || '';
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || '';
 const BANK_UPDATE_EMAIL = process.env.BANK_UPDATE_EMAIL || SUPPORT_EMAIL;
 
 type EmailChannel = 'bookings' | 'payments' | 'support';
 
-const channelConfig: Record<EmailChannel, { email: string; password: string; label: string }> = {
-  bookings: { email: BOOKINGS_EMAIL, password: BOOKINGS_PASSWORD, label: 'Reroute Bookings' },
-  payments: { email: PAYMENTS_EMAIL, password: PAYMENTS_PASSWORD, label: 'Reroute Payments' },
-  support:  { email: SUPPORT_EMAIL,  password: SUPPORT_PASSWORD,  label: 'Reroute' },
+const channelConfig: Record<EmailChannel, { email: string; label: string }> = {
+  bookings: { email: BOOKINGS_EMAIL, label: 'Reroute Bookings' },
+  payments: { email: PAYMENTS_EMAIL, label: 'Reroute Payments' },
+  support:  { email: SUPPORT_EMAIL,  label: 'Reroute' },
+};
+
+// Password lookup is deferred to call time (never read at module load) since a
+// secret's value is only injected for the specific function that declared it
+// in its `secrets: [...]` option.
+const channelSecrets: Record<EmailChannel, ReturnType<typeof defineSecret>> = {
+  bookings: bookingsPasswordParam,
+  payments: paymentsPasswordParam,
+  support: supportPasswordParam,
 };
 
 const transporterCache = new Map<EmailChannel, nodemailer.Transporter>();
@@ -83,7 +104,7 @@ function getTransporter(channel: EmailChannel): nodemailer.Transporter {
       host: SMTP_HOST,
       port: SMTP_PORT,
       secure: true,
-      auth: { user: cfg.email, pass: cfg.password },
+      auth: { user: cfg.email, pass: channelSecrets[channel].value() },
     }));
   }
   return transporterCache.get(channel)!;
@@ -93,7 +114,7 @@ function getTransporter(channel: EmailChannel): nodemailer.Transporter {
 async function sendEmail(to: string | string[], subject: string, html: string, channel: EmailChannel = 'support'): Promise<void> {
   if (!to || (Array.isArray(to) && to.length === 0)) return;
   const cfg = channelConfig[channel];
-  if (!cfg.password) {
+  if (!channelSecrets[channel].value()) {
     logger.warn(`Email skipped — ${channel} channel not configured (${cfg.email} has no password).`, { subject });
     return;
   }
@@ -543,7 +564,7 @@ async function sendBookingConfirmationEmails(bookingId: string, transactionId: s
 
 // ─── createOrder ──────────────────────────────────────────────────────────────
 // minInstances=1 eliminates cold-start latency on the payment-critical path
-export const createOrder = onCall({ minInstances: 1 }, async (request) => {
+export const createOrder = onCall({ minInstances: 1, secrets: [razorpayKeySecretParam] }, async (request) => {
   try {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'User must be authenticated to create an order');
@@ -573,6 +594,7 @@ export const createOrder = onCall({ minInstances: 1 }, async (request) => {
       if (bookingData.userId !== request.auth.uid && bookingData.user_id !== request.auth.uid) {
         throw new HttpsError('permission-denied', 'Booking does not belong to this user');
       }
+
       const expectedAmount = bookingData.totalPrice ?? bookingData.total_amount;
       if (typeof expectedAmount === 'number' && Math.abs(expectedAmount - amount) > 1) {
         logger.error('Amount mismatch in createOrder', { provided: amount, expected: expectedAmount, bookingId });
@@ -620,7 +642,7 @@ export const createOrder = onCall({ minInstances: 1 }, async (request) => {
 });
 
 // ─── verifyPayment ────────────────────────────────────────────────────────────
-export const verifyPayment = onCall({ minInstances: 1 }, async (request) => {
+export const verifyPayment = onCall({ minInstances: 1, secrets: [razorpayKeySecretParam, bookingsPasswordParam] }, async (request) => {
   try {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'User must be authenticated to verify payment');
@@ -632,7 +654,7 @@ export const verifyPayment = onCall({ minInstances: 1 }, async (request) => {
       throw new HttpsError('invalid-argument', 'Missing required payment verification parameters');
     }
 
-    const secret = process.env.RAZORPAY_KEY_SECRET!;
+    const secret = razorpayKeySecretParam.value();
     const generatedSignature = crypto
       .createHmac('sha256', secret)
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
@@ -733,7 +755,7 @@ export const verifyPayment = onCall({ minInstances: 1 }, async (request) => {
 });
 
 // ─── processRefund ────────────────────────────────────────────────────────────
-export const processRefund = onCall(async (request) => {
+export const processRefund = onCall({ secrets: [razorpayKeySecretParam, paymentsPasswordParam] }, async (request) => {
   try {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'User must be authenticated to process refund');
@@ -926,7 +948,7 @@ export const processRefund = onCall(async (request) => {
 // ─── notifyBookingCancellation ────────────────────────────────────────────────
 // Call this from the client after a successful cancelBookingWithRefund()
 // to send cancellation emails to user, owner, and admin.
-export const notifyBookingCancellation = onCall(async (request) => {
+export const notifyBookingCancellation = onCall({ secrets: [bookingsPasswordParam, paymentsPasswordParam] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Must be authenticated');
   }
@@ -1024,10 +1046,10 @@ export const notifyBookingCancellation = onCall(async (request) => {
 });
 
 // ─── razorpayWebhook ──────────────────────────────────────────────────────────
-export const razorpayWebhook = onRequest(async (req, res) => {
+export const razorpayWebhook = onRequest({ secrets: [razorpayWebhookSecretParam, bookingsPasswordParam, paymentsPasswordParam] }, async (req, res) => {
   try {
     const webhookSignature = req.headers['x-razorpay-signature'] as string;
-    const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+    const webhookSecret = razorpayWebhookSecretParam.value();
 
     if (!webhookSecret || webhookSecret === 'whsec_placeholder_update_after_webhook_setup') {
       logger.error('Webhook secret not configured — rejecting request');
@@ -1356,7 +1378,7 @@ function bankDetailsUpdateEmail(farmhouseName: string, farmhouseId: string, owne
 }
 
 // ─── Firestore trigger: new farmhouse registered ──────────────────────────────
-export const onFarmhouseCreated = onDocumentCreated('farmhouses/{farmhouseId}', async (event) => {
+export const onFarmhouseCreated = onDocumentCreated({ document: 'farmhouses/{farmhouseId}', secrets: [supportPasswordParam] }, async (event) => {
     const farmhouseId = event.params.farmhouseId;
     const data = event.data!.data();
 
@@ -1401,7 +1423,7 @@ export const onFarmhouseCreated = onDocumentCreated('farmhouses/{farmhouseId}', 
   });
 
 // ─── Firestore trigger: approval status changed ───────────────────────────────
-export const onFarmhouseApprovalChanged = onDocumentUpdated('farmhouses/{farmhouseId}', async (event) => {
+export const onFarmhouseApprovalChanged = onDocumentUpdated({ document: 'farmhouses/{farmhouseId}', secrets: [supportPasswordParam] }, async (event) => {
     const before = event.data!.before.data();
     const after = event.data!.after.data();
 
@@ -1469,7 +1491,7 @@ export const onFarmhouseApprovalChanged = onDocumentUpdated('farmhouses/{farmhou
   });
 
 // ─── notifyBankDetailsUpdate ──────────────────────────────────────────────────
-export const notifyBankDetailsUpdate = onCall(async (request) => {
+export const notifyBankDetailsUpdate = onCall({ secrets: [supportPasswordParam] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Must be authenticated');
   }
@@ -1509,61 +1531,12 @@ export const onCommunicationCreated = onDocumentCreated('communications/{notifId
   logger.info('Admin push sent:', { userId, title });
 });
 
-// ─── ingestLogs ───────────────────────────────────────────────────────────────
-// Client-side log ingestion. React Native / web app batches log entries and
-// POSTs them here. Function writes each entry to Google Cloud Logging using
-// functions.logger so all app logs appear in Log Explorer alongside server logs.
-//
-// View in GCP Console → Logging → Log Explorer
-// Filter: jsonPayload.source="client"  OR  jsonPayload.userId="xyz"
-//         OR jsonPayload.level="error"  OR  jsonPayload.category="payment"
-//
-// Auth: simple shared secret in Authorization header.
-// Set with: firebase functions:config:set logging.ingest_key="your-secret-here"
-// Same key goes into LOG_INGEST_KEY in your app's .env / constants.
-export const ingestLogs = onRequest(async (req, res) => {
-  // CORS headers — needed for web app
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') { res.status(204).send(''); return; }
-  if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
-
-  // Verify shared secret
-  const ingestKey = process.env.LOG_INGEST_KEY;
-  if (ingestKey) {
-    const authHeader = req.headers.authorization || '';
-    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-    if (token !== ingestKey) {
-      res.status(401).send('Unauthorized');
-      return;
-    }
-  }
-
-  const entries: any[] = Array.isArray(req.body) ? req.body : [];
-  if (!entries.length) { res.status(200).send({ ok: true, written: 0 }); return; }
-
-  for (const entry of entries) {
-    const { level = 'info', message = '', ...rest } = entry;
-    const payload = { source: 'client', ...rest };
-
-    switch (level) {
-      case 'error': logger.error(message, payload); break;
-      case 'warn':  logger.warn(message, payload);  break;
-      case 'debug': logger.debug(message, payload); break;
-      default:      logger.info(message, payload);  break;
-    }
-  }
-
-  res.status(200).send({ ok: true, written: entries.length });
-});
-
 // ─── Server-side AES-256 helpers ─────────────────────────────────────────────
 // Key = SHA-256(userId + ENCRYPTION_SECRET). Same derivation as the former
 // client-side CryptoJS code so existing ciphertext can still be decrypted.
 
 function getServerEncryptionSecret(): string {
-  const secret = process.env.ENCRYPTION_SECRET;
+  const secret = encryptionSecretParam.value();
   if (!secret || secret.length < 32) {
     throw new HttpsError('internal', 'ENCRYPTION_SECRET not configured on server');
   }
@@ -1632,7 +1605,7 @@ function serverDecryptAnyKey(encryptedText: string, userId: string, primarySecre
 // ─── encryptBankDetails ───────────────────────────────────────────────────────
 // Called by the client before saving KYC data. Encrypts bank details
 // server-side so ENCRYPTION_SECRET never needs to live in the client bundle.
-export const encryptBankDetails = onCall(async (request) => {
+export const encryptBankDetails = onCall({ secrets: [encryptionSecretParam] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Must be authenticated');
   }
@@ -1649,7 +1622,7 @@ export const encryptBankDetails = onCall(async (request) => {
 
 // ─── getBankDetails ───────────────────────────────────────────────────────────
 // Returns decrypted bank details only to the farmhouse owner.
-export const getBankDetails = onCall(async (request) => {
+export const getBankDetails = onCall({ secrets: [encryptionSecretParam] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Must be authenticated');
   }

@@ -1,18 +1,20 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, StatusBar,
-  Linking, TextInput, FlatList, RefreshControl, useWindowDimensions, Modal,
+  Linking, TextInput, FlatList, RefreshControl, Modal,
 } from 'react-native';
 import LocationMapView from '../../components/LocationMapView';
-import AnimatedImage from '../../components/AnimatedImage';
+import ImageGallery from '../../components/ImageGallery';
+import AmenitiesSection from '../../components/AmenitiesSection';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Heart, MapPin, Users, Home, Star, Clock, Phone, Mail, X, ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
+import { Heart, MapPin, Users, Home, Star, Clock, Phone, Mail, ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
 import { useScrollHandler } from '../../context/TabBarVisibilityContext';
 import { useDialog } from '../../components/CustomDialog';
 import { RootStackScreenProps, Farmhouse } from '../../types/navigation';
+import { convertFarmhouseData } from '../../services/farmhouseService';
 import { collection, query, where, onSnapshot, orderBy as firestoreOrderBy, limit, doc, getDoc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
 import { useAuth } from '../../authContext';
@@ -31,7 +33,6 @@ type Props = RootStackScreenProps<'FarmhouseDetail'>;
 
 export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   const initialFarmhouse = route.params.farmhouse;
-  const { width, height: screenHeight } = useWindowDimensions();
   const { colors, isDark } = useTheme();
   const { user } = useAuth();
   const { addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
@@ -45,7 +46,6 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
   // Use state for farmhouse to enable real-time updates
   const [farmhouse, setFarmhouse] = useState<Farmhouse>(initialFarmhouse);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [selectedDates, setSelectedDates] = useState<{ start?: string; end?: string }>({});
   const [guestCount, setGuestCount] = useState(initialFarmhouse.capacity);
   const [guestInputValue, setGuestInputValue] = useState(initialFarmhouse.capacity.toString());
@@ -57,28 +57,6 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   const [newRating, setNewRating] = useState(5);
   const [newComment, setNewComment] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
-  const [showAllAmenities, setShowAllAmenities] = useState(false);
-
-  // Fullscreen image viewer
-  const [fullscreenVisible, setFullscreenVisible] = useState(false);
-  const [fullscreenIndex, setFullscreenIndex] = useState(0);
-  const fullscreenListRef = useRef<FlatList>(null);
-  const imageListRef = useRef<FlatList>(null);
-  const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 50 });
-  const onGalleryViewableItemsChanged = useRef(({ viewableItems }: any) => {
-    if (viewableItems.length > 0) setCurrentImageIndex(viewableItems[0].index);
-  });
-  const onFullscreenViewableItemsChanged = useRef(({ viewableItems }: any) => {
-    if (viewableItems.length > 0) setFullscreenIndex(viewableItems[0].index);
-  });
-
-  useEffect(() => {
-    if (fullscreenVisible && fullscreenIndex > 0) {
-      setTimeout(() => {
-        fullscreenListRef.current?.scrollToIndex({ index: fullscreenIndex, animated: false });
-      }, 50);
-    }
-  }, [fullscreenVisible]);
 
   useEffect(() => {
     if (!user) return;
@@ -98,30 +76,11 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
       farmhouseRef,
       (docSnapshot) => {
         if (docSnapshot.exists()) {
-          const data = docSnapshot.data();
-          // Transform the data to match Farmhouse type
-          const updatedFarmhouse: Farmhouse = {
-            ...farmhouse,
-            bookedDates: data.bookedDates || [],
-            blockedDates: data.blockedDates || [],
-            customPricing: data.pricing?.customPricing || data.customPricing || [],
-            // Update other fields that might change
-            weeklyDay: parseInt(data.pricing?.weeklyDay || data.weeklyDay) || farmhouse.weeklyDay,
-            weeklyNight: parseInt(data.pricing?.weeklyNight || data.weeklyNight) || farmhouse.weeklyNight,
-            weekendDay: parseInt(data.pricing?.weekendDay || data.weekendDay) || farmhouse.weekendDay,
-            weekendNight: parseInt(data.pricing?.weekendNight || data.weekendNight) || farmhouse.weekendNight,
-            occasionalDay: parseInt(data.pricing?.occasionalDay || data.occasionalDay) || farmhouse.occasionalDay,
-            occasionalNight: parseInt(data.pricing?.occasionalNight || data.occasionalNight) || farmhouse.occasionalNight,
-            extraGuestPrice: parseInt(data.pricing?.extraGuestPrice) || farmhouse.extraGuestPrice,
-            maxGuests: parseInt(data.pricing?.maxGuests || data.basicDetails?.maxGuests) || farmhouse.maxGuests,
-            timing: data.timing ? {
-              dayUseCheckIn: data.timing.dayUseCheckIn || farmhouse.timing?.dayUseCheckIn || '9:00 AM',
-              dayUseCheckOut: data.timing.dayUseCheckOut || farmhouse.timing?.dayUseCheckOut || '6:00 PM',
-              nightCheckIn: data.timing.nightCheckIn || farmhouse.timing?.nightCheckIn || '12:00 PM',
-              nightCheckOut: data.timing.nightCheckOut || farmhouse.timing?.nightCheckOut || '11:00 AM',
-            } : farmhouse.timing,
-          };
-          setFarmhouse(updatedFarmhouse);
+          // Reuse the canonical converter so every live field (amenities, capacity,
+          // rules, pricing, bookedDates, etc.) stays in sync — not just a
+          // hand-picked subset that silently drifts out of date as new fields
+          // get added elsewhere.
+          setFarmhouse(convertFarmhouseData(docSnapshot.id, docSnapshot.data()));
         }
       },
       (error) => {
@@ -766,37 +725,18 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
           />
         }
       >
-        <View style={styles.imageSection}>
-          <FlatList
-            ref={imageListRef}
-            data={images}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={(_, i) => String(i)}
-            getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
-            onViewableItemsChanged={onGalleryViewableItemsChanged.current}
-            viewabilityConfig={viewabilityConfig.current}
-            renderItem={({ item, index }) => (
-              <TouchableOpacity activeOpacity={0.95} onPress={() => { setFullscreenIndex(index); setFullscreenVisible(true); }}>
-                <AnimatedImage uri={item} style={[styles.image, { width }]} resizeMode="cover" />
-              </TouchableOpacity>
-            )}
-          />
-          <View style={styles.imageCounter}>
-            <Text style={styles.imageCounterText}>{currentImageIndex + 1} / {images.length || 1}</Text>
-          </View>
-          <View style={styles.topActions}>
-            <TouchableOpacity style={styles.actionButton} onPress={() => navigation.goBack()}>
-              <ArrowLeft size={24} color="#000" />
-            </TouchableOpacity>
+        <ImageGallery
+          images={images}
+          height={300}
+          onBack={() => navigation.goBack()}
+          topRightSlot={
             <View style={styles.rightActions}>
               <TouchableOpacity style={styles.actionButton} onPress={toggleWishlist}>
                 <Heart size={22} color={isInWishlist(farmhouse.id) ? "#EF4444" : "#666"} fill={isInWishlist(farmhouse.id) ? "#EF4444" : "transparent"} />
               </TouchableOpacity>
             </View>
-          </View>
-        </View>
+          }
+        />
 
         <View style={styles.content}>
           <View style={styles.header}>
@@ -872,26 +812,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
             <Text style={[styles.description, { color: colors.placeholder }]}>{farmhouse.description}</Text>
           </View>
 
-          <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Amenities</Text>
-            <View style={styles.amenitiesGrid}>
-              {(showAllAmenities ? amenitiesList : amenitiesList.slice(0, 6)).map((amenity, index) => (
-                <View key={index} style={[styles.amenityChip, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                  <Text style={[styles.amenityText, { color: colors.text }]}>{amenity}</Text>
-                </View>
-              ))}
-              {amenitiesList.length > 6 && (
-                <TouchableOpacity
-                  onPress={() => setShowAllAmenities((v) => !v)}
-                  style={[styles.amenityChip, { backgroundColor: colors.cardBackground, borderColor: colors.buttonBackground }]}
-                >
-                  <Text style={[styles.amenityText, { color: colors.buttonBackground, fontWeight: '600' }]}>
-                    {showAllAmenities ? 'Show Less' : 'View All'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
+          <AmenitiesSection amenitiesList={amenitiesList} />
 
           {/* Where you'll be */}
           <View style={styles.section}>
@@ -1189,33 +1110,6 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
         </View>
       </Modal>
 
-      <Modal visible={fullscreenVisible} transparent animationType="fade" onRequestClose={() => setFullscreenVisible(false)}>
-        <View style={styles.fullscreenContainer}>
-          <FlatList
-            ref={fullscreenListRef}
-            data={images}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={(_, i) => String(i)}
-            getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
-            initialScrollIndex={fullscreenIndex}
-            onViewableItemsChanged={onFullscreenViewableItemsChanged.current}
-            viewabilityConfig={viewabilityConfig.current}
-            renderItem={({ item }) => (
-              <View style={{ width, height: screenHeight, justifyContent: 'center', alignItems: 'center' }}>
-                <AnimatedImage uri={item} style={{ width, height: screenHeight * 0.75 }} resizeMode="contain" />
-              </View>
-            )}
-          />
-          <View style={styles.fullscreenCounter}>
-            <Text style={styles.imageCounterText}>{fullscreenIndex + 1} / {images.length}</Text>
-          </View>
-          <TouchableOpacity style={styles.fullscreenClose} onPress={() => setFullscreenVisible(false)}>
-            <X size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -1223,14 +1117,6 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   mainScroll: { flex: 1 },
-  imageSection: { position: 'relative', height: 300, overflow: 'hidden' },
-  fullscreenContainer: { flex: 1, backgroundColor: '#000', justifyContent: 'center' },
-  fullscreenClose: { position: 'absolute', top: 50, right: 20, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 20, padding: 8 },
-  fullscreenCounter: { position: 'absolute', bottom: 40, alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 15 },
-  image: { height: 300 },
-  imageCounter: { position: 'absolute', bottom: 15, right: 15, backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 15 },
-  imageCounterText: { color: '#fff', fontSize: 12, fontWeight: '500' },
-  topActions: { position: 'absolute', top: 16, left: 0, right: 0, flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16 },
   rightActions: { flexDirection: 'row', gap: 8 },
   actionButton: { backgroundColor: 'rgba(255, 255, 255, 0.9)', borderRadius: 20, padding: 8 },
   content: { paddingHorizontal: 20 },
@@ -1269,9 +1155,6 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 12 },
   viewAllText: { fontSize: 14, fontWeight: '500' },
   description: { fontSize: 15, lineHeight: 22 },
-  amenitiesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  amenityChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
-  amenityText: { fontSize: 14 },
   pricingCard: { marginTop: 24, padding: 20, borderRadius: 12, borderWidth: 1 },
   pricingViewContainer: { flexDirection: 'row', gap: 12, marginBottom: 20 },
   pricingViewButton: { flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
