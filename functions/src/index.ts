@@ -20,6 +20,14 @@ import * as nodemailer from 'nodemailer';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
+// Constant-time string comparison — avoids leaking signature-match info via response timing.
+function safeCompare(a: string, b: string): boolean {
+  const bufA = Buffer.from(a, 'utf8');
+  const bufB = Buffer.from(b, 'utf8');
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
 // Load env: prefer functions/.env (deployed with functions), fall back to root .env for local dev.
 // Only non-secret config (SMTP host/port, sender addresses, RAZORPAY_KEY_ID) should live here now —
 // actual credentials are declared as Secret Manager params below.
@@ -39,6 +47,7 @@ const bookingsPasswordParam = defineSecret('BOOKINGS_PASSWORD');
 const paymentsPasswordParam = defineSecret('PAYMENTS_PASSWORD');
 const supportPasswordParam = defineSecret('SUPPORT_PASSWORD');
 const encryptionSecretParam = defineSecret('ENCRYPTION_SECRET');
+const legacyEncryptionKeyParam = defineSecret('LEGACY_ENCRYPTION_KEY');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -600,6 +609,60 @@ export const createOrder = onCall({ minInstances: 1, secrets: [razorpayKeySecret
         logger.error('Amount mismatch in createOrder', { provided: amount, expected: expectedAmount, bookingId });
         throw new HttpsError('invalid-argument', 'Payment amount does not match booking total');
       }
+
+      // The check above only compares the payment amount against the booking's own
+      // stored totalPrice — both are client-writable via the Firestore SDK, so on their
+      // own they don't stop someone from creating a booking with a fabricated low price.
+      // Cross-check against the farmhouse's actual configured rates as a sanity floor.
+      const farmhouseId = bookingData.farmhouseId || bookingData.farmhouse_id;
+      if (farmhouseId) {
+        const farmhouseDoc = await db.collection('farmhouses').doc(farmhouseId).get();
+        if (farmhouseDoc.exists) {
+          const fh = farmhouseDoc.data()!;
+          const toNum = (v: any): number | null => {
+            if (v == null) return null;
+            const n = typeof v === 'string' ? Number(v.replace(/[^\d.-]/g, '')) : Number(v);
+            return Number.isFinite(n) && n > 0 ? n : null;
+          };
+          const unitPrices: number[] = [
+            toNum(fh.weeklyDay), toNum(fh.weeklyNight),
+            toNum(fh.occasionalDay), toNum(fh.occasionalNight),
+            toNum(fh.weekendDay), toNum(fh.weekendNight),
+          ].filter((n): n is number => n != null);
+          if (Array.isArray(fh.customPricing)) {
+            for (const cp of fh.customPricing) {
+              const p = toNum(cp?.price);
+              if (p != null) unitPrices.push(p);
+            }
+          }
+
+          if (unitPrices.length > 0) {
+            const minUnitPrice = Math.min(...unitPrices);
+            const checkIn = bookingData.checkInDate ? new Date(bookingData.checkInDate) : null;
+            const checkOut = bookingData.checkOutDate ? new Date(bookingData.checkOutDate) : null;
+            const nights = bookingData.bookingType === 'dayuse' || !checkIn || !checkOut
+              ? 1
+              : Math.max(1, Math.round((checkOut.getTime() - checkIn.getTime()) / 86400000));
+
+            const capacity = toNum(fh.capacity) ?? 0;
+            const guests = toNum(bookingData.guests) ?? 0;
+            const extraGuestPrice = toNum(fh.extraGuestPrice) ?? 0;
+            const extraGuestFloor = guests > capacity ? (guests - capacity) * extraGuestPrice * nights : 0;
+
+            const priceFloor = minUnitPrice * nights + extraGuestFloor;
+            // Generous tolerance for legitimate coupon/promo discounts — this only
+            // catches egregious tampering (e.g. totalPrice set to ₹1), not real discounts.
+            const minimumAcceptable = priceFloor * 0.3;
+
+            if (amount < minimumAcceptable) {
+              logger.error('Booking price below farmhouse rate floor — possible tampering', {
+                bookingId, farmhouseId, amount, priceFloor, minimumAcceptable, nights, minUnitPrice,
+              });
+              throw new HttpsError('invalid-argument', 'Payment amount is inconsistent with the farmhouse rates');
+            }
+          }
+        }
+      }
     }
 
     const amountInPaise = Math.round(amount * 100);
@@ -660,7 +723,7 @@ export const verifyPayment = onCall({ minInstances: 1, secrets: [razorpayKeySecr
       .update(`${razorpay_order_id}|${razorpay_payment_id}`)
       .digest('hex');
 
-    const isValid = generatedSignature === razorpay_signature;
+    const isValid = safeCompare(generatedSignature, razorpay_signature);
 
     logger.info('Payment verification:', { orderId: razorpay_order_id, paymentId: razorpay_payment_id, verified: isValid });
 
@@ -1059,11 +1122,14 @@ export const razorpayWebhook = onRequest({ secrets: [razorpayWebhookSecretParam,
       res.status(400).send('Missing webhook signature');
       return;
     } else {
+      // Use the raw request body Firebase Functions captures, not a re-serialized
+      // req.body — JSON.stringify can reorder keys/reformat numbers relative to
+      // what Razorpay actually signed, causing valid webhooks to fail verification.
       const expectedSignature = crypto
         .createHmac('sha256', webhookSecret)
-        .update(JSON.stringify(req.body))
+        .update(req.rawBody)
         .digest('hex');
-      if (webhookSignature !== expectedSignature) {
+      if (!safeCompare(webhookSignature, expectedSignature)) {
         logger.error('Webhook signature mismatch');
         res.status(400).send('Invalid signature');
         return;
@@ -1558,9 +1624,6 @@ function serverEncrypt(plainText: string, userId: string, secret: string): strin
   return `enc_v2_${iv.toString('hex')}:${encrypted}`;
 }
 
-// Legacy key used in older app builds before ENCRYPTION_SECRET was configured
-const LEGACY_FALLBACK_KEY = 'reroute-encryption-key-2024-CHANGE-IN-PRODUCTION';
-
 function serverDecryptWithKey(encryptedText: string, key: Buffer): string {
   if (encryptedText.startsWith('enc_v2_')) {
     const payload = encryptedText.slice('enc_v2_'.length);
@@ -1595,10 +1658,14 @@ function serverDecryptAnyKey(encryptedText: string, userId: string, primarySecre
   try {
     return serverDecrypt(encryptedText, userId, primarySecret);
   } catch (_) {}
-  // Fall back to legacy key (older app builds)
-  try {
-    return serverDecryptWithKey(encryptedText, serverDeriveKey(userId, LEGACY_FALLBACK_KEY));
-  } catch (_) {}
+  // Fall back to legacy key (older app builds) — stored in Secret Manager, not
+  // hardcoded, so decrypting old records doesn't require the key to live in source.
+  const legacyKey = legacyEncryptionKeyParam.value();
+  if (legacyKey) {
+    try {
+      return serverDecryptWithKey(encryptedText, serverDeriveKey(userId, legacyKey));
+    } catch (_) {}
+  }
   throw new Error('Decryption failed with all known keys');
 }
 
@@ -1622,7 +1689,7 @@ export const encryptBankDetails = onCall({ secrets: [encryptionSecretParam] }, a
 
 // ─── getBankDetails ───────────────────────────────────────────────────────────
 // Returns decrypted bank details only to the farmhouse owner.
-export const getBankDetails = onCall({ secrets: [encryptionSecretParam] }, async (request) => {
+export const getBankDetails = onCall({ secrets: [encryptionSecretParam, legacyEncryptionKeyParam] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Must be authenticated');
   }

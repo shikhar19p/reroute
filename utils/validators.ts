@@ -37,7 +37,12 @@ export const validators = {
    * Validate Indian phone number (10 digits starting with 6-9)
    */
   phone: (num: string): ValidationResult => {
-    const cleaned = num.replace(/\D/g, '');
+    let cleaned = num.replace(/\D/g, '');
+    if (cleaned.length === 12 && cleaned.startsWith('91')) {
+      cleaned = cleaned.slice(2);
+    } else if (cleaned.length === 11 && cleaned.startsWith('0')) {
+      cleaned = cleaned.slice(1);
+    }
     const isValid = /^[6-9]\d{9}$/.test(cleaned);
     return {
       isValid,
@@ -165,7 +170,10 @@ export const validators = {
    * Removes all HTML tags
    */
   sanitizeHTML: (html: string): string => {
-    return html.replace(/<[^>]*>/g, '').trim();
+    return html
+      .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, '')
+      .replace(/<[^>]*>/g, '')
+      .trim();
   },
 
   /**

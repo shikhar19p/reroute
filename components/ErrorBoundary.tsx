@@ -77,7 +77,7 @@ class ErrorBoundary extends Component<Props, State> {
         message: errorMessage,
         isFatal,
         errorCount,
-        componentStack: errorInfo.componentStack.substring(0, 500),
+        componentStack: errorInfo.componentStack?.substring(0, 500) ?? '',
         recovered: false,
       },
     });

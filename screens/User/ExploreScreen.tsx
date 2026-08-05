@@ -914,7 +914,6 @@ export default function ExploreScreen({ navigation }: any) {
                       ...(filters.checkIn ? { [filters.checkIn]: { selected: true, selectedColor: colors.buttonBackground } } : {}),
                       ...(filters.checkOut ? { [filters.checkOut]: { selected: true, selectedColor: colors.buttonBackground } } : {}),
                     }}
-                    pastScrollRange={0}
                     renderArrow={(direction) =>
                       direction === 'left'
                         ? <ChevronLeft size={20} color="#D4AF37" />

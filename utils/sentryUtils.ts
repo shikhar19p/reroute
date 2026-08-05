@@ -246,7 +246,7 @@ export function initializeSentry(
     beforeSend(event) {
       // Filter out certain errors in production
       if (environment === 'production') {
-        const errorMessage = event.exception?.[0]?.value || '';
+        const errorMessage = event.exception?.values?.[0]?.value || '';
 
         // Skip benign errors
         if (

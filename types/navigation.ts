@@ -62,6 +62,7 @@ export interface Farmhouse {
     pets: boolean;
     quietHours?: boolean | string;
     alcohol?: boolean;
+    additionalRules?: string;
   };
   ownerId: string;
   status: 'pending' | 'approved' | 'rejected';
@@ -148,6 +149,7 @@ export type RootStackParamList = {
   OwnerBookings: { farmhouseId?: string } | undefined;
   OwnerBookingDetails: { booking: Booking };
   ManageBlockedDates: { farmhouseId: string };
+  OwnerNotifications: undefined;
 
   // Farm Registration
   FarmBasicDetails: undefined;
@@ -175,6 +177,9 @@ export type RootStackParamList = {
     bookingType: string;
     capacity: number;
     rooms: number;
+    extraGuestCharge?: number;
+    extraGuestCount?: number;
+    extraGuestRate?: number;
   };
   BookingDetails: { booking: Booking };
   EditProfile: { profile: UserProfile };

@@ -271,7 +271,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
         `Booking for ${farmhouseDetails?.name || farmhouseName}`
       );
 
-      console.log('✅ Payment successful:', paymentResponse);
+      if (__DEV__) console.log('✅ Payment successful:', paymentResponse);
 
       // Clear cleanup timeout and bookingId immediately — payment verified, booking confirmed
       if (cleanupTimeoutRef.current) {

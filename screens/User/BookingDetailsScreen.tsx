@@ -195,6 +195,8 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
             mapLink: '',
             capacity: '0',
             bedrooms: '0',
+            extraGuestPrice: 0,
+            maxGuests: 0,
             photoUrls: [],
             amenities: {},
             rules: {},

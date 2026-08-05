@@ -112,7 +112,6 @@ export default function ManageBlockedDatesScreen({ route, navigation }: Props) {
             markedDates={markedDates}
             onDayPress={handleDayPress}
             minDate={todayStr}
-            pastScrollRange={0}
             renderArrow={(direction) =>
               direction === 'left'
                 ? <ChevronLeft size={20} color="#D4AF37" />

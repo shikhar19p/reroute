@@ -36,9 +36,9 @@ export interface Booking {
   platformFee?: number; // Non-refundable platform fee included in totalPrice
   couponCode?: string | null;
   bookingType: 'dayuse' | 'overnight';
-  status: 'pending' | 'confirmed' | 'cancelled' | 'completed';
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'draft';
   paymentStatus: 'pending' | 'paid' | 'refunded' | 'failed';
-  paymentMethod?: 'UPI' | 'Credit Card' | 'Debit Card' | 'Net Banking';
+  paymentMethod?: string;
   transactionId?: string;
   upiId?: string;
   cardLast4?: string;

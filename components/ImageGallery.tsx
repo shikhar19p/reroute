@@ -35,7 +35,7 @@ export default function ImageGallery({ images, height = 300, onBack, topRightSlo
 
   const safeImages = images.length > 0 ? images : ['https://via.placeholder.com/400x300'];
 
-  const goTo = (targetIndex: number, list: React.RefObject<FlatList>) => {
+  const goTo = (targetIndex: number, list: React.RefObject<FlatList<any> | null>) => {
     const wrapped = (targetIndex + safeImages.length) % safeImages.length;
     list.current?.scrollToIndex({ index: wrapped, animated: true });
   };

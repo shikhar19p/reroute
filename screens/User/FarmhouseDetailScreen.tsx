@@ -901,7 +901,6 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
               minDate={getMinimumDate()}
               maxDate={getMaximumDate()}
               current={getMinimumDate()}
-              pastScrollRange={0}
               markingType={'period'}
               renderArrow={(direction) =>
                 direction === 'left'

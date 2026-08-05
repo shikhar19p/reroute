@@ -99,7 +99,7 @@ class RetryHandler {
         if (__DEV__) {
           console.log(
             `[Retry] ${operationName} failed (attempt ${attempt + 1}/${this.config.maxRetries + 1}). Retrying in ${Math.round(delay)}ms...`,
-            error?.message
+            (error as any)?.message
           );
         }
 

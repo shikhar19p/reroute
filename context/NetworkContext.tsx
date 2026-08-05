@@ -17,6 +17,7 @@ const NetworkContext = createContext<NetworkContextType>({
   isInternetReachable: true,
   wasOffline: false,
   checkOnline: () => true,
+  offlineDuration: 0,
 });
 
 export function NetworkProvider({ children }: { children: ReactNode }) {

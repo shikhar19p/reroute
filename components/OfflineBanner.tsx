@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   webFixed: {
-    position: 'fixed',
+    position: 'fixed' as any,
   },
   row: {
     flexDirection: 'row',

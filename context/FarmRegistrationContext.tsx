@@ -288,7 +288,22 @@ export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) 
       const hasData = farm.name || farm.contactPhone1 || farm.city || farm.area || farm.photos.length > 0;
 
       if (hasData) {
-        const stored: StoredDraft = { farm, savedAt: Date.now() };
+        // Bank details are encrypted server-side only at final submit (see
+        // encryptBankDetails). The autosaved draft must not hold them in plaintext
+        // in on-device storage, so strip them before persisting.
+        const farmToStore: Farm = {
+          ...farm,
+          kyc: {
+            ...farm.kyc,
+            bankDetails: {
+              accountHolderName: '',
+              accountNumber: '',
+              ifscCode: '',
+              branchName: '',
+            },
+          },
+        };
+        const stored: StoredDraft = { farm: farmToStore, savedAt: Date.now() };
         await storageSet(draftKey, JSON.stringify(stored));
         setHasDraft(true);
       }

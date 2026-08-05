@@ -42,7 +42,7 @@ export default function OwnerHomeScreen({ navigation }: Props) {
   // If farmhouses arrive after this screen mounts (late Firestore cache → server update), redirect
   useEffect(() => {
     if (!farmhousesLoading && myFarmhouses.length > 0) {
-      navigation.replace('MyFarmhouses' as never);
+      navigation.replace('MyFarmhouses');
     }
   }, [farmhousesLoading, myFarmhouses, navigation]);
 
