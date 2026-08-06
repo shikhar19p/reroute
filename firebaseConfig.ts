@@ -46,6 +46,10 @@ if (missingFields.length > 0) {
   );
 }
 
+export const GOOGLE_WEB_CLIENT_ID: string =
+  Constants.expoConfig?.extra?.googleWebClientId ||
+  '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com';
+
 const app = initializeApp(firebaseConfig);
 
 export const auth = Platform.OS === 'web'

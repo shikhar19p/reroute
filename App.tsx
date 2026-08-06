@@ -14,15 +14,12 @@ import {
 import * as SplashScreen from 'expo-splash-screen';
 import * as Font from 'expo-font';
 import Constants from 'expo-constants';
+import { GOOGLE_WEB_CLIENT_ID } from './firebaseConfig';
 
-// Configure Google Sign-In only in real native builds.
-// Not available in Expo Go or on web — the native module would crash.
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
 if (Platform.OS !== 'web' && !isExpoGo) {
   const { GoogleSignin } = require('@react-native-google-signin/google-signin');
-  GoogleSignin.configure({
-    webClientId: '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com',
-  });
+  GoogleSignin.configure({ webClientId: GOOGLE_WEB_CLIENT_ID });
 }
 
 // Prevent native splash from auto-hiding

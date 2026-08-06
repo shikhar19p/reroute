@@ -17,13 +17,11 @@ import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import Constants from 'expo-constants';
 import { GoogleAuthProvider, signInWithCredential, signInWithPopup } from 'firebase/auth';
-import { auth } from '../firebaseConfig';
+import { auth, GOOGLE_WEB_CLIENT_ID as WEB_CLIENT_ID } from '../firebaseConfig';
 
 WebBrowser.maybeCompleteAuthSession();
 
 const { width, height } = Dimensions.get('window');
-
-const WEB_CLIENT_ID = '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com';
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
 // Expo Go needs the Expo auth proxy URI (fixed, registered in Google Console).
 // Standalone/bare builds use their own scheme — no proxy needed.
