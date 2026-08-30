@@ -6,7 +6,7 @@ import Constants from 'expo-constants';
 
 let GoogleSignin: any = null;
 const _isExpoGo = Constants.executionEnvironment === 'storeClient';
-if (Platform.OS !== 'web' && !_isExpoGo) {
+if (Platform.OS === 'android' && !_isExpoGo) {
   GoogleSignin = require('@react-native-google-signin/google-signin').GoogleSignin;
 }
 

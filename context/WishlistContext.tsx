@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
-import { db } from '../firebaseConfig';
+import { db, auth as firebaseAuth } from '../firebaseConfig';
 import { useAuth } from '../authContext';
 
 const wishlistCacheKey = (uid: string) => `@reroute/cache/wishlist/${uid}`;
@@ -84,6 +85,13 @@ const WishlistContext = createContext<WishlistContextType | undefined>(undefined
 export function WishlistProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [wishlist, setWishlist] = useState<string[]>([]);
+  const [authReady, setAuthReady] = useState(!!firebaseAuth.currentUser);
+
+  useEffect(() => {
+    return onAuthStateChanged(firebaseAuth, (fbUser) => {
+      setAuthReady(!!fbUser);
+    });
+  }, []);
 
   useEffect(() => {
     const loadWishlist = async () => {
@@ -93,6 +101,7 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
           const cached = await AsyncStorage.getItem(wishlistCacheKey(user.uid));
           if (cached) setWishlist(JSON.parse(cached));
         } catch {}
+        if (!authReady) return;
         const userWishlist = await getUserWishlist(user.uid);
         setWishlist(userWishlist);
         AsyncStorage.setItem(wishlistCacheKey(user.uid), JSON.stringify(userWishlist)).catch(() => {});
@@ -101,10 +110,10 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
       }
     };
     loadWishlist();
-  }, [user?.uid]);
+  }, [user?.uid, authReady]);
 
   const addToWishlist = async (id: string) => {
-    if (!user) return;
+    if (!user || !firebaseAuth.currentUser) return;
     const next = [...wishlist, id];
     setWishlist(next);
     AsyncStorage.setItem(wishlistCacheKey(user.uid), JSON.stringify(next)).catch(() => {});
@@ -119,7 +128,7 @@ export function WishlistProvider({ children }: { children: ReactNode }) {
   };
 
   const removeFromWishlist = async (id: string) => {
-    if (!user) return;
+    if (!user || !firebaseAuth.currentUser) return;
     const originalWishlist = [...wishlist];
     const next = wishlist.filter(item => item !== id);
     setWishlist(next);

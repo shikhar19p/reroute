@@ -16,10 +16,9 @@ import * as WebBrowser from 'expo-web-browser';
 import Constants from 'expo-constants';
 import { GoogleAuthProvider, signInWithCredential, signInWithPopup } from 'firebase/auth';
 import { Platform } from 'react-native';
-import { auth } from '../firebaseConfig';
+import { auth, GOOGLE_WEB_CLIENT_ID as WEB_CLIENT_ID } from '../firebaseConfig';
 import { useDialog } from '../components/CustomDialog';
 
-// Required so expo-auth-session can close the browser after redirect
 WebBrowser.maybeCompleteAuthSession();
 
 const { width } = Dimensions.get('window');
@@ -27,8 +26,6 @@ const { width } = Dimensions.get('window');
 const PRIMARY_COLOR = '#C5A565';
 const TEXT_COLOR = '#333333';
 const LIGHT_GREY = '#666666';
-
-const WEB_CLIENT_ID = '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com';
 
 // Expo Go doesn't bundle native modules — use web-based OAuth there instead.
 const isExpoGo = Constants.executionEnvironment === 'storeClient';
