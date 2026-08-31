@@ -10,10 +10,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { LogOut, Home, PlusCircle, Images, CalendarCheck, Banknote, ShieldCheck, FileText, ChevronRight } from 'lucide-react-native';
+import { LogOut, Home, PlusCircle, Images, CalendarCheck, Banknote, ShieldCheck, FileText, ChevronRight, Compass } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../../authContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useDialog } from '../../components/CustomDialog';
 import { getResponsivePadding, isSmallDevice } from '../../utils/responsive';
 import { useMyFarmhouses } from '../../GlobalDataContext';
 
@@ -34,8 +35,9 @@ type RootStackParamList = {
 type Props = NativeStackScreenProps<RootStackParamList, 'OwnerHome'>;
 
 export default function OwnerHomeScreen({ navigation }: Props) {
-  const { user, logout } = useAuth();
+  const { user, logout, switchRole } = useAuth();
   const { colors, isDark } = useTheme();
+  const { showDialog } = useDialog();
   const [draftInfo, setDraftInfo] = useState<{ name: string } | null>(null);
   const { data: myFarmhouses, loading: farmhousesLoading } = useMyFarmhouses();
 
@@ -69,6 +71,18 @@ export default function OwnerHomeScreen({ navigation }: Props) {
     await logout();
   };
 
+  const handleSwitchToUser = () => {
+    showDialog({
+      title: 'Switch to User',
+      message: "You haven't registered a farmhouse yet, so you can switch back to browsing freely. You can become a host again anytime from your profile.",
+      type: 'info',
+      buttons: [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Switch', onPress: () => switchRole('customer') },
+      ],
+    });
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'left', 'right', 'bottom']}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
@@ -83,9 +97,15 @@ export default function OwnerHomeScreen({ navigation }: Props) {
             Start building your farmhouse business
           </Text>
         </View>
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
-          <LogOut size={24} color={colors.placeholder} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity onPress={handleSwitchToUser} style={styles.switchButton} activeOpacity={0.7}>
+            <Compass size={16} color={colors.primary} />
+            <Text style={[styles.switchButtonText, { color: colors.primary }]}>Switch to User</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+            <LogOut size={24} color={colors.placeholder} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -246,6 +266,24 @@ const styles = StyleSheet.create({
   },
   logoutButton: {
     padding: 8,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  switchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: 'rgba(212,175,55,0.12)',
+  },
+  switchButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   scrollContent: {
     paddingBottom: 20,

@@ -105,13 +105,21 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
     while (cells.length % 7 !== 0) cells.push(null);
     const rows: (number | null)[][] = [];
     for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isAtCurrentMonth = year === today.getFullYear() && month === today.getMonth();
+
     return (
       <Modal visible={calendarVisible} transparent animationType="fade">
         <TouchableOpacity style={styles.calModalOverlay} activeOpacity={1} onPress={() => setCalendarVisible(false)}>
           <View style={[styles.calModalBox, { backgroundColor: colors.cardBackground }]}>
             <View style={styles.calHeader}>
-              <TouchableOpacity onPress={() => setCalendarViewDate(new Date(year, month - 1, 1))}>
-                <ChevronLeft size={20} color={colors.text} />
+              <TouchableOpacity
+                onPress={() => !isAtCurrentMonth && setCalendarViewDate(new Date(year, month - 1, 1))}
+                disabled={isAtCurrentMonth}
+              >
+                <ChevronLeft size={20} color={colors.text} style={isAtCurrentMonth ? { opacity: 0.3 } : undefined} />
               </TouchableOpacity>
               <Text style={[styles.calMonthTitle, { color: colors.text }]}>
                 {MONTH_SHORT[month]} {year}
@@ -127,16 +135,19 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
             </View>
             {rows.map((row, ri) => (
               <View key={ri} style={styles.calDayRow}>
-                {row.map((day, di) => (
-                  <TouchableOpacity
-                    key={di}
-                    style={[styles.calDayCell, day ? { backgroundColor: colors.buttonBackground + '15' } : {}]}
-                    onPress={() => day && handleDateSelect(day)}
-                    disabled={!day}
-                  >
-                    <Text style={[styles.calDayNum, { color: day ? colors.text : 'transparent' }]}>{day || ''}</Text>
-                  </TouchableOpacity>
-                ))}
+                {row.map((day, di) => {
+                  const isPast = !!day && new Date(year, month, day) < today;
+                  return (
+                    <TouchableOpacity
+                      key={di}
+                      style={[styles.calDayCell, day && !isPast ? { backgroundColor: colors.buttonBackground + '15' } : {}]}
+                      onPress={() => day && !isPast && handleDateSelect(day)}
+                      disabled={!day || isPast}
+                    >
+                      <Text style={[styles.calDayNum, { color: day ? (isPast ? colors.placeholder : colors.text) : 'transparent', opacity: isPast ? 0.4 : 1 }]}>{day || ''}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             ))}
           </View>
@@ -640,7 +651,8 @@ const styles = StyleSheet.create({
   actionButtonOwner: {
     flex: 1,
     borderRadius: 12,
-    paddingVertical: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
     alignItems: 'center',
   },
   actionButtonText: {

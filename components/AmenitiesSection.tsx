@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Modal } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 
@@ -41,33 +41,38 @@ export default function AmenitiesSection({ amenitiesList, previewCount = 6 }: Am
         statusBarTranslucent
         onRequestClose={() => setShowAll(false)}
       >
-        <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }]} edges={['top', 'left', 'right', 'bottom']}>
-          <View style={[styles.screenHeader, { borderBottomColor: colors.border }]}>
-            <TouchableOpacity onPress={() => setShowAll(false)} style={styles.backBtn}>
-              <ArrowLeft size={22} color={colors.text} />
-            </TouchableOpacity>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.headerTitle, { color: colors.text }]}>All Amenities</Text>
-              <Text style={[styles.headerSubtitle, { color: colors.placeholder }]}>
-                {amenitiesList.length} amenities available
-              </Text>
+        {/* RN's Modal opens a separate native window on iOS, so the app's root
+            SafeAreaProvider never reaches here — insets come back as zero,
+            pushing the header under the status bar/notch. Re-provide it locally. */}
+        <SafeAreaProvider>
+          <SafeAreaView style={[styles.modalContainer, { backgroundColor: colors.background }]} edges={['top', 'left', 'right', 'bottom']}>
+            <View style={[styles.screenHeader, { borderBottomColor: colors.border }]}>
+              <TouchableOpacity onPress={() => setShowAll(false)} style={styles.backBtn}>
+                <ArrowLeft size={22} color={colors.text} />
+              </TouchableOpacity>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.headerTitle, { color: colors.text }]}>All Amenities</Text>
+                <Text style={[styles.headerSubtitle, { color: colors.placeholder }]}>
+                  {amenitiesList.length} amenities available
+                </Text>
+              </View>
             </View>
-          </View>
-          <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            bounces
-          >
-            <View style={styles.amenitiesGrid}>
-              {amenitiesList.map((amenity, index) => (
-                <View key={index} style={[styles.amenityChip, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                  <Text style={[styles.amenityText, { color: colors.text }]}>{amenity}</Text>
-                </View>
-              ))}
-            </View>
-          </ScrollView>
-        </SafeAreaView>
+            <ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              bounces
+            >
+              <View style={styles.amenitiesGrid}>
+                {amenitiesList.map((amenity, index) => (
+                  <View key={index} style={[styles.amenityChip, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                    <Text style={[styles.amenityText, { color: colors.text }]}>{amenity}</Text>
+                  </View>
+                ))}
+              </View>
+            </ScrollView>
+          </SafeAreaView>
+        </SafeAreaProvider>
       </Modal>
     </View>
   );

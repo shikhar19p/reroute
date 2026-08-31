@@ -12,6 +12,7 @@ import { useDialog } from '../../components/CustomDialog';
 import { RootStackScreenProps } from '../../types/navigation';
 import { useAuth } from '../../authContext';
 import { auth, db } from '../../firebaseConfig';
+import PhoneVerificationModal from '../../components/PhoneVerificationModal';
 
 type Props = RootStackScreenProps<'EditProfile'>;
 
@@ -20,11 +21,13 @@ export default function EditProfileScreen({ route, navigation }: Props) {
   const { colors, isDark } = useTheme();
   const { user } = useAuth(); // Get current user session
   const { showDialog } = useDialog();
-  
+
+  const initialPhoneDigits = profile?.phone ? profile.phone.replace(/[^0-9]/g, '').slice(-10) : '';
+
   const [formData, setFormData] = useState({
     name: profile?.name || '',
     email: profile?.email || '',
-    phone: profile?.phone ? profile.phone.replace(/[^0-9]/g, '').slice(-10) : '',
+    phone: initialPhoneDigits,
     age: profile?.age ? profile.age.toString() : '',
     address: profile?.address || '',
     gender: profile?.gender || ''
@@ -32,6 +35,9 @@ export default function EditProfileScreen({ route, navigation }: Props) {
 
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  // Already-verified numbers don't need re-verification unless the user changes the digits.
+  const [phoneVerified, setPhoneVerified] = useState(!!(profile as any)?.phoneVerified && initialPhoneDigits.length === 10);
+  const [showPhoneVerify, setShowPhoneVerify] = useState(false);
 
   const initialFormData = React.useRef({ ...formData });
 
@@ -82,7 +88,15 @@ export default function EditProfileScreen({ route, navigation }: Props) {
     if (!validateForm() || !user || !auth.currentUser) {
       return;
     }
+    if (!phoneVerified) {
+      setShowPhoneVerify(true);
+      return;
+    }
+    await saveProfile();
+  };
 
+  const saveProfile = async () => {
+    if (!user || !auth.currentUser) return;
     setLoading(true);
     try {
       // 1. Update Firebase Authentication profile (for displayName)
@@ -95,6 +109,7 @@ export default function EditProfileScreen({ route, navigation }: Props) {
       await setDoc(userDocRef, {
         name: formData.name,
         phone: `+91 ${formData.phone}`,
+        phoneVerified: true,
         age: formData.age ? parseInt(formData.age) : null,
         address: formData.address,
         gender: formData.gender,
@@ -119,8 +134,17 @@ export default function EditProfileScreen({ route, navigation }: Props) {
     }
   };
 
+  const handlePhoneVerified = () => {
+    setShowPhoneVerify(false);
+    setPhoneVerified(true);
+    saveProfile();
+  };
+
   const updateField = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    if (field === 'phone') {
+      setPhoneVerified(value === initialPhoneDigits && !!(profile as any)?.phoneVerified);
+    }
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
@@ -281,6 +305,13 @@ export default function EditProfileScreen({ route, navigation }: Props) {
           )}
         </TouchableOpacity>
       </View>
+
+      <PhoneVerificationModal
+        visible={showPhoneVerify}
+        phone={formData.phone}
+        onVerified={handlePhoneVerified}
+        onClose={() => setShowPhoneVerify(false)}
+      />
     </SafeAreaView>
   );
 }

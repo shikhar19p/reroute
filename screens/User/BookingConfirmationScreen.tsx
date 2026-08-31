@@ -138,20 +138,26 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
     return { valid: true, coupon };
   };
 
-  const applyCoupon = () => {
+  const applyCoupon = (codeOverride?: string) => {
     setCouponError('');
-    if (!couponCode.trim()) {
+    const code = (codeOverride ?? couponCode).trim();
+    if (!code) {
       setCouponError('Please enter a coupon code');
       return;
     }
-    const validation = validateCoupon(couponCode.trim());
+    const validation = validateCoupon(code);
     if (!validation.valid) {
       setCouponError(validation.error || 'Invalid coupon');
       return;
     }
+    setCouponCode(code);
     setAppliedCoupon(validation.coupon);
     showToast('Coupon applied successfully!', 'success');
   };
+
+  // Only publicly-visible coupons are shown as tappable offers; private coupons
+  // stay hidden and can only be redeemed by a user who already knows the code.
+  const publicCoupons = availableCoupons.filter(c => c.visibility !== 'private' && c.is_active);
 
   const removeCoupon = () => {
     setAppliedCoupon(null);
@@ -553,6 +559,24 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
           
           {!appliedCoupon ? (
             <>
+              {publicCoupons.length > 0 && (
+                <View style={styles.offersList}>
+                  {publicCoupons.map(c => (
+                    <TouchableOpacity
+                      key={c.id}
+                      style={[styles.offerChip, { borderColor: colors.buttonBackground, backgroundColor: colors.buttonBackground + '15' }]}
+                      onPress={() => applyCoupon(c.code)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.offerChipCode, { color: colors.buttonBackground }]}>{c.code}</Text>
+                      <Text style={[styles.offerChipDesc, { color: colors.text }]} numberOfLines={1}>
+                        {c.discount_type === 'percentage' ? `${c.discount_value}% off` : `₹${c.discount_value} off`}
+                        {c.description ? ` · ${c.description}` : ''}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
               <View style={styles.couponInputRow}>
                 <TextInput
                   style={[styles.couponInput, { 
@@ -571,7 +595,7 @@ export default function BookingConfirmationScreen({ route, navigation }: any) {
                 />
                 <TouchableOpacity
                   style={[styles.applyButton, { backgroundColor: colors.buttonBackground }]}
-                  onPress={applyCoupon}
+                  onPress={() => applyCoupon()}
                   disabled={couponsLoading}
                 >
                   {couponsLoading ? (
@@ -783,6 +807,10 @@ const styles = StyleSheet.create({
   couponHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
   couponInputRow: { flexDirection: 'row', gap: 8, marginBottom: 8, alignItems: 'center' },
   couponInput: { flex: 1, minWidth: 0, height: 46, borderRadius: 8, paddingHorizontal: 12, fontSize: 14, fontWeight: '600', borderWidth: 1 },
+  offersList: { gap: 8, marginBottom: 12 },
+  offerChip: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1 },
+  offerChipCode: { fontSize: 13, fontWeight: '700' },
+  offerChipDesc: { fontSize: 12, flex: 1 },
   applyButton: { width: 70, height: 46, borderRadius: 8, justifyContent: 'center', alignItems: 'center', flexShrink: 0 },
   applyButtonText: { fontSize: 13, fontWeight: '700' },
   couponError: { color: '#EF4444', fontSize: 13, marginTop: 4 },

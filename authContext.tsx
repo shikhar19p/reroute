@@ -114,15 +114,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const localSession = await loadSession();
       const localRole = localSession?.role;
       const localRoles = localSession?.roles || [];
-      const hadLocalSession = localSession !== null;
 
       const mergedRoles = firestoreRoles.length > 0 ? firestoreRoles : localRoles;
-      // Only restore role from local session (app reload while logged in).
-      // After logout the session is cleared, so role=undefined → RoleSelection shown.
-      // Never fall back to firestoreRole: user must explicitly choose role each login.
-      const finalRole = (hadLocalSession && localRole)
-        ? (localRole as 'owner' | 'customer')
-        : undefined;
+      // Role sticks across logins once chosen — Firestore is the source of truth
+      // (covers a fresh sign-in on this or another device), local session is the
+      // offline-first fallback. RoleSelection only appears when neither has a
+      // role yet, i.e. a genuinely new user. Switching afterwards is explicit,
+      // via switchRole() from ProfileScreen ("Become a Host") or OwnerHomeScreen
+      // ("Switch to User") before any farmhouse is registered.
+      const finalRole = (firestoreRole || localRole) as 'owner' | 'customer' | undefined;
 
       // Create user session
       const userSession: UserSession = {

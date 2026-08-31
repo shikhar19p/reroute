@@ -5,9 +5,10 @@ import {
 } from 'react-native';
 import LocationMapView from '../../components/LocationMapView';
 import ImageGallery from '../../components/ImageGallery';
+import PhoneVerificationModal from '../../components/PhoneVerificationModal';
 import AmenitiesSection from '../../components/AmenitiesSection';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Heart, MapPin, Users, Home, Star, Clock, Phone, Mail, ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
+import { Heart, MapPin, Users, Home, Star, Clock, ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
 import { Calendar, DateData } from 'react-native-calendars';
 import { useTheme } from '../../context/ThemeContext';
 import { useWishlist } from '../../context/WishlistContext';
@@ -41,6 +42,7 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
   const [userPhone, setUserPhone] = useState<string>('');
   const [showPhoneModal, setShowPhoneModal] = useState(false);
+  const [showPhoneVerifyModal, setShowPhoneVerifyModal] = useState(false);
   const [phoneInput, setPhoneInput] = useState('');
   const [savingPhone, setSavingPhone] = useState(false);
 
@@ -49,7 +51,6 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   const [selectedDates, setSelectedDates] = useState<{ start?: string; end?: string }>({});
   const [guestCount, setGuestCount] = useState(initialFarmhouse.capacity);
   const [guestInputValue, setGuestInputValue] = useState(initialFarmhouse.capacity.toString());
-  const [showPricingInfo, setShowPricingInfo] = useState<'overnight' | 'day-use'>('overnight');
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loadingReviews, setLoadingReviews] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -58,12 +59,15 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
   const [newComment, setNewComment] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
 
+  const [phoneVerified, setPhoneVerified] = useState(false);
+
   useEffect(() => {
     if (!user) return;
     getDoc(doc(db, 'users', user.uid)).then(snap => {
       if (snap.exists()) {
-        const phone = snap.data()?.phone || '';
-        setUserPhone(phone);
+        const data = snap.data();
+        setUserPhone(data?.phone || '');
+        setPhoneVerified(!!data?.phoneVerified);
       }
     }).catch(() => {});
   }, [user]);
@@ -573,26 +577,32 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
       });
       return;
     }
-    if (!userPhone || userPhone.trim() === '' || userPhone === 'Not provided') {
-      setPhoneInput('');
+    if (!userPhone || userPhone.trim() === '' || userPhone === 'Not provided' || !phoneVerified) {
+      setPhoneInput(userPhone ? userPhone.replace(/[^0-9]/g, '').slice(-10) : '');
       setShowPhoneModal(true);
       return;
     }
     proceedToBooking();
   };
 
-  const savePhoneAndProceed = async () => {
+  const savePhoneAndProceed = () => {
     const trimmed = phoneInput.trim();
     if (!trimmed || !/^[6-9]\d{9}$/.test(trimmed)) {
       showDialog({ title: 'Invalid Number', message: 'Enter a valid 10-digit mobile number starting with 6, 7, 8, or 9.', type: 'warning' });
       return;
     }
+    setShowPhoneModal(false);
+    setShowPhoneVerifyModal(true);
+  };
+
+  const handleBookingPhoneVerified = async (e164Phone: string) => {
+    setShowPhoneVerifyModal(false);
     if (!user) return;
     setSavingPhone(true);
     try {
-      await updateDoc(doc(db, 'users', user.uid), { phone: trimmed });
-      setUserPhone(trimmed);
-      setShowPhoneModal(false);
+      await updateDoc(doc(db, 'users', user.uid), { phone: e164Phone, phoneVerified: true });
+      setUserPhone(e164Phone);
+      setPhoneVerified(true);
       proceedToBooking();
     } catch {
       showDialog({ title: 'Error', message: 'Could not save phone number. Try again.', type: 'error' });
@@ -825,26 +835,18 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
 
           <View style={[styles.pricingCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>Pricing</Text>
-            <View style={styles.pricingViewContainer}>
-              <TouchableOpacity style={[ styles.pricingViewButton, showPricingInfo === 'overnight' && { backgroundColor: colors.buttonBackground }, { borderColor: colors.border }]} onPress={() => setShowPricingInfo('overnight')}>
-                <Text style={[ styles.pricingViewText, { color: showPricingInfo === 'overnight' ? colors.buttonText : colors.text }]}>Overnight Stay</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[ styles.pricingViewButton, showPricingInfo === 'day-use' && { backgroundColor: colors.buttonBackground }, { borderColor: colors.border }]} onPress={() => setShowPricingInfo('day-use')}>
-                <Text style={[ styles.pricingViewText, { color: showPricingInfo === 'day-use' ? colors.buttonText : colors.text }]}>Day Use</Text>
-              </TouchableOpacity>
+
+            <Text style={[styles.priceCategoryTitle, { color: colors.text }]}>Weekday Rates</Text>
+            <View style={styles.priceGrid}>
+              <View style={styles.priceBox}><Text style={[styles.priceBoxLabel, { color: colors.placeholder }]}>Day Use</Text><Text style={[styles.priceBoxValue, { color: colors.text }]}>₹{farmhouse.weeklyDay}</Text></View>
+              <View style={styles.priceBox}><Text style={[styles.priceBoxLabel, { color: colors.placeholder }]}>Night Stay</Text><Text style={[styles.priceBoxValue, { color: colors.text }]}>₹{farmhouse.weeklyNight}</Text></View>
             </View>
 
-            {showPricingInfo === 'overnight' ? (
-              <View style={styles.priceGrid}>
-                <View style={styles.priceBox}><Text style={[styles.priceBoxLabel, { color: colors.placeholder }]}>Weekday</Text><Text style={[styles.priceBoxValue, { color: colors.text }]}>₹{farmhouse.weeklyNight}</Text><Text style={[styles.priceBoxSub, { color: colors.placeholder }]}>per night</Text></View>
-                <View style={styles.priceBox}><Text style={[styles.priceBoxLabel, { color: colors.placeholder }]}>Weekend</Text><Text style={[styles.priceBoxValue, { color: colors.text }]}>₹{farmhouse.weekendNight}</Text><Text style={[styles.priceBoxSub, { color: colors.placeholder }]}>per night</Text></View>
-              </View>
-            ) : (
-              <View style={styles.priceGrid}>
-                <View style={styles.priceBox}><Text style={[styles.priceBoxLabel, { color: colors.placeholder }]}>Weekday</Text><Text style={[styles.priceBoxValue, { color: colors.text }]}>₹{farmhouse.weeklyDay}</Text></View>
-                <View style={styles.priceBox}><Text style={[styles.priceBoxLabel, { color: colors.placeholder }]}>Weekend</Text><Text style={[styles.priceBoxValue, { color: colors.text }]}>₹{farmhouse.weekendDay}</Text></View>
-              </View>
-            )}
+            <Text style={[styles.priceCategoryTitle, { color: colors.text, marginTop: 16 }]}>Weekend Rates</Text>
+            <View style={styles.priceGrid}>
+              <View style={styles.priceBox}><Text style={[styles.priceBoxLabel, { color: colors.placeholder }]}>Day Use</Text><Text style={[styles.priceBoxValue, { color: colors.text }]}>₹{farmhouse.weekendDay}</Text></View>
+              <View style={styles.priceBox}><Text style={[styles.priceBoxLabel, { color: colors.placeholder }]}>Night Stay</Text><Text style={[styles.priceBoxValue, { color: colors.text }]}>₹{farmhouse.weekendNight}</Text></View>
+            </View>
 
             <View style={[styles.extraGuestBox, { backgroundColor: isDark ? 'rgba(2,68,77,0.1)' : 'rgba(2,68,77,0.05)', borderColor: colors.border }]}>
               <View style={{ flex: 1 }}>
@@ -994,29 +996,6 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
             )}
           </View>
 
-          {/* Contact Us */}
-          <View style={[styles.contactSection, { borderColor: colors.border }]}>
-            <Text style={[styles.contactLabel, { color: colors.placeholder }]}>Need help? Reach us directly</Text>
-            <View style={styles.contactRow}>
-              <TouchableOpacity
-                style={[styles.contactBtn, { backgroundColor: colors.buttonBackground }]}
-                onPress={() => Linking.openURL('tel:+918280353535')}
-                activeOpacity={0.8}
-              >
-                <Phone size={16} color={colors.buttonText} />
-                <Text style={[styles.contactBtnText, { color: colors.buttonText }]}>+91 82803 53535</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.contactBtn, { backgroundColor: colors.cardBackground, borderWidth: 1, borderColor: colors.buttonBackground }]}
-                onPress={() => Linking.openURL('mailto:support@rerouteaventures.org')}
-                activeOpacity={0.8}
-              >
-                <Mail size={16} color={colors.buttonBackground} />
-                <Text style={[styles.contactBtnText, { color: colors.buttonBackground }]}>Email Us</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
           <View style={{ height: 120 }} />
         </View>
       </ScrollView>
@@ -1050,13 +1029,10 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
               maxLength={10}
             />
             <TouchableOpacity
-              style={[styles.phoneModalBtn, { backgroundColor: colors.buttonBackground, opacity: savingPhone ? 0.7 : 1 }]}
+              style={[styles.phoneModalBtn, { backgroundColor: colors.buttonBackground }]}
               onPress={savePhoneAndProceed}
-              disabled={savingPhone}
             >
-              <Text style={[styles.phoneModalBtnText, { color: colors.buttonText }]}>
-                {savingPhone ? 'Saving...' : 'Save & Continue'}
-              </Text>
+              <Text style={[styles.phoneModalBtnText, { color: colors.buttonText }]}>Verify & Continue</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.phoneModalBtn, { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border, marginTop: 8 }]}
@@ -1070,6 +1046,13 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
           </View>
         </View>
       </Modal>
+
+      <PhoneVerificationModal
+        visible={showPhoneVerifyModal}
+        phone={phoneInput.trim()}
+        onVerified={handleBookingPhoneVerified}
+        onClose={() => setShowPhoneVerifyModal(false)}
+      />
 
       <Modal visible={showAddReview} transparent animationType="slide" onRequestClose={() => setShowAddReview(false)}>
         <View style={styles.phoneModalOverlay}>
@@ -1124,11 +1107,6 @@ const styles = StyleSheet.create({
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   rating: { fontSize: 16, fontWeight: '600' },
   reviews: { fontSize: 14 },
-  contactSection: { marginTop: 28, paddingTop: 20 },
-  contactLabel: { fontSize: 12, textAlign: 'center', marginBottom: 12, letterSpacing: 0.3 },
-  contactRow: { flexDirection: 'row', gap: 10 },
-  contactBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 10 },
-  contactBtnText: { fontSize: 13, fontWeight: '600' },
   quickInfo: { flexDirection: 'row', gap: 12, marginTop: 20 },
   infoCard: { flex: 1, padding: 16, borderRadius: 12, alignItems: 'center', gap: 8, borderWidth: 1 },
   infoLabel: { fontSize: 12 },
@@ -1155,9 +1133,7 @@ const styles = StyleSheet.create({
   viewAllText: { fontSize: 14, fontWeight: '500' },
   description: { fontSize: 15, lineHeight: 22 },
   pricingCard: { marginTop: 24, padding: 20, borderRadius: 12, borderWidth: 1 },
-  pricingViewContainer: { flexDirection: 'row', gap: 12, marginBottom: 20 },
-  pricingViewButton: { flex: 1, paddingVertical: 12, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
-  pricingViewText: { fontSize: 14, fontWeight: '600' },
+  priceCategoryTitle: { fontSize: 15, fontWeight: '600', marginBottom: 12 },
   priceGrid: { flexDirection: 'row', gap: 12 },
   priceBox: { flex: 1, padding: 16, borderRadius: 8, backgroundColor: 'rgba(2,68,77,0.05)', alignItems: 'center' },
   priceBoxLabel: { fontSize: 12, marginBottom: 8 },

@@ -3,6 +3,7 @@ import { Animated, View, StyleSheet, TouchableOpacity, Text, Platform } from 're
 import { MapPin } from 'lucide-react-native';
 import { Linking } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+import { extractCoordsFromMapLink } from '../utils/geo';
 
 // WebView is native-only — load conditionally so the web bundle doesn't fail
 const WebView = Platform.OS !== 'web'
@@ -13,21 +14,6 @@ interface LocationMapViewProps {
   location: string;
   mapLink?: string;
   height?: number;
-}
-
-function extractCoords(mapLink: string): [number, number] | null {
-  const patterns = [
-    /[?&]q=(-?\d+\.?\d+),(-?\d+\.?\d+)/,
-    /\/@(-?\d+\.?\d+),(-?\d+\.?\d+)[,z]/,
-    /[?&]ll=(-?\d+\.?\d+),(-?\d+\.?\d+)/,
-    /place\/[^/]+\/@(-?\d+\.?\d+),(-?\d+\.?\d+)/,
-    /maps\?q=(-?\d+\.?\d+),(-?\d+\.?\d+)/,
-  ];
-  for (const re of patterns) {
-    const m = mapLink.match(re);
-    if (m) return [parseFloat(m[1]), parseFloat(m[2])];
-  }
-  return null;
 }
 
 function buildMapHtml(lat: number, lng: number, isDark: boolean): string {
@@ -42,21 +28,23 @@ function buildMapHtml(lat: number, lng: number, isDark: boolean): string {
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     html,body,#map{margin:0;padding:0;width:100%;height:100%;background:${bg};overflow:hidden;}
-    .leaflet-control-attribution,.leaflet-control-zoom{display:none!important;}
+    .leaflet-control-zoom{display:none!important;}
+    .leaflet-control-attribution{font-size:9px!important;background:rgba(255,255,255,0.6)!important;}
   </style>
 </head>
 <body>
 <div id="map"></div>
 <script>
   var map = L.map('map',{
-    zoomControl:false,attributionControl:false,
+    zoomControl:false,
     dragging:false,touchZoom:false,doubleClickZoom:false,
     scrollWheelZoom:false,boxZoom:false,keyboard:false
   }).setView([${lat},${lng}],15);
 
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
-    subdomains:['a','b','c','d'],
-    maxZoom:20
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    subdomains:['a','b','c'],
+    maxZoom:19,
+    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
   }).addTo(map);
 
   var pin = L.divIcon({
@@ -188,7 +176,7 @@ export default function LocationMapView({ location, mapLink, height = 200 }: Loc
 
     const resolve = async () => {
       if (mapLink) {
-        const fromUrl = extractCoords(mapLink);
+        const fromUrl = extractCoordsFromMapLink(mapLink);
         if (fromUrl) {
           if (!cancelled) { setCoords(fromUrl); setLoading(false); }
           return;

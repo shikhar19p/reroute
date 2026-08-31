@@ -129,6 +129,7 @@ interface Farm {
   propertyType: 'farmhouse' | 'resort';
   name: string;
   contactPhone1: string;
+  contactPhone1Verified: boolean;
   contactPhone2: string;
   city: string;
   area: string;
@@ -163,6 +164,7 @@ const createInitialFarm = (): Farm => ({
   propertyType: 'farmhouse',
   name: '',
   contactPhone1: '',
+  contactPhone1Verified: false,
   contactPhone2: '',
   city: '',
   area: '',

@@ -266,11 +266,19 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
     const rows: (number | null)[][] = [];
     for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isAtCurrentMonth = year === today.getFullYear() && month === today.getMonth();
+
     return (
       <View>
         <View style={styles.calHeader}>
-          <TouchableOpacity onPress={() => setViewDate(new Date(year, month - 1, 1))} style={styles.calNav}>
-            <Text style={styles.calNavText}>‹</Text>
+          <TouchableOpacity
+            onPress={() => !isAtCurrentMonth && setViewDate(new Date(year, month - 1, 1))}
+            style={styles.calNav}
+            disabled={isAtCurrentMonth}
+          >
+            <Text style={[styles.calNavText, isAtCurrentMonth && { opacity: 0.3 }]}>‹</Text>
           </TouchableOpacity>
           <Text style={styles.calMonthText}>{MONTHS[month]} {year}</Text>
           <TouchableOpacity onPress={() => setViewDate(new Date(year, month + 1, 1))} style={styles.calNav}>
@@ -282,15 +290,20 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
         </View>
         {rows.map((row, ri) => (
           <View key={ri} style={styles.calRow}>
-            {row.map((day, ci) => (
-              day ? (
-                <TouchableOpacity key={ci} style={styles.calDay} onPress={() => handleDateSelect(day)}>
-                  <Text style={styles.calDayText}>{day}</Text>
+            {row.map((day, ci) => {
+              if (!day) return <View key={ci} style={styles.calDay} />;
+              const isPast = new Date(year, month, day) < today;
+              return (
+                <TouchableOpacity
+                  key={ci}
+                  style={styles.calDay}
+                  onPress={() => !isPast && handleDateSelect(day)}
+                  disabled={isPast}
+                >
+                  <Text style={[styles.calDayText, isPast && { opacity: 0.3 }]}>{day}</Text>
                 </TouchableOpacity>
-              ) : (
-                <View key={ci} style={styles.calDay} />
-              )
-            ))}
+              );
+            })}
           </View>
         ))}
       </View>
@@ -428,10 +441,10 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
       const updateData: Record<string, any> = {
         'basicDetails.name': formData.name.trim(),
         'basicDetails.description': formData.description.trim(),
-        'basicDetails.city': formData.city.trim(),
-        'basicDetails.area': formData.area.trim(),
-        'basicDetails.locationText': formData.locationText.trim(),
-        'basicDetails.mapLink': formData.mapLink.trim(),
+        // city/area/locationText/mapLink are intentionally omitted — location is
+        // locked after listing creation (see the read-only fields below) since
+        // changing it would invalidate the resolved `coordinates` used for
+        // distance search/sort without re-running server-side pin resolution.
         'basicDetails.bedrooms': formData.bedrooms,
         'basicDetails.capacity': formData.capacity,
         'pricing.weeklyDay': formData.weeklyDay,
@@ -624,13 +637,17 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
               />
             </View>
 
+            <Text style={[styles.locationLockNote, { color: colors.placeholder }]}>
+              Location can't be changed after a listing is created. Contact support if it needs to be corrected.
+            </Text>
+
             <View style={styles.row}>
               <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
                 <Text style={[styles.label, { color: colors.text }]}>City *</Text>
                 <TextInput
-                  style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
+                  style={[styles.input, { backgroundColor: colors.border, borderColor: colors.border, color: colors.placeholder }]}
                   value={formData.city}
-                  onChangeText={(text) => updateField('city', text)}
+                  editable={false}
                   placeholder="City"
                   placeholderTextColor={colors.placeholder}
                 />
@@ -638,9 +655,9 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
               <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
                 <Text style={[styles.label, { color: colors.text }]}>Area *</Text>
                 <TextInput
-                  style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
+                  style={[styles.input, { backgroundColor: colors.border, borderColor: colors.border, color: colors.placeholder }]}
                   value={formData.area}
-                  onChangeText={(text) => updateField('area', text)}
+                  editable={false}
                   placeholder="Area"
                   placeholderTextColor={colors.placeholder}
                 />
@@ -650,9 +667,9 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: colors.text }]}>Address / Landmark *</Text>
               <TextInput
-                style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
+                style={[styles.input, { backgroundColor: colors.border, borderColor: colors.border, color: colors.placeholder }]}
                 value={formData.locationText}
-                onChangeText={(text) => updateField('locationText', text)}
+                editable={false}
                 placeholder="Full address or landmark"
                 placeholderTextColor={colors.placeholder}
               />
@@ -661,9 +678,9 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: colors.text }]}>Google Maps Link</Text>
               <TextInput
-                style={[styles.input, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
+                style={[styles.input, { backgroundColor: colors.border, borderColor: colors.border, color: colors.placeholder }]}
                 value={formData.mapLink}
-                onChangeText={(text) => updateField('mapLink', text)}
+                editable={false}
                 placeholder="https://maps.google.com/..."
                 placeholderTextColor={colors.placeholder}
                 keyboardType="url"
@@ -1066,6 +1083,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 16 },
   inputGroup: { marginBottom: 16 },
   label: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
+  locationLockNote: { fontSize: 12, marginBottom: 12, fontStyle: 'italic' },
   input: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 12, fontSize: 16 },
   textArea: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 12, fontSize: 16, minHeight: 100, textAlignVertical: 'top' },
   row: { flexDirection: 'row' },

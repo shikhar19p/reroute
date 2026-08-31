@@ -11,10 +11,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, CheckCircle2 } from 'lucide-react-native';
 import { basicSchema } from '../../utils/validation';
 import { useFarmRegistration } from '../../context/FarmRegistrationContext';
 import { useDialog } from '../../components/CustomDialog';
+import PhoneVerificationModal from '../../components/PhoneVerificationModal';
 
 type RootStackParamList = {
   FarmPrices: undefined;
@@ -41,6 +42,7 @@ export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenPro
   const { showDialog } = useDialog();
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [draftChecked, setDraftChecked] = useState(false);
+  const [showPhoneVerify, setShowPhoneVerify] = useState(false);
 
   // Intercept back navigation to offer save/discard draft
   useEffect(() => {
@@ -132,8 +134,20 @@ export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenPro
       processedValue = value.replace(/[^0-9]/g, '');
     }
     setField(key, processedValue);
+    // Editing the primary phone invalidates any prior verification of the old number.
+    if (key === 'contactPhone1' && farm.contactPhone1Verified) {
+      setField('contactPhone1Verified', false);
+    }
     if (errors[key]) {
       setErrors((prev) => ({ ...prev, [key]: undefined }));
+    }
+  };
+
+  const handlePrimaryPhoneVerified = () => {
+    setField('contactPhone1Verified', true);
+    setShowPhoneVerify(false);
+    if (errors.contactPhone1) {
+      setErrors((prev) => ({ ...prev, contactPhone1: undefined }));
     }
   };
 
@@ -155,6 +169,11 @@ export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenPro
         }
       });
       setErrors(newErrors);
+      return;
+    }
+
+    if (!farm.contactPhone1Verified) {
+      setErrors({ contactPhone1: 'Please verify this number before continuing.' });
       return;
     }
 
@@ -213,15 +232,45 @@ export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenPro
           {fieldConfigs.map(({ key, label, placeholder, keyboardType }) => (
             <View key={key} style={styles.fieldContainer}>
               <Text style={styles.label}>{label}</Text>
-              <TextInput
-                value={(farm as any)[key] ?? ''}
-                onChangeText={(text) => handleChange(key, text, keyboardType)}
-                placeholder={placeholder}
-                placeholderTextColor="#9CA3AF"
-                style={[styles.input, errors[key] && styles.inputError]}
-                keyboardType={keyboardType}
-                autoCapitalize="none"
-              />
+              {key === 'contactPhone1' ? (
+                <View style={styles.phoneRow}>
+                  <TextInput
+                    value={farm.contactPhone1}
+                    onChangeText={(text) => handleChange(key, text, keyboardType)}
+                    placeholder={placeholder}
+                    placeholderTextColor="#9CA3AF"
+                    style={[styles.input, styles.phoneInput, errors[key] && styles.inputError]}
+                    keyboardType={keyboardType}
+                    autoCapitalize="none"
+                    maxLength={10}
+                  />
+                  {farm.contactPhone1Verified ? (
+                    <View style={styles.verifiedBadge}>
+                      <CheckCircle2 size={16} color="#16A34A" />
+                      <Text style={styles.verifiedText}>Verified</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.verifyBtn, farm.contactPhone1.length !== 10 && styles.verifyBtnDisabled]}
+                      onPress={() => setShowPhoneVerify(true)}
+                      disabled={farm.contactPhone1.length !== 10}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.verifyBtnText}>Verify</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ) : (
+                <TextInput
+                  value={(farm as any)[key] ?? ''}
+                  onChangeText={(text) => handleChange(key, text, keyboardType)}
+                  placeholder={placeholder}
+                  placeholderTextColor="#9CA3AF"
+                  style={[styles.input, errors[key] && styles.inputError]}
+                  keyboardType={keyboardType}
+                  autoCapitalize="none"
+                />
+              )}
               {errors[key] ? <Text style={styles.errorText}>{errors[key]}</Text> : null}
             </View>
           ))}
@@ -248,6 +297,14 @@ export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenPro
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      <PhoneVerificationModal
+        visible={showPhoneVerify}
+        phone={farm.contactPhone1}
+        linkToAccount={false}
+        onVerified={handlePrimaryPhoneVerified}
+        onClose={() => setShowPhoneVerify(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -310,6 +367,42 @@ const styles = StyleSheet.create({
   inputError: {
     borderColor: '#EF4444',
     backgroundColor: '#FEF2F2',
+  },
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  phoneInput: {
+    flex: 1,
+  },
+  verifyBtn: {
+    backgroundColor: '#4CAF50',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  verifyBtnDisabled: {
+    backgroundColor: '#D1D5DB',
+  },
+  verifyBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F0FDF4',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+  },
+  verifiedText: {
+    color: '#16A34A',
+    fontSize: 13,
+    fontWeight: '600',
   },
   multilineInput: {
     minHeight: 120,

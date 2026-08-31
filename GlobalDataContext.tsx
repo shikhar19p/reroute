@@ -83,6 +83,8 @@ export interface Coupon {
   min_booking_amount: number;
   max_uses: number;
   current_uses: number;
+  visibility?: 'public' | 'private';
+  description?: string;
 }
 
 // ==================== SLICE TYPES ====================

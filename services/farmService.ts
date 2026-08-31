@@ -145,6 +145,7 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
     basicDetails: {
       name: farmData.name,
       contactPhone1: farmData.contactPhone1,
+      contactPhone1Verified: !!farmData.contactPhone1Verified,
       contactPhone2: farmData.contactPhone2 || null,
       ownerEmail: currentUser.email || null,
       city: farmData.city,

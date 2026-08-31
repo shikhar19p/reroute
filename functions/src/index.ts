@@ -48,6 +48,7 @@ const paymentsPasswordParam = defineSecret('PAYMENTS_PASSWORD');
 const supportPasswordParam = defineSecret('SUPPORT_PASSWORD');
 const encryptionSecretParam = defineSecret('ENCRYPTION_SECRET');
 const legacyEncryptionKeyParam = defineSecret('LEGACY_ENCRYPTION_KEY');
+const googleMapsApiKeyParam = defineSecret('GOOGLE_MAPS_API_KEY');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -525,8 +526,18 @@ async function sendBookingConfirmationEmails(bookingId: string, transactionId: s
       }
     }
 
-    // FCM push for user (booking confirmed)
+    // Firestore notification + FCM push for user (booking confirmed)
     if (b.userId) {
+      await db.collection('notifications').add({
+        userId: b.userId,
+        type: 'booking_confirmed',
+        title: 'Booking Confirmed! 🎉',
+        message: `Your booking at ${b.farmhouseName} is confirmed. Check-in: ${b.checkInDate}`,
+        bookingId,
+        farmhouseId: b.farmhouseId,
+        read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
       sendPushToUser(b.userId, 'Booking Confirmed! 🎉',
         `Your booking at ${b.farmhouseName} is confirmed. Check-in: ${b.checkInDate}`,
         { bookingId, type: 'booking_confirmed' }
@@ -572,8 +583,7 @@ async function sendBookingConfirmationEmails(bookingId: string, transactionId: s
 }
 
 // ─── createOrder ──────────────────────────────────────────────────────────────
-// minInstances=1 eliminates cold-start latency on the payment-critical path
-export const createOrder = onCall({ minInstances: 1, secrets: [razorpayKeySecretParam] }, async (request) => {
+export const createOrder = onCall({ secrets: [razorpayKeySecretParam] }, async (request) => {
   try {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'User must be authenticated to create an order');
@@ -705,7 +715,7 @@ export const createOrder = onCall({ minInstances: 1, secrets: [razorpayKeySecret
 });
 
 // ─── verifyPayment ────────────────────────────────────────────────────────────
-export const verifyPayment = onCall({ minInstances: 1, secrets: [razorpayKeySecretParam, bookingsPasswordParam] }, async (request) => {
+export const verifyPayment = onCall({ secrets: [razorpayKeySecretParam, bookingsPasswordParam] }, async (request) => {
   try {
     if (!request.auth) {
       throw new HttpsError('unauthenticated', 'User must be authenticated to verify payment');
@@ -987,10 +997,20 @@ export const processRefund = onCall({ secrets: [razorpayKeySecretParam, payments
             'payments'
           );
         }
-        // FCM push for user
+        // Firestore notification + FCM push for user
         if (bData.userId) {
           const refundTitle = refundStatus === 'completed' ? 'Refund Processed ✅' : 'Refund Initiated';
           const refundBody = `₹${actualRefundRupees} refund for your ${bData.farmhouseName} booking ${refundStatus === 'completed' ? 'has been processed.' : 'is being processed.'}`;
+          await db.collection('notifications').add({
+            userId: bData.userId,
+            type: 'refund_update',
+            title: refundTitle,
+            message: refundBody,
+            bookingId,
+            farmhouseId: bData.farmhouseId,
+            read: false,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
           await sendPushToUser(bData.userId, refundTitle, refundBody,
             { bookingId, type: 'refund_update' }
           );
@@ -1052,11 +1072,21 @@ export const notifyBookingCancellation = onCall({ secrets: [bookingsPasswordPara
       );
     }
 
-    // FCM push for user
+    // Firestore notification + FCM push for user
     if (b.userId) {
       const cancelBody = refundAmount > 0
         ? `Your booking at ${b.farmhouseName} was cancelled. Refund of ₹${refundAmount} initiated.`
         : `Your booking at ${b.farmhouseName} has been cancelled.`;
+      await db.collection('notifications').add({
+        userId: b.userId,
+        type: 'booking_cancelled',
+        title: 'Booking Cancelled',
+        message: cancelBody,
+        bookingId,
+        farmhouseId: b.farmhouseId,
+        read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
       sendPushToUser(b.userId, 'Booking Cancelled', cancelBody,
         { bookingId, type: 'booking_cancelled' }
       ).catch(() => {});
@@ -1340,8 +1370,19 @@ async function handleRefundUpdate(refund: any) {
             ).catch(() => {});
           }
           if (b.userId) {
+            const refundBody = `₹${refundAmount} refund for your ${b.farmhouseName} booking has been processed.`;
+            db.collection('notifications').add({
+              userId: b.userId,
+              type: 'refund_processed',
+              title: 'Refund Processed ✅',
+              message: refundBody,
+              bookingId,
+              farmhouseId: b.farmhouseId,
+              read: false,
+              createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            }).catch(() => {});
             sendPushToUser(b.userId, 'Refund Processed ✅',
-              `₹${refundAmount} refund for your ${b.farmhouseName} booking has been processed.`,
+              refundBody,
               { bookingId, type: 'refund_processed' }
             ).catch(() => {});
           }
@@ -1444,7 +1485,118 @@ function bankDetailsUpdateEmail(farmhouseName: string, farmhouseId: string, owne
 }
 
 // ─── Firestore trigger: new farmhouse registered ──────────────────────────────
-export const onFarmhouseCreated = onDocumentCreated({ document: 'farmhouses/{farmhouseId}', secrets: [supportPasswordParam] }, async (event) => {
+// ─── Helper: resolve a Google Maps pin link to lat/lng ────────────────────────
+// Owners paste whatever their phone's Share sheet gives them, usually a
+// shortened link (maps.app.goo.gl/... or goo.gl/maps/...) with no coordinates
+// visible in the URL text itself. Google's redirect target does contain them,
+// so a short link needs one HTTP hop before the same regexes apply.
+function extractCoordsFromExpandedUrl(url: string): { lat: number; lng: number } | null {
+  // !3d{lat}!4d{lng} is the actual dropped-pin marker; @lat,lng is only the
+  // viewport center, which can drift slightly from the pin after a share — prefer it.
+  const pin = url.match(/!3d(-?\d+\.?\d*)!4d(-?\d+\.?\d*)/);
+  if (pin) return { lat: parseFloat(pin[1]), lng: parseFloat(pin[2]) };
+  const at = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+  if (at) return { lat: parseFloat(at[1]), lng: parseFloat(at[2]) };
+  const q = url.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+  if (q) return { lat: parseFloat(q[1]), lng: parseFloat(q[2]) };
+  const ll = url.match(/[?&]ll=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+  if (ll) return { lat: parseFloat(ll[1]), lng: parseFloat(ll[2]) };
+  return null;
+}
+
+// Google's current Share sheet produces links whose redirect target encodes the
+// place as an opaque CID hex pair (data=!4m2!3m1!1s0x...:0x...) with NO lat/lng
+// anywhere in the URL — extractCoordsFromExpandedUrl can't find what isn't there.
+// The same URL's /maps/place/ path segment does carry the full place name/address
+// text Google resolved the pin to, though (e.g. "/maps/place/47+Federal+St,+Salem,
+// +MA+01970,+USA/data=..."). That's a far more precise string than the owner's own
+// area/city form fields, so extract and geocode it instead of falling all the way
+// back to those.
+function extractPlaceNameFromExpandedUrl(url: string): string | null {
+  const m = url.match(/\/maps\/place\/([^/?]+)/);
+  if (!m) return null;
+  try {
+    return decodeURIComponent(m[1].replace(/\+/g, ' '));
+  } catch {
+    return null;
+  }
+}
+
+async function resolveMapLinkCoordinates(mapLink: string, apiKey: string): Promise<{ lat: number; lng: number } | null> {
+  const direct = extractCoordsFromExpandedUrl(mapLink);
+  if (direct) return direct;
+
+  let expandedUrl = mapLink;
+  try {
+    const res = await fetch(mapLink, { redirect: 'follow' });
+    expandedUrl = res.url;
+  } catch (err) {
+    logger.warn('Could not follow map link redirect:', { mapLink, err });
+    return null;
+  }
+
+  const fromUrl = extractCoordsFromExpandedUrl(expandedUrl);
+  if (fromUrl) return fromUrl;
+
+  const placeName = extractPlaceNameFromExpandedUrl(expandedUrl);
+  if (!placeName) return null;
+  const geocoded = await geocodeText(placeName, apiKey);
+  return geocoded.lat != null && geocoded.lng != null ? { lat: geocoded.lat, lng: geocoded.lng } : null;
+}
+
+// ─── geocodeText / geocodeAddress ─────────────────────────────────────────────
+// Resolves free-text (a typed search location, a farmhouse's own area/city as a
+// last-resort fallback, or a place name/address recovered from a map link above)
+// to lat/lng via Google's Geocoding API — used for "sort nearest to farthest"
+// and the location filter on the Explore screen. Kept server-side so the billed
+// API key never ships in the app bundle. Results are cached in Firestore by
+// normalized query text: addresses don't move, so a repeat search (very common —
+// e.g. the same city typed by many users) costs nothing after the first
+// resolution, same spirit as the coordinates cached on each farmhouse doc by
+// onFarmhouseCreated below.
+function geocodeCacheDocId(query: string): string {
+  // Firestore doc IDs can't contain '/'; base64url is safe and reversible-free (we don't need to decode it).
+  return Buffer.from(query.toLowerCase().trim()).toString('base64url').slice(0, 1500);
+}
+
+async function geocodeText(query: string, apiKey: string): Promise<{ lat: number | null; lng: number | null }> {
+  const cacheRef = db.collection('geocodeCache').doc(geocodeCacheDocId(query));
+  const cached = await cacheRef.get();
+  if (cached.exists) {
+    return cached.data() as { lat: number | null; lng: number | null };
+  }
+
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&region=in&components=country:IN&key=${apiKey}`;
+
+  let result: { lat: number | null; lng: number | null } = { lat: null, lng: null };
+  try {
+    const res = await fetch(url);
+    const json: any = await res.json();
+    const loc = json?.status === 'OK' ? json.results?.[0]?.geometry?.location : null;
+    if (loc) result = { lat: loc.lat, lng: loc.lng };
+    else logger.warn('Geocoding API returned no result:', { query, status: json?.status });
+  } catch (err) {
+    logger.warn('Geocoding API request failed:', { query, err });
+    // Don't cache a transient failure — worth retrying next time, unlike a genuine "no result".
+    return result;
+  }
+
+  await cacheRef.set(result);
+  return result;
+}
+
+export const geocodeAddress = onCall({ secrets: [googleMapsApiKeyParam] }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Must be authenticated');
+  }
+  const query = String(request.data?.query || '').trim();
+  if (!query) {
+    throw new HttpsError('invalid-argument', 'query is required');
+  }
+  return geocodeText(query, googleMapsApiKeyParam.value());
+});
+
+export const onFarmhouseCreated = onDocumentCreated({ document: 'farmhouses/{farmhouseId}', secrets: [supportPasswordParam, googleMapsApiKeyParam] }, async (event) => {
     const farmhouseId = event.params.farmhouseId;
     const data = event.data!.data();
 
@@ -1453,6 +1605,16 @@ export const onFarmhouseCreated = onDocumentCreated({ document: 'farmhouses/{far
     const area = data.basicDetails?.area || '';
     const propertyType = data.propertyType || 'farmhouse';
     const ownerId = data.ownerId;
+
+    // Resolve the owner's pasted map link to real coordinates once, up front —
+    // used for "search by nearby place" and "sort nearest to farthest" client-side.
+    const mapLink = data.basicDetails?.mapLink || data.mapLink;
+    if (mapLink) {
+      const coordinates = await resolveMapLinkCoordinates(mapLink, googleMapsApiKeyParam.value());
+      if (coordinates) {
+        await event.data!.ref.update({ coordinates });
+      }
+    }
 
     // Get owner info
     let ownerName = 'Unknown';
@@ -1526,7 +1688,7 @@ export const onFarmhouseApprovalChanged = onDocumentUpdated({ document: 'farmhou
       approvalStatusEmail(farmhouseName, ownerName, newStatus, after.rejectionReason)
     );
 
-    // FCM push to owner
+    // Firestore notification + FCM push to owner
     if (ownerId) {
       const pushTitle = newStatus === 'approved'
         ? 'Listing Approved 🎉'
@@ -1538,6 +1700,15 @@ export const onFarmhouseApprovalChanged = onDocumentUpdated({ document: 'farmhou
         : newStatus === 'rejected'
           ? `${farmhouseName} was not approved. Check the app for details.`
           : `${farmhouseName} status updated to ${statusLabel}.`;
+      db.collection('notifications').add({
+        userId: ownerId,
+        type: 'listing_status',
+        title: pushTitle,
+        message: pushBody,
+        farmhouseId,
+        read: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      }).catch(() => {});
       sendPushToUser(ownerId, pushTitle, pushBody,
         { farmhouseId, type: 'listing_status' }
       ).catch(() => {});
@@ -1593,7 +1764,16 @@ export const onCommunicationCreated = onDocumentCreated('communications/{notifId
   const data = event.data!.data();
   const { userId, title, body, message } = data;
   if (!userId || !title) return;
-  await sendPushToUser(userId, title, body || message || '', { type: 'admin_message' });
+  const text = body || message || '';
+  await db.collection('notifications').add({
+    userId,
+    type: 'admin_message',
+    title,
+    message: text,
+    read: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  await sendPushToUser(userId, title, text, { type: 'admin_message' });
   logger.info('Admin push sent:', { userId, title });
 });
 

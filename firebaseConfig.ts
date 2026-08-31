@@ -1,4 +1,4 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { initializeAuth, getAuth } from 'firebase/auth';
 // @ts-ignore — getReactNativePersistence is exported at runtime but missing from some type versions
 import { getReactNativePersistence } from 'firebase/auth';
@@ -34,6 +34,10 @@ export const GOOGLE_WEB_CLIENT_ID: string =
   Constants.expoConfig?.extra?.googleWebClientId ||
   '272634614965-2gbkc0u14l5ahpbmhqbqd566fq93qijm.apps.googleusercontent.com';
 
+// Exposed so components needing a raw Firebase JS config (e.g. the phone-auth
+// reCAPTCHA modal, which can't just take the initialized `app`) can reuse it.
+export { firebaseConfig };
+
 const app = initializeApp(firebaseConfig);
 
 export const auth = Platform.OS === 'web'
@@ -46,3 +50,23 @@ export const db = initializeFirestore(app, {
   localCache: Platform.OS === 'web' ? persistentLocalCache() : memoryLocalCache(),
 });
 export const storage = getStorage(app);
+
+// Secondary, throwaway Firebase app used only to check a phone OTP code
+// (PhoneAuthProvider.credential + signInWithCredential) without touching the
+// signed-in user's own session — e.g. verifying a farmhouse's contact number,
+// which has nothing to do with the owner's own login phone. Lazily created so
+// it costs nothing for the (common) case where no standalone verification runs.
+let phoneVerifyAuthInstance: ReturnType<typeof getAuth> | null = null;
+export function getPhoneVerifyAuth() {
+  if (!phoneVerifyAuthInstance) {
+    const phoneVerifyApp = getApps().some(a => a.name === 'phoneVerify')
+      ? getApp('phoneVerify')
+      : initializeApp(firebaseConfig, 'phoneVerify');
+    phoneVerifyAuthInstance = Platform.OS === 'web'
+      ? getAuth(phoneVerifyApp)
+      : initializeAuth(phoneVerifyApp, {
+          persistence: getReactNativePersistence(ReactNativeAsyncStorage),
+        });
+  }
+  return phoneVerifyAuthInstance;
+}

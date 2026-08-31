@@ -36,9 +36,14 @@ export const convertFarmhouseData = (id: string, data: any): Farmhouse => {
   const amenitiesData = data.amenities || {};
   const rulesData = data.rules || {};
 
-  // Extract coordinates from Google Maps link
-  let coordinates = undefined;
-  if (basicDetails.mapLink) {
+  // Prefer the server-resolved pin (onFarmhouseCreated in functions/src/index.ts
+  // follows shortened share links and prefers the precise !3d!4d pin over the
+  // viewport center). Only fall back to a client-side regex on the raw mapLink
+  // text for farmhouses created before that resolution existed — and even then,
+  // this only matches links that already embed a literal @lat,lng, which
+  // shortened share links never do.
+  let coordinates: { lat: number; lng: number } | undefined = data.coordinates || undefined;
+  if (!coordinates && basicDetails.mapLink) {
     const match = basicDetails.mapLink.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
     if (match) {
       coordinates = {

@@ -58,6 +58,14 @@ export default {
     plugins: [
       "expo-web-browser",
       [
+        "expo-splash-screen",
+        {
+          image: "./assets/splash-icon.png",
+          resizeMode: "contain",
+          backgroundColor: "#F9F8EF"
+        }
+      ],
+      [
         "@react-native-google-signin/google-signin",
         {
           iosUrlScheme: "com.googleusercontent.apps.272634614965-64lm03jaaj2vk3sbu351u7cr3iebmqrm"
@@ -68,6 +76,12 @@ export default {
         {
           photosPermission: "Allow $(PRODUCT_NAME) to access your photos to upload property images.",
           cameraPermission: "Allow $(PRODUCT_NAME) to access your camera to take photos of your property."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          locationWhenInUsePermission: "Allow $(PRODUCT_NAME) to use your location to sort farmhouses by distance from you."
         }
       ]
     ],

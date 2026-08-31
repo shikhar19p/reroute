@@ -11,7 +11,7 @@ import { useAuth } from '../../../authContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { useScrollHandler, useTabBarVisibility } from '../../../context/TabBarVisibilityContext';
 import { useDialog } from '../../../components/CustomDialog';
-import { ChevronRight, LogOut, Home, HelpCircle, FileText, Shield, Phone, Mail } from 'lucide-react-native';
+import { ChevronRight, LogOut, Home, PlusCircle, HelpCircle, FileText, Shield, Phone, Mail } from 'lucide-react-native';
 import { setPushNotificationsEnabled } from '../../../services/notificationService';
 
 interface UserProfile {
@@ -89,6 +89,18 @@ export default function ProfileScreen({ navigation }: any) {
       buttons: [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Logout', style: 'destructive', onPress: logout },
+      ],
+    });
+  };
+
+  const handleBecomeHost = () => {
+    showDialog({
+      title: 'Become a Host',
+      message: "You'll be switched to the Owner dashboard to list your first property. You can switch back to browsing anytime before you finish registering a farmhouse.",
+      type: 'info',
+      buttons: [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Continue', onPress: () => switchRole('owner') },
       ],
     });
   };
@@ -180,11 +192,17 @@ export default function ProfileScreen({ navigation }: any) {
             />
           </View>
 
-          {user?.roles?.includes('owner') && (
+          {user?.roles?.includes('owner') ? (
             <MenuItem
               title="Switch to Owner Dashboard"
               onPress={() => switchRole('owner')}
               right={<Home size={18} color={colors.primary} />}
+            />
+          ) : (
+            <MenuItem
+              title="Become a Host"
+              onPress={handleBecomeHost}
+              right={<PlusCircle size={18} color={colors.primary} />}
             />
           )}
 

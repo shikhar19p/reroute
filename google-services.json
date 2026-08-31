@@ -71,10 +71,10 @@
               "client_type": 3
             },
             {
-              "client_id": "272634614965-64lm03jaaj2vk3sbu351u7cr3iebmqrm.apps.googleusercontent.com",
+              "client_id": "272634614965-12lqqrf22n35mpvk117nqm5fj56leo3i.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.farmhousebooking.app"
+                "bundle_id": "com.rerouteaventures.app"
               }
             }
           ]

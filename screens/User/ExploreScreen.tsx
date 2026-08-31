@@ -6,7 +6,6 @@ import {
   useWindowDimensions, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import AnimatedImage from '../../components/AnimatedImage';
-import { FilterChip } from '../../components/FilterChip';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Heart, Search, SlidersHorizontal, ArrowUpDown, Bell, Star, MapPin, LogOut, Calendar, CheckCircle, AlertCircle, Clock, Building2, X as XIcon, ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { Calendar as RNCalendar, DateData } from 'react-native-calendars';
@@ -22,6 +21,12 @@ import { getResponsivePadding, getResponsiveGap, isSmallDevice } from '../../uti
 import { sessionRatings, resolveRatings } from '../../utils/ratingsCache';
 import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../../firebaseConfig';
+import * as Location from 'expo-location';
+import { haversineDistanceKm } from '../../utils/geo';
+import { getFarmhouseCoords } from '../../utils/geoCache';
+import { geocodeAddress } from '../../utils/geocodeClient';
+
+const LOCATION_FILTER_RADIUS_KM = 50;
 
 // Memoized Farmhouse Card Component for performance
 const FarmhouseCard = React.memo(({
@@ -194,6 +199,46 @@ export default function ExploreScreen({ navigation }: any) {
     amenities: [] as string[],
   });
   const [calPickerFor, setCalPickerFor] = useState<'checkIn' | 'checkOut' | null>(null);
+
+  // Resolve the typed location filter to coordinates so we can match against
+  // each farmhouse's actual Google Maps pin instead of a free-text substring.
+  const [locationCoords, setLocationCoords] = useState<[number, number] | null>(null);
+  useEffect(() => {
+    const trimmed = filters.location.trim();
+    if (!trimmed) { setLocationCoords(null); return; }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const coords = await geocodeAddress(trimmed);
+      if (!cancelled) setLocationCoords(coords);
+    }, 600);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [filters.location]);
+
+  // Nearest-to-farthest sort needs the device's current GPS position, fetched
+  // lazily only once the user actually picks that sort option.
+  const [userCoords, setUserCoords] = useState<[number, number] | null>(null);
+  const [locatingUser, setLocatingUser] = useState(false);
+  // Bumped whenever a background geocode (for a farmhouse whose mapLink has no
+  // embedded coordinates) resolves, so filtering/sorting recomputes with it.
+  const [geoTick, setGeoTick] = useState(0);
+  const onGeoResolved = useCallback(() => setGeoTick(t => t + 1), []);
+  const requestUserLocation = useCallback(async () => {
+    if (userCoords || locatingUser) return;
+    setLocatingUser(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        showDialog({ title: 'Location Permission Needed', message: 'Enable location access to sort farmhouses by distance from you.', type: 'warning' });
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      setUserCoords([pos.coords.latitude, pos.coords.longitude]);
+    } catch {
+      showDialog({ title: 'Error', message: 'Could not get your current location.', type: 'error' });
+    } finally {
+      setLocatingUser(false);
+    }
+  }, [userCoords, locatingUser, showDialog]);
   const todayStr = new Date().toISOString().split('T')[0];
   const maxFilterDate = useMemo(() => {
     const d = new Date();
@@ -323,10 +368,21 @@ export default function ExploreScreen({ navigation }: any) {
     }
 
     if (filters.location) {
-      result = result.filter(f =>
-        (f.location || '').toLowerCase().includes(filters.location.toLowerCase()) ||
-        (f.city || '').toLowerCase().includes(filters.location.toLowerCase())
-      );
+      const needle = filters.location.toLowerCase();
+      const textMatch = (f: FarmhouseType) =>
+        (f.location || '').toLowerCase().includes(needle) ||
+        (f.city || '').toLowerCase().includes(needle);
+      result = result.filter(f => {
+        // Exact/substring name match always wins — geocoding a typed place name can
+        // resolve to an inaccurate or wrong-namesake point, which must never hide a
+        // farmhouse whose own location/city field literally matches what was typed.
+        if (textMatch(f)) return true;
+        if (locationCoords) {
+          const coords = getFarmhouseCoords(f, onGeoResolved);
+          if (coords) return haversineDistanceKm(locationCoords, coords) <= LOCATION_FILTER_RADIUS_KM;
+        }
+        return false;
+      });
     }
 
     if (filters.minPrice) {
@@ -387,10 +443,19 @@ export default function ExploreScreen({ navigation }: any) {
       case 'name':
         result.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         break;
+      case 'distance':
+        if (userCoords) {
+          const distanceOf = (f: FarmhouseType) => {
+            const coords = getFarmhouseCoords(f, onGeoResolved);
+            return coords ? haversineDistanceKm(userCoords, coords) : Infinity;
+          };
+          result.sort((a, b) => distanceOf(a) - distanceOf(b));
+        }
+        break;
     }
 
     return result;
-  }, [debouncedSearch, filters, sortBy, farmhouses, farmhouseRatings]);
+  }, [debouncedSearch, filters, sortBy, farmhouses, farmhouseRatings, locationCoords, userCoords, geoTick]);
 
   // Pad last row with null spacers so final-row cards don't stretch
   const paddedFarmhouses = useMemo(() => {
@@ -494,77 +559,6 @@ export default function ExploreScreen({ navigation }: any) {
             <SlidersHorizontal size={20} color={filtersActive ? colors.buttonText : colors.text} />
           </TouchableOpacity>
         </View>
-
-        {filtersActive && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={{ paddingHorizontal: hPad, marginBottom: 8 }}
-            contentContainerStyle={{ gap: 8, alignItems: 'center' }}
-          >
-            {filters.location !== '' && (
-              <FilterChip
-                label={`📍 ${filters.location}`}
-                onRemove={() => setFilters(f => ({ ...f, location: '' }))}
-                color={colors.buttonBackground}
-                textColor={colors.buttonText}
-                small
-              />
-            )}
-            {(filters.minPrice !== '' || filters.maxPrice !== '') && (
-              <FilterChip
-                label={`₹${filters.minPrice || '0'}–${filters.maxPrice || '∞'}`}
-                onRemove={() => setFilters(f => ({ ...f, minPrice: '', maxPrice: '' }))}
-                color={colors.buttonBackground}
-                textColor={colors.buttonText}
-                small
-              />
-            )}
-            {filters.minCapacity !== '' && (
-              <FilterChip
-                label={`${filters.minCapacity}+ guests`}
-                onRemove={() => setFilters(f => ({ ...f, minCapacity: '' }))}
-                color={colors.buttonBackground}
-                textColor={colors.buttonText}
-                small
-              />
-            )}
-            {filters.propertyType !== '' && (
-              <FilterChip
-                label={filters.propertyType === 'resort' ? 'Resort' : 'Farmhouse'}
-                onRemove={() => setFilters(f => ({ ...f, propertyType: '' }))}
-                color={colors.buttonBackground}
-                textColor={colors.buttonText}
-                small
-              />
-            )}
-            {filters.checkIn !== '' && (
-              <FilterChip
-                label={`${filters.checkIn}${filters.checkOut ? ` → ${filters.checkOut}` : ''}`}
-                onRemove={() => setFilters(f => ({ ...f, checkIn: '', checkOut: '' }))}
-                color={colors.buttonBackground}
-                textColor={colors.buttonText}
-                small
-              />
-            )}
-            {filters.amenities.map(key => {
-              const opt = AMENITY_OPTIONS.find(a => a.key === key);
-              return opt ? (
-                <FilterChip
-                  key={key}
-                  label={opt.label}
-                  onRemove={() => setFilters(f => ({ ...f, amenities: f.amenities.filter(a => a !== key) }))}
-                  color={colors.buttonBackground}
-                  textColor={colors.buttonText}
-                  small
-                />
-              ) : null;
-            })}
-            <TouchableOpacity onPress={clearFilters} style={[styles.clearFilterBtn, { borderColor: '#EF4444' }]}>
-              <Text style={[styles.clearFilterBtnText, { color: '#EF4444' }]}>Clear all</Text>
-            </TouchableOpacity>
-          </ScrollView>
-        )}
 
         {loading ? (
           <View style={styles.loadingContainer}>
@@ -689,6 +683,7 @@ export default function ExploreScreen({ navigation }: any) {
               { label: 'Capacity: Low to High', value: 'capacity-low' },
               { label: 'Capacity: High to Low', value: 'capacity-high' },
               { label: 'Rating', value: 'rating' },
+              { label: 'Nearest to Farthest', value: 'distance' },
             ].map((option) => (
               <TouchableOpacity
                 key={option.value}
@@ -699,22 +694,36 @@ export default function ExploreScreen({ navigation }: any) {
                 onPress={() => {
                   setSortBy(option.value);
                   setShowSortModal(false);
+                  if (option.value === 'distance') requestUserLocation();
                 }}
               >
                 <Text style={[
                   styles.modalOptionText,
                   { color: sortBy === option.value ? colors.buttonText : colors.text }
                 ]}>
-                  {option.label}
+                  {option.label}{option.value === 'distance' && locatingUser ? ' (locating…)' : ''}
                 </Text>
               </TouchableOpacity>
             ))}
-              <TouchableOpacity
-                style={[styles.closeButton, { backgroundColor: colors.border }]}
-                onPress={() => setShowSortModal(false)}
-              >
-                <Text style={[styles.closeButtonText, { color: colors.text }]}>Close</Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 12, marginTop: 10 }}>
+                {sortBy !== 'name' ? (
+                  <TouchableOpacity
+                    style={[styles.closeButton, { backgroundColor: colors.border, flex: 1, marginTop: 0 }]}
+                    onPress={() => {
+                      setSortBy('name');
+                      setShowSortModal(false);
+                    }}
+                  >
+                    <Text style={[styles.closeButtonText, { color: colors.text }]}>Clear</Text>
+                  </TouchableOpacity>
+                ) : null}
+                <TouchableOpacity
+                  style={[styles.closeButton, { backgroundColor: colors.buttonBackground, flex: 1, marginTop: 0 }]}
+                  onPress={() => setShowSortModal(false)}
+                >
+                  <Text style={[styles.closeButtonText, { color: colors.buttonText }]}>Close</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </TouchableOpacity>
         </TouchableOpacity>
@@ -724,7 +733,11 @@ export default function ExploreScreen({ navigation }: any) {
       <Modal visible={showFilterModal} transparent animationType="slide">
         <KeyboardAvoidingView
           style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}
+          // Android renders Modal as its own native window, which already resizes
+          // itself for the keyboard — adding 'height' behavior here double-compensates
+          // and fights that native resize, producing a grow/shrink jitter as the
+          // keyboard opens/closes. Only iOS needs KeyboardAvoidingView to do anything.
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
         <TouchableOpacity
           style={styles.modalOverlay}
@@ -1067,10 +1080,6 @@ const styles = StyleSheet.create({
   filterInput: { height: 45, borderRadius: 8, paddingHorizontal: 12, fontSize: 14, borderWidth: 1 },
   priceRow: { flexDirection: 'row', gap: 10 },
   filterInputHalf: { flex: 1, height: 45, borderRadius: 8, paddingHorizontal: 12, fontSize: 14, borderWidth: 1 },
-  activeFilterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 },
-  activeFilterText: { fontSize: 13 },
-  clearFilterBtn: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 4 },
-  clearFilterBtnText: { fontSize: 13, fontWeight: '600' },
   filterButtons: { flexDirection: 'row', gap: 10, marginTop: 20 },
   clearButton: { flex: 1, padding: 15, borderRadius: 8, alignItems: 'center' },
   applyButton: { flex: 1, padding: 15, borderRadius: 8, alignItems: 'center' },

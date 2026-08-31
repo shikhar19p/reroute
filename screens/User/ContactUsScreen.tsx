@@ -1,46 +1,35 @@
 import React, { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet,
-  Linking, ActivityIndicator, KeyboardAvoidingView, Platform,
+  Linking, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Mail, Phone, MessageSquare } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
-import { useAuth } from '../../authContext';
 import { useDialog } from '../../components/CustomDialog';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../../firebaseConfig';
+
+const SUPPORT_EMAIL = 'support@rerouteaventures.org';
 
 export default function ContactUsScreen({ navigation }: any) {
   const { colors } = useTheme();
-  const { user } = useAuth();
   const { showDialog } = useDialog();
 
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const canSend = subject.trim().length > 0 && message.trim().length > 0;
 
   const handleSubmit = async () => {
-    if (!subject.trim() || !message.trim()) {
-      showDialog({ title: 'Missing Fields', message: 'Please fill in both subject and message.', type: 'error' });
-      return;
-    }
+    if (!canSend) return;
+    const mailUrl = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject.trim())}&body=${encodeURIComponent(message.trim())}`;
     try {
-      setSubmitting(true);
-      await addDoc(collection(db, 'contactRequests'), {
-        userId: user?.uid || null,
-        userEmail: user?.email || null,
-        subject: subject.trim(),
-        message: message.trim(),
-        createdAt: serverTimestamp(),
-      });
-      setSubject('');
-      setMessage('');
-      showDialog({ title: 'Message Sent', message: "We've received your message and will get back to you within 24–48 hours.", type: 'success' });
+      const supported = await Linking.canOpenURL(mailUrl);
+      if (!supported) {
+        showDialog({ title: 'No Mail App Found', message: `Please email us directly at ${SUPPORT_EMAIL}.`, type: 'warning' });
+        return;
+      }
+      await Linking.openURL(mailUrl);
     } catch {
-      showDialog({ title: 'Error', message: 'Could not send your message. Please try again.', type: 'error' });
-    } finally {
-      setSubmitting(false);
+      showDialog({ title: 'Error', message: 'Could not open your mail app. Please try again.', type: 'error' });
     }
   };
 
@@ -74,6 +63,12 @@ export default function ContactUsScreen({ navigation }: any) {
               label="Phone / WhatsApp"
               value="+91 82803 53535"
               onPress={() => Linking.openURL('tel:+918280353535')}
+            />
+            <ContactLink
+              icon={<Phone size={18} color={colors.primary} />}
+              label="Phone / WhatsApp"
+              value="+91 76748 63535"
+              onPress={() => Linking.openURL('tel:+917674863535')}
             />
             <ContactLink
               icon={<Mail size={18} color={colors.primary} />}
@@ -114,22 +109,16 @@ export default function ContactUsScreen({ navigation }: any) {
           </View>
 
           <TouchableOpacity
-            style={[styles.submitBtn, { backgroundColor: colors.buttonBackground }, submitting && styles.submitDisabled]}
+            style={[styles.submitBtn, { backgroundColor: colors.buttonBackground }, !canSend && styles.submitDisabled]}
             onPress={handleSubmit}
-            disabled={submitting}
+            disabled={!canSend}
             activeOpacity={0.8}
           >
-            {submitting
-              ? <ActivityIndicator color={colors.buttonText} />
-              : (
-                <>
-                  <MessageSquare size={16} color={colors.buttonText} />
-                  <Text style={[styles.submitText, { color: colors.buttonText }]}>Send Message</Text>
-                </>
-              )}
+            <MessageSquare size={16} color={colors.buttonText} />
+            <Text style={[styles.submitText, { color: colors.buttonText }]}>Send Message</Text>
           </TouchableOpacity>
 
-          <Text style={[styles.responseTime, { color: colors.placeholder }]}>We typically respond within 24–48 hours.</Text>
+          <Text style={[styles.responseTime, { color: colors.placeholder }]}>This opens your mail app with the message prefilled.</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

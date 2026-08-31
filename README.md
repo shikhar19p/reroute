@@ -154,7 +154,7 @@ npx firebase deploy --only functions:verifyPayment,functions:razorpayWebhook --p
 
 ### EAS cloud builds (dev-client / preview / production)
 
-EAS build profiles (`eas.json`) pull config from EAS's own per-environment variable store, not from local `.env*` files (those never leave your machine for cloud builds). Only the `development` profile is wired to staging; `preview`/`production` use prod (the hardcoded fallback values in `app.config.js`/`firebaseConfig.ts`).
+EAS build profiles (`eas.json`) pull config from EAS's own per-environment variable store, not from local `.env*` files (those never leave your machine for cloud builds). Only the `development` profile is wired to staging; `preview`/`production` need the prod values set the same way — there is no hardcoded fallback in `app.config.js`/`firebaseConfig.ts` (removed; a missing var now throws at startup instead of silently using a baked-in key).
 
 ```bash
 eas env:list development                 # see what's set
