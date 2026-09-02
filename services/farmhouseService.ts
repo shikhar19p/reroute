@@ -98,6 +98,9 @@ export const convertFarmhouseData = (id: string, data: any): Farmhouse => {
     },
     rules: {
       pets: !rulesData.petsNotAllowed,
+      alcohol: !rulesData.alcoholNotAllowed,
+      quietHours: rulesData.quietHours || false,
+      additionalRules: rulesData.additionalRules || rulesData.customRules || '',
     },
     customPricing: (pricing.customPricing || []).map((p: any) => ({
       label: p.name,

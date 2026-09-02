@@ -193,8 +193,12 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
     if (rules.pets) list.push('Pets allowed');
     else list.push('No pets allowed');
     if (rules.alcohol === false || rules.alcoholNotAllowed === true) list.push('No alcohol allowed');
-    if (rules.additionalRules) list.push(rules.additionalRules);
     return list;
+  }, [farmhouse?.rules]);
+
+  const additionalRulesText: string = useMemo(() => {
+    const rules = farmhouse?.rules as any;
+    return (rules?.additionalRules || rules?.customRules || '').trim();
   }, [farmhouse?.rules]);
 
   const handleEdit = () => {
@@ -437,6 +441,11 @@ export default function FarmhouseDetailOwnerScreen({ route, navigation }: Props)
                 • {rule}
               </Text>
             ))}
+            {additionalRulesText ? (
+              <Text style={[styles.ruleText, { color: colors.placeholder, marginTop: 8 }]}>
+                {additionalRulesText}
+              </Text>
+            ) : null}
           </View>
 
         </View>

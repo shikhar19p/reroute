@@ -316,8 +316,12 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
       const quietHoursText = typeof rules.quietHours === 'string' ? rules.quietHours : 'enforced';
       list.push(`Quiet hours: ${quietHoursText}`);
     }
-    if ((rules as any).additionalRules) list.push((rules as any).additionalRules);
     return list;
+  }, [farmhouse.rules]);
+
+  const additionalRulesText: string = useMemo(() => {
+    const rules = farmhouse.rules as any;
+    return (rules?.additionalRules || rules?.customRules || '').trim();
   }, [farmhouse.rules]);
 
   const updateGuestCount = (value: string) => {
@@ -959,6 +963,11 @@ export default function FarmhouseDetailScreen({ route, navigation }: Props) {
             {rulesList.map((rule, idx) => (
               <Text key={idx} style={[styles.ruleText, { color: colors.placeholder }]}>• {rule}</Text>
             ))}
+            {additionalRulesText ? (
+              <Text style={[styles.ruleText, { color: colors.placeholder, marginTop: 8 }]}>
+                {additionalRulesText}
+              </Text>
+            ) : null}
           </View>
 
           <View style={styles.section}>

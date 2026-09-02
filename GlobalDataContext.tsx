@@ -254,7 +254,7 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
         pets: !data.rules?.petsNotAllowed,
         quietHours: data.rules?.quietHours || false,
         alcohol: !data.rules?.alcoholNotAllowed,
-        additionalRules: data.rules?.additionalRules || '',
+        additionalRules: data.rules?.additionalRules || data.rules?.customRules || '',
       },
       ownerId: data.ownerId || '',
       status: data.status || 'pending',
@@ -301,7 +301,7 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
     } : undefined,
     photos: Array.isArray(data.photos) ? data.photos : [],
     amenities: data.amenities || { tv: 0, geyser: 0, bonfire: 0, chess: 0, carroms: 0, volleyball: 0, pool: false },
-    rules: data.rules ? { ...data.rules, additionalRules: data.rules.additionalRules || '' }
+    rules: data.rules ? { ...data.rules, additionalRules: data.rules.additionalRules || data.rules.customRules || '' }
       : { pets: false, quietHours: false, alcohol: false, additionalRules: '' },
     ownerId: data.ownerId || '',
     status: data.status || 'pending',
