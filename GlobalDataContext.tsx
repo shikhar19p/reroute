@@ -189,6 +189,17 @@ const createDefaultFarmhouse = (id: string): Farmhouse => ({
   sourceType: 'old',
 });
 
+// Additional rules are stored as a string[] going forward, but older
+// farmhouse docs (pre chip-input) may still hold a single free-text string —
+// split those on line breaks so both shapes render as a normal bulleted list.
+const toRulesList = (value: unknown): string[] => {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === 'string' && value.trim()) {
+    return value.split('\n').map(line => line.trim()).filter(Boolean);
+  }
+  return [];
+};
+
 const transformFarmhouseData = (doc: any): Farmhouse => {
   const data = doc.data();
   if (!data) {
@@ -254,7 +265,7 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
         pets: !data.rules?.petsNotAllowed,
         quietHours: data.rules?.quietHours || false,
         alcohol: !data.rules?.alcoholNotAllowed,
-        additionalRules: data.rules?.additionalRules || data.rules?.customRules || '',
+        additionalRules: toRulesList(data.rules?.additionalRules || data.rules?.customRules),
       },
       ownerId: data.ownerId || '',
       status: data.status || 'pending',
@@ -301,8 +312,8 @@ const transformFarmhouseData = (doc: any): Farmhouse => {
     } : undefined,
     photos: Array.isArray(data.photos) ? data.photos : [],
     amenities: data.amenities || { tv: 0, geyser: 0, bonfire: 0, chess: 0, carroms: 0, volleyball: 0, pool: false },
-    rules: data.rules ? { ...data.rules, additionalRules: data.rules.additionalRules || data.rules.customRules || '' }
-      : { pets: false, quietHours: false, alcohol: false, additionalRules: '' },
+    rules: data.rules ? { ...data.rules, additionalRules: toRulesList(data.rules.additionalRules || data.rules.customRules) }
+      : { pets: false, quietHours: false, alcohol: false, additionalRules: [] },
     ownerId: data.ownerId || '',
     status: data.status || 'pending',
     rating: data.rating || 0,

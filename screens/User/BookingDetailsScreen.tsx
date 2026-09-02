@@ -77,8 +77,8 @@ interface Farmhouse {
     customAmenities?: string;
   };
   rules: {
-    additionalRules?: string;
-    customRules?: string;
+    additionalRules?: string | string[];
+    customRules?: string | string[];
     petsNotAllowed?: boolean;
     pets?: boolean;
   };
@@ -612,30 +612,37 @@ export default function BookingDetailsScreen({ route, navigation }: any) {
           </TouchableOpacity>
         </View>
 
-        {farmhouse?.rules && Object.values(farmhouse.rules).some(v => v) && (
-          <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-            <View style={styles.cardHeader}>
-              <Shield size={20} color={colors.buttonBackground} />
-              <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Property Rules</Text>
+        {(() => {
+          if (!farmhouse?.rules) return null;
+          const raw = farmhouse.rules.additionalRules || farmhouse.rules.customRules;
+          const additionalRulesList = Array.isArray(raw)
+            ? raw.filter(Boolean)
+            : (raw || '').split('\n').map(line => line.trim()).filter(Boolean);
+          if (!farmhouse.rules.petsNotAllowed && additionalRulesList.length === 0) return null;
+
+          return (
+            <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+              <View style={styles.cardHeader}>
+                <Shield size={20} color={colors.buttonBackground} />
+                <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>Property Rules</Text>
+              </View>
+
+              {farmhouse.rules.petsNotAllowed && (
+                <View style={styles.ruleItem}>
+                  <Text style={styles.ruleBullet}>•</Text>
+                  <Text style={[styles.ruleText, { color: colors.text }]}>Pets not allowed</Text>
+                </View>
+              )}
+
+              {additionalRulesList.map((rule, idx) => (
+                <View key={idx} style={styles.ruleItem}>
+                  <Text style={styles.ruleBullet}>•</Text>
+                  <Text style={[styles.ruleText, { color: colors.text }]}>{rule}</Text>
+                </View>
+              ))}
             </View>
-
-            {farmhouse.rules.petsNotAllowed && (
-              <View style={styles.ruleItem}>
-                <Text style={styles.ruleBullet}>•</Text>
-                <Text style={[styles.ruleText, { color: colors.text }]}>Pets not allowed</Text>
-              </View>
-            )}
-
-            {farmhouse.rules.customRules && (
-              <View style={styles.ruleItem}>
-                <Text style={styles.ruleBullet}>•</Text>
-                <Text style={[styles.ruleText, { color: colors.text }]}>
-                  {farmhouse.rules.customRules}
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
+          );
+        })()}
 
         <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Payment Summary</Text>

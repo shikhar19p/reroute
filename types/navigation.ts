@@ -62,7 +62,7 @@ export interface Farmhouse {
     pets: boolean;
     quietHours?: boolean | string;
     alcohol?: boolean;
-    additionalRules?: string;
+    additionalRules?: string[];
   };
   ownerId: string;
   status: 'pending' | 'approved' | 'rejected';

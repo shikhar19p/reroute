@@ -104,6 +104,7 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
   const [datePickerIndex, setDatePickerIndex] = useState<number | null>(null);
   const [viewDate, setViewDate] = useState(new Date());
   const [timePickerField, setTimePickerField] = useState<string | null>(null);
+  const [ruleInput, setRuleInput] = useState('');
   const initialFormData = React.useRef<typeof formData | null>(null);
 
   const rawData = farmhouse as any;
@@ -165,7 +166,10 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
     additionalAmenities: rawData.amenities?.additionalAmenities || rawData.amenities?.customAmenities || '',
     // Rules
     petsNotAllowed: farmhouse.rules?.pets === false,
-    additionalRules: rawData.rules?.additionalRules || rawData.rules?.customRules || '',
+    additionalRules: Array.isArray(rawData.rules?.additionalRules)
+      ? rawData.rules.additionalRules
+      : (rawData.rules?.additionalRules || rawData.rules?.customRules || '')
+          .split('\n').map((line: string) => line.trim()).filter(Boolean),
     photos: farmhouse.photos || [],
   });
 
@@ -221,6 +225,17 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
 
   const updateField = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const addRule = () => {
+    const trimmed = ruleInput.trim();
+    if (!trimmed) return;
+    updateField('additionalRules', [...formData.additionalRules, trimmed]);
+    setRuleInput('');
+  };
+
+  const removeRule = (index: number) => {
+    updateField('additionalRules', formData.additionalRules.filter((_: string, i: number) => i !== index));
   };
 
   const addCustomPrice = () => {
@@ -485,7 +500,7 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
         // Rules
         'rules.petsNotAllowed': formData.petsNotAllowed,
         'rules.alcoholNotAllowed': (formData as any).alcoholNotAllowed ?? false,
-        'rules.additionalRules': formData.additionalRules.trim(),
+        'rules.additionalRules': formData.additionalRules,
         photoUrls: formData.photos,
         bookingWindowDays: 90,
         updatedAt: new Date().toISOString(),
@@ -983,15 +998,36 @@ export default function EditFarmhouseScreen({ route, navigation }: Props) {
 
             <View style={[styles.inputGroup, { marginTop: 8 }]}>
               <Text style={[styles.label, { color: colors.text }]}>Additional Rules</Text>
-              <TextInput
-                style={[styles.textArea, { backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
-                value={formData.additionalRules}
-                onChangeText={(text) => updateField('additionalRules', text)}
-                placeholder="List any other house rules..."
-                placeholderTextColor={colors.placeholder}
-                multiline
-                numberOfLines={3}
-              />
+              <View style={styles.ruleInputRow}>
+                <TextInput
+                  style={[styles.input, { flex: 1, backgroundColor: colors.cardBackground, borderColor: colors.border, color: colors.text }]}
+                  value={ruleInput}
+                  onChangeText={setRuleInput}
+                  onSubmitEditing={addRule}
+                  placeholder="e.g., No loud music after 10 PM"
+                  placeholderTextColor={colors.placeholder}
+                  returnKeyType="done"
+                />
+                <TouchableOpacity
+                  style={[styles.addButton, { backgroundColor: ruleInput.trim() ? colors.buttonBackground : colors.border }]}
+                  onPress={addRule}
+                  disabled={!ruleInput.trim()}
+                >
+                  <Plus size={16} color={colors.buttonText} />
+                </TouchableOpacity>
+              </View>
+              {formData.additionalRules.length > 0 && (
+                <View style={styles.ruleChipList}>
+                  {formData.additionalRules.map((rule: string, idx: number) => (
+                    <View key={idx} style={[styles.ruleChip, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                      <Text style={[styles.ruleChipText, { color: colors.text }]}>{rule}</Text>
+                      <TouchableOpacity onPress={() => removeRule(idx)} hitSlop={8}>
+                        <X size={16} color={colors.placeholder} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
           </View>
 
@@ -1089,8 +1125,12 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row' },
   priceCategory: { fontSize: 16, fontWeight: '600', marginBottom: 12, marginTop: 8 },
   customPricingHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, marginBottom: 12 },
-  addButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 },
+  addButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 },
   addButtonText: { fontSize: 14, fontWeight: '600' },
+  ruleInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  ruleChipList: { marginTop: 12, gap: 8 },
+  ruleChip: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderRadius: 8, paddingVertical: 10, paddingHorizontal: 14 },
+  ruleChipText: { flex: 1, fontSize: 15, marginRight: 12 },
   customPriceItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 },
   customPriceInputs: { flex: 1, flexDirection: 'row', gap: 8 },
   dateTouchable: { flex: 2, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10 },

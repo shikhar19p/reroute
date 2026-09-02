@@ -107,10 +107,12 @@ export default function RulesRestrictionsScreen({ navigation }: RulesRestriction
             )}
           </View>
 
-          {rules.customRules ? (
+          {rules.customRules.length > 0 ? (
             <View style={styles.infoBox}>
               <Text style={styles.infoLabel}>Additional Rules:</Text>
-              <Text style={styles.infoValue}>{rules.customRules}</Text>
+              {rules.customRules.map((rule, idx) => (
+                <Text key={idx} style={styles.infoValue}>• {rule}</Text>
+              ))}
             </View>
           ) : null}
         </View>

@@ -69,7 +69,7 @@ interface Amenities {
 interface Rules {
   petsNotAllowed: boolean;
   alcoholNotAllowed: boolean;
-  customRules: string;
+  customRules: string[];
 }
 
 interface FileData {
@@ -215,7 +215,7 @@ const createInitialFarm = (): Farm => ({
   rules: {
     petsNotAllowed: false,
     alcoholNotAllowed: false,
-    customRules: '',
+    customRules: [],
   },
   kyc: {
     person1: {

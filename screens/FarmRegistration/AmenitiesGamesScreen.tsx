@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { X, Plus } from 'lucide-react-native';
 import { useFarmRegistration } from '../../context/FarmRegistrationContext';
 
 type RootStackParamList = {
@@ -74,12 +75,27 @@ const amenitiesGroups = [
 
 export default function AmenitiesGamesScreen({ navigation }: AmenitiesGamesScreenProps) {
   const { farm, setField } = useFarmRegistration();
+  const [ruleInput, setRuleInput] = useState('');
 
   const handleToggle = useCallback(
     (path: string[], value: boolean) => {
       setField(path, value);
     },
     [setField]
+  );
+
+  const addRule = useCallback(() => {
+    const trimmed = ruleInput.trim();
+    if (!trimmed) return;
+    setField(['rules', 'customRules'], [...farm.rules.customRules, trimmed]);
+    setRuleInput('');
+  }, [ruleInput, farm.rules.customRules, setField]);
+
+  const removeRule = useCallback(
+    (index: number) => {
+      setField(['rules', 'customRules'], farm.rules.customRules.filter((_, i) => i !== index));
+    },
+    [farm.rules.customRules, setField]
   );
 
   return (
@@ -151,16 +167,37 @@ export default function AmenitiesGamesScreen({ navigation }: AmenitiesGamesScree
 
             <View style={styles.fieldContainer}>
               <Text style={styles.fieldLabel}>Additional Rules (Optional)</Text>
-              <TextInput
-                value={farm.rules.customRules ?? ''}
-                onChangeText={(text) => setField(['rules', 'customRules'], text)}
-                placeholder="Add any other rules or restrictions..."
-                placeholderTextColor="#9CA3AF"
-                style={[styles.input, styles.multilineInput]}
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-              />
+              <View style={styles.ruleInputRow}>
+                <TextInput
+                  value={ruleInput}
+                  onChangeText={setRuleInput}
+                  onSubmitEditing={addRule}
+                  placeholder="e.g., No loud music after 10 PM"
+                  placeholderTextColor="#9CA3AF"
+                  style={[styles.input, styles.ruleInputField]}
+                  returnKeyType="done"
+                />
+                <TouchableOpacity
+                  style={[styles.addRuleButton, !ruleInput.trim() && styles.addRuleButtonDisabled]}
+                  onPress={addRule}
+                  disabled={!ruleInput.trim()}
+                  activeOpacity={0.8}
+                >
+                  <Plus size={20} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+              {farm.rules.customRules.length > 0 && (
+                <View style={styles.ruleChipList}>
+                  {farm.rules.customRules.map((rule, idx) => (
+                    <View key={idx} style={styles.ruleChip}>
+                      <Text style={styles.ruleChipText}>{rule}</Text>
+                      <TouchableOpacity onPress={() => removeRule(idx)} hitSlop={8}>
+                        <X size={16} color="#6B7280" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              )}
             </View>
           </View>
         </ScrollView>
@@ -266,6 +303,46 @@ const styles = StyleSheet.create({
   multilineInput: {
     minHeight: 100,
     paddingTop: 14,
+  },
+  ruleInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  ruleInputField: {
+    flex: 1,
+  },
+  addRuleButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#4CAF50',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addRuleButtonDisabled: {
+    backgroundColor: '#D1D5DB',
+  },
+  ruleChipList: {
+    marginTop: 12,
+    gap: 8,
+  },
+  ruleChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  ruleChipText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#374151',
+    marginRight: 12,
   },
   footer: {
     flexDirection: 'row',

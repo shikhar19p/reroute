@@ -19,6 +19,17 @@ import { db } from '../firebaseConfig';
 import { Farmhouse } from '../types/navigation';
 export type { Farmhouse };
 
+// Additional rules are stored as a string[] going forward, but older
+// farmhouse docs (pre chip-input) may still hold a single free-text string —
+// split those on line breaks so both shapes render as a normal bulleted list.
+const toRulesList = (value: unknown): string[] => {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === 'string' && value.trim()) {
+    return value.split('\n').map(line => line.trim()).filter(Boolean);
+  }
+  return [];
+};
+
 // Helper function to convert a string to Title Case
 const toTitleCase = (str: string): string => {
   if (!str) return '';
@@ -100,7 +111,7 @@ export const convertFarmhouseData = (id: string, data: any): Farmhouse => {
       pets: !rulesData.petsNotAllowed,
       alcohol: !rulesData.alcoholNotAllowed,
       quietHours: rulesData.quietHours || false,
-      additionalRules: rulesData.additionalRules || rulesData.customRules || '',
+      additionalRules: toRulesList(rulesData.additionalRules || rulesData.customRules),
     },
     customPricing: (pricing.customPricing || []).map((p: any) => ({
       label: p.name,
