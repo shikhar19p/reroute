@@ -38,7 +38,7 @@ const fieldConfigs = [
 ];
 
 export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenProps) {
-  const { farm, setField, hasDraft, loadDraft, clearDraft, resetFarm, saveDraft } = useFarmRegistration();
+  const { farm, setField, hasDraft, loadDraft, resetFarm, saveDraft } = useFarmRegistration();
   const { showDialog } = useDialog();
   const [errors, setErrors] = useState<Record<string, string | undefined>>({});
   const [draftChecked, setDraftChecked] = useState(false);
@@ -60,7 +60,7 @@ export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenPro
             text: 'Discard',
             style: 'destructive',
             onPress: async () => {
-              await clearDraft();
+              await resetFarm();
               navigation.dispatch(e.data.action);
             },
           },
@@ -80,7 +80,7 @@ export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenPro
       });
     });
     return unsubscribe;
-  }, [navigation, farm, showDialog, clearDraft, saveDraft]);
+  }, [navigation, farm, showDialog, resetFarm, saveDraft]);
 
   // Check for saved draft on mount
   useEffect(() => {
@@ -108,7 +108,7 @@ export default function BasicDetailsScreen({ navigation }: BasicDetailsScreenPro
         ]
       });
     }
-  }, [hasDraft, draftChecked, showDialog, loadDraft, clearDraft]);
+  }, [hasDraft, draftChecked, showDialog, loadDraft, resetFarm]);
 
   const formValues = useMemo(
     () => ({

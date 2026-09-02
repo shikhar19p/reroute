@@ -38,7 +38,7 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
   const { user, logout, switchRole } = useAuth();
   const { colors, isDark } = useTheme();
   const { showDialog } = useDialog();
-  const { hasDraft, loadDraft, clearDraft } = useFarmRegistration();
+  const { hasDraft, loadDraft, resetFarm } = useFarmRegistration();
   const { data: farmhouses, loading, refreshing, refresh: onRefresh } = useMyFarmhouses();
   const { data: ownerBookings } = useOwnerBookings();
   const [dismissedUntil, setDismissedUntil] = useState<number>(0);
@@ -58,7 +58,7 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
             text: 'Delete Draft',
             style: 'destructive',
             onPress: async () => {
-              await clearDraft();
+              await resetFarm();
             }
           },
           {
@@ -72,7 +72,7 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
         ]
       });
     }
-  }, [hasDraft, draftPromptShown, showDialog, clearDraft, loadDraft, navigation]);
+  }, [hasDraft, draftPromptShown, showDialog, resetFarm, loadDraft, navigation]);
 
   const loadDismissed = useCallback(() => {
     AsyncStorage.getItem('ownerNotifDismissedUntil').then(val => {
@@ -274,7 +274,7 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
                   text: 'Delete Draft',
                   style: 'destructive',
                   onPress: async () => {
-                    await clearDraft();
+                    await resetFarm();
                   }
                 },
                 {

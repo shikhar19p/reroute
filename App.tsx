@@ -418,6 +418,7 @@ function AppNavigator() {
             headerStyle: { backgroundColor: '#FFFFFF' },
             headerTintColor: '#1F2937',
             headerTitleStyle: { fontWeight: '600' },
+            headerTitleAlign: 'center',
             headerShadowVisible: false,
           }}
         >
