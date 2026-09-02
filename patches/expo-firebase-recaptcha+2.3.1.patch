@@ -1,0 +1,24 @@
+diff --git a/node_modules/expo-firebase-recaptcha/build/FirebaseRecaptcha.js b/node_modules/expo-firebase-recaptcha/build/FirebaseRecaptcha.js
+index 81dd5b1..bdc0b07 100644
+--- a/node_modules/expo-firebase-recaptcha/build/FirebaseRecaptcha.js
++++ b/node_modules/expo-firebase-recaptcha/build/FirebaseRecaptcha.js
+@@ -3,7 +3,7 @@ import { CodedError } from 'expo-modules-core';
+ import * as React from 'react';
+ import { WebView } from './WebView';
+ function getWebviewSource(firebaseConfig, firebaseVersion, appVerificationDisabledForTesting = false, languageCode, invisible) {
+-    firebaseVersion = firebaseVersion || '8.0.0';
++    firebaseVersion = firebaseVersion || '12.3.0';
+     return {
+         baseUrl: `https://${firebaseConfig.authDomain}`,
+         html: `
+@@ -12,8 +12,8 @@ function getWebviewSource(firebaseConfig, firebaseVersion, appVerificationDisabl
+   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+   <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+   <meta name="HandheldFriendly" content="true">
+-  <script src="https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-app.js"></script>
+-  <script src="https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-auth.js"></script>
++  <script src="https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-app-compat.js"></script>
++  <script src="https://www.gstatic.com/firebasejs/${firebaseVersion}/firebase-auth-compat.js"></script>
+   <script type="text/javascript">firebase.initializeApp(${JSON.stringify(firebaseConfig)});</script>
+   <style>
+     html, body {
