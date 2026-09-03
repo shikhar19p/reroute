@@ -1867,20 +1867,25 @@ function serverDecryptAnyKey(encryptedText: string, userId: string, primarySecre
 }
 
 // ─── encryptBankDetails ───────────────────────────────────────────────────────
-// Called by the client before saving KYC data. Encrypts bank details
-// server-side so ENCRYPTION_SECRET never needs to live in the client bundle.
+// Called by the client before saving KYC data. Encrypts bank details (and,
+// optionally, PAN numbers) server-side so ENCRYPTION_SECRET never needs to
+// live in the client bundle.
 export const encryptBankDetails = onCall({ secrets: [encryptionSecretParam] }, async (request) => {
   if (!request.auth) {
     throw new HttpsError('unauthenticated', 'Must be authenticated');
   }
-  const { accountNumber, ifscCode } = request.data;
+  const { accountNumber, ifscCode, panNumber, person1PanCard, person2PanCard } = request.data;
   if (!accountNumber || !ifscCode) {
     throw new HttpsError('invalid-argument', 'accountNumber and ifscCode are required');
   }
   const secret = getServerEncryptionSecret();
+  const uid = request.auth.uid;
   return {
-    encryptedAccountNumber: serverEncrypt(String(accountNumber).trim(), request.auth.uid, secret),
-    encryptedIFSC: serverEncrypt(String(ifscCode).trim().toUpperCase(), request.auth.uid, secret),
+    encryptedAccountNumber: serverEncrypt(String(accountNumber).trim(), uid, secret),
+    encryptedIFSC: serverEncrypt(String(ifscCode).trim().toUpperCase(), uid, secret),
+    encryptedPanNumber: panNumber ? serverEncrypt(String(panNumber).trim().toUpperCase(), uid, secret) : null,
+    encryptedPerson1PanCard: person1PanCard ? serverEncrypt(String(person1PanCard).trim().toUpperCase(), uid, secret) : null,
+    encryptedPerson2PanCard: person2PanCard ? serverEncrypt(String(person2PanCard).trim().toUpperCase(), uid, secret) : null,
   };
 });
 

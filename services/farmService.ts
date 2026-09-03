@@ -129,17 +129,23 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
       )
     : null;
 
-  // Encrypt sensitive bank details server-side (ENCRYPTION_SECRET never leaves Cloud Functions)
+  // Encrypt sensitive bank details and PAN numbers server-side (ENCRYPTION_SECRET never leaves Cloud Functions)
   const encryptBankDetailsFn = httpsCallable<
-    { accountNumber: string; ifscCode: string },
-    { encryptedAccountNumber: string; encryptedIFSC: string }
+    { accountNumber: string; ifscCode: string; panNumber?: string; person1PanCard?: string; person2PanCard?: string },
+    { encryptedAccountNumber: string; encryptedIFSC: string; encryptedPanNumber: string | null; encryptedPerson1PanCard: string | null; encryptedPerson2PanCard: string | null }
   >(getFunctions(), 'encryptBankDetails');
   const encryptResult = await encryptBankDetailsFn({
     accountNumber: farmData.kyc.bankDetails.accountNumber,
     ifscCode: farmData.kyc.bankDetails.ifscCode,
+    panNumber: farmData.kyc.panNumber,
+    person1PanCard: farmData.kyc.person1.panCard,
+    person2PanCard: farmData.kyc.person2.panCard || undefined,
   });
   const encryptedAccountNumber = encryptResult.data.encryptedAccountNumber;
   const encryptedIFSC = encryptResult.data.encryptedIFSC;
+  const encryptedPanNumber = encryptResult.data.encryptedPanNumber;
+  const encryptedPerson1PanCard = encryptResult.data.encryptedPerson1PanCard;
+  const encryptedPerson2PanCard = encryptResult.data.encryptedPerson2PanCard;
   const farmDoc = {
     propertyType: farmData.propertyType || 'farmhouse',
     basicDetails: {
@@ -209,7 +215,7 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
       person1: {
         name: farmData.kyc.person1.name,
         phone: farmData.kyc.person1.phone,
-        panCard: farmData.kyc.person1.panCard,
+        panCard: encryptedPerson1PanCard, // ENCRYPTED
         idProofType: farmData.kyc.person1.idProofType,
         idProofNumber: farmData.kyc.person1.idProofNumber,
         idProofFrontUrl: person1IdProofFrontUrl,
@@ -218,13 +224,13 @@ export const saveFarmRegistration = async (farmData: any): Promise<{ farmId: str
       person2: {
         name: farmData.kyc.person2.name || null,
         phone: farmData.kyc.person2.phone || null,
-        panCard: farmData.kyc.person2.panCard || null,
+        panCard: encryptedPerson2PanCard, // ENCRYPTED
         idProofType: farmData.kyc.person2.idProofType || null,
         idProofNumber: farmData.kyc.person2.idProofNumber || null,
         idProofFrontUrl: person2IdProofFrontUrl,
         idProofBackUrl: person2IdProofBackUrl,
       },
-      panNumber: farmData.kyc.panNumber,
+      panNumber: encryptedPanNumber, // ENCRYPTED
       companyPANUrl,
       labourDocUrl,
       bankDetails: {
