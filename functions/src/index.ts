@@ -49,6 +49,13 @@ const supportPasswordParam = defineSecret('SUPPORT_PASSWORD');
 const encryptionSecretParam = defineSecret('ENCRYPTION_SECRET');
 const legacyEncryptionKeyParam = defineSecret('LEGACY_ENCRYPTION_KEY');
 const googleMapsApiKeyParam = defineSecret('GOOGLE_MAPS_API_KEY');
+// Separate from GOOGLE_MAPS_API_KEY above: that one is IP-restricted for
+// server-side Geocoding API calls. This one is HTTP-referrer-restricted in
+// Google Cloud Console for the Maps JavaScript API, since it's handed to the
+// client to render the map preview — kept as its own secret rather than
+// baked into the app bundle at build time, so it can be rotated without a
+// rebuild/redeploy of the app itself.
+const googleMapsJsApiKeyParam = defineSecret('GOOGLE_MAPS_JS_API_KEY');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -1594,6 +1601,16 @@ export const geocodeAddress = onCall({ secrets: [googleMapsApiKeyParam] }, async
     throw new HttpsError('invalid-argument', 'query is required');
   }
   return geocodeText(query, googleMapsApiKeyParam.value());
+});
+
+// Hands the browser-restricted Maps JavaScript API key to the client at
+// runtime, so it isn't baked into the app bundle (see comment on
+// googleMapsJsApiKeyParam above).
+export const getMapsJsApiKey = onCall({ secrets: [googleMapsJsApiKeyParam] }, async (request) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'Must be authenticated');
+  }
+  return { apiKey: googleMapsJsApiKeyParam.value() };
 });
 
 export const onFarmhouseCreated = onDocumentCreated({ document: 'farmhouses/{farmhouseId}', secrets: [supportPasswordParam, googleMapsApiKeyParam] }, async (event) => {

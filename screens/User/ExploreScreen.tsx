@@ -547,10 +547,10 @@ export default function ExploreScreen({ navigation }: any) {
             />
           </View>
           <TouchableOpacity
-            style={[styles.iconButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+            style={[styles.iconButton, { backgroundColor: sortBy !== 'name' ? colors.buttonBackground : colors.cardBackground, borderColor: sortBy !== 'name' ? colors.buttonBackground : colors.border }]}
             onPress={() => setShowSortModal(true)}
           >
-            <ArrowUpDown size={20} color={colors.text} />
+            <ArrowUpDown size={20} color={sortBy !== 'name' ? colors.buttonText : colors.text} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.iconButton, { backgroundColor: filtersActive ? colors.buttonBackground : colors.cardBackground, borderColor: filtersActive ? colors.buttonBackground : colors.border }]}

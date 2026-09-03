@@ -2,8 +2,38 @@ import React, { createElement, useEffect, useRef, useState } from 'react';
 import { Animated, View, StyleSheet, TouchableOpacity, Text, Platform } from 'react-native';
 import { MapPin } from 'lucide-react-native';
 import { Linking } from 'react-native';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useTheme } from '../context/ThemeContext';
 import { extractCoordsFromMapLink } from '../utils/geo';
+
+// The Maps JS key is browser-restricted (HTTP referrer) and handed out by a
+// Cloud Function at runtime rather than baked into the app bundle — see
+// functions/src/index.ts getMapsJsApiKey. Cached at module scope so every
+// map preview on screen shares one fetch instead of one each.
+let mapsApiKeyPromise: Promise<string | null> | null = null;
+function getMapsApiKey(): Promise<string | null> {
+  if (!mapsApiKeyPromise) {
+    mapsApiKeyPromise = httpsCallable<void, { apiKey: string }>(getFunctions(), 'getMapsJsApiKey')()
+      .then(res => res.data.apiKey)
+      .catch(() => {
+        mapsApiKeyPromise = null; // allow retry on next call
+        return null;
+      });
+  }
+  return mapsApiKeyPromise;
+}
+
+// Standard muted "night mode" Google Maps style, applied when the app is in dark mode.
+const DARK_MAP_STYLE = [
+  { elementType: 'geometry', stylers: [{ color: '#1a1a1a' }] },
+  { elementType: 'labels.text.stroke', stylers: [{ color: '#1a1a1a' }] },
+  { elementType: 'labels.text.fill', stylers: [{ color: '#8a8a8a' }] },
+  { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#2e2e2e' }] },
+  { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#8a8a8a' }] },
+  { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#101820' }] },
+  { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#222222' }] },
+  { featureType: 'administrative', elementType: 'geometry', stylers: [{ color: '#3a3a3a' }] },
+];
 
 // WebView is native-only — load conditionally so the web bundle doesn't fail
 const WebView = Platform.OS !== 'web'
@@ -16,43 +46,45 @@ interface LocationMapViewProps {
   height?: number;
 }
 
-function buildMapHtml(lat: number, lng: number, isDark: boolean): string {
+function buildMapHtml(lat: number, lng: number, isDark: boolean, apiKey: string): string {
   const bg = isDark ? '#111' : '#e8e8e8';
+  const pinSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28"><path d="M14 27C14 27 24 17.5 24 11C24 5.5 19.5 1 14 1C8.5 1 4 5.5 4 11C4 17.5 14 27 14 27Z" fill="%23C5A565" stroke="white" stroke-width="2"/><circle cx="14" cy="11" r="4" fill="white"/></svg>`;
 
   return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     html,body,#map{margin:0;padding:0;width:100%;height:100%;background:${bg};overflow:hidden;}
-    .leaflet-control-zoom{display:none!important;}
-    .leaflet-control-attribution{font-size:9px!important;background:rgba(255,255,255,0.6)!important;}
+    .gm-style-cc, a[href^="https://maps.google.com/maps"]{display:none!important;}
   </style>
 </head>
 <body>
 <div id="map"></div>
+<script src="https://maps.googleapis.com/maps/api/js?key=${apiKey}"></script>
 <script>
-  var map = L.map('map',{
-    zoomControl:false,
-    dragging:false,touchZoom:false,doubleClickZoom:false,
-    scrollWheelZoom:false,boxZoom:false,keyboard:false
-  }).setView([${lat},${lng}],15);
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-    subdomains:['a','b','c'],
-    maxZoom:19,
-    attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-  }).addTo(map);
-
-  var pin = L.divIcon({
-    className:'',
-    html:'<div style="width:14px;height:14px;background:#C5A565;border:2px solid #fff;border-radius:50% 50% 50% 0;transform:rotate(-45deg);box-shadow:0 2px 6px rgba(0,0,0,0.45);"></div>',
-    iconSize:[14,14],iconAnchor:[7,14]
+  var center = {lat: ${lat}, lng: ${lng}};
+  var map = new google.maps.Map(document.getElementById('map'), {
+    center: center,
+    zoom: 15,
+    disableDefaultUI: true,
+    draggable: false,
+    scrollwheel: false,
+    disableDoubleClickZoom: true,
+    keyboardShortcuts: false,
+    gestureHandling: 'none',
+    styles: ${isDark ? JSON.stringify(DARK_MAP_STYLE) : 'undefined'}
   });
-  L.marker([${lat},${lng}],{icon:pin}).addTo(map);
+  new google.maps.Marker({
+    position: center,
+    map: map,
+    icon: {
+      url: 'data:image/svg+xml,${pinSvg}',
+      scaledSize: new google.maps.Size(28, 28),
+      anchor: new google.maps.Point(14, 27)
+    }
+  });
 </script>
 </body>
 </html>`;
@@ -168,8 +200,20 @@ const mapSkeletonStyles = StyleSheet.create({
 export default function LocationMapView({ location, mapLink, height = 200 }: LocationMapViewProps) {
   const { colors, isDark } = useTheme();
   const [coords, setCoords] = useState<[number, number] | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [apiKey, setApiKey] = useState<string | null>(null);
+  const [coordsLoading, setCoordsLoading] = useState(true);
+  const [keyLoading, setKeyLoading] = useState(true);
   const mapFade = useRef(new Animated.Value(0)).current;
+  const loading = coordsLoading || keyLoading;
+  const mapReady = !loading && !!coords && !!apiKey;
+
+  useEffect(() => {
+    let cancelled = false;
+    getMapsApiKey().then(key => {
+      if (!cancelled) { setApiKey(key); setKeyLoading(false); }
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -178,7 +222,7 @@ export default function LocationMapView({ location, mapLink, height = 200 }: Loc
       if (mapLink) {
         const fromUrl = extractCoordsFromMapLink(mapLink);
         if (fromUrl) {
-          if (!cancelled) { setCoords(fromUrl); setLoading(false); }
+          if (!cancelled) { setCoords(fromUrl); setCoordsLoading(false); }
           return;
         }
       }
@@ -196,7 +240,7 @@ export default function LocationMapView({ location, mapLink, height = 200 }: Loc
       } catch {
         // leave coords null
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setCoordsLoading(false);
       }
     };
 
@@ -204,16 +248,16 @@ export default function LocationMapView({ location, mapLink, height = 200 }: Loc
     return () => { cancelled = true; };
   }, [location, mapLink]);
 
-  // Fade in the map once coords are ready
+  // Fade in the map once coords and the Maps API key are both ready
   useEffect(() => {
-    if (!loading && coords) {
+    if (mapReady) {
       Animated.timing(mapFade, {
         toValue: 1,
         duration: 500,
         useNativeDriver: true,
       }).start();
     }
-  }, [loading, coords]);
+  }, [mapReady]);
 
   const openMaps = () => {
     const url = mapLink
@@ -230,12 +274,12 @@ export default function LocationMapView({ location, mapLink, height = 200 }: Loc
       {/* Skeleton shown while loading */}
       {loading && <MapSkeleton height={height} isDark={isDark} />}
 
-      {/* Web: render iframe with Leaflet HTML inline */}
-      {!loading && coords && Platform.OS === 'web' && (
+      {/* Web: render iframe with Google Maps HTML inline */}
+      {mapReady && Platform.OS === 'web' && (
         <Animated.View style={[StyleSheet.absoluteFill, { opacity: mapFade }]}>
           {createElement('iframe', {
             key: 'map-iframe',
-            srcDoc: buildMapHtml(coords[0], coords[1], isDark),
+            srcDoc: buildMapHtml(coords![0], coords![1], isDark, apiKey!),
             style: {
               position: 'absolute',
               top: 0,
@@ -251,10 +295,10 @@ export default function LocationMapView({ location, mapLink, height = 200 }: Loc
       )}
 
       {/* Native: render WebView */}
-      {!loading && coords && Platform.OS !== 'web' && WebView && (
+      {mapReady && Platform.OS !== 'web' && WebView && (
         <Animated.View style={[StyleSheet.absoluteFill, { opacity: mapFade }]}>
           <WebView
-            source={{ html: buildMapHtml(coords[0], coords[1], isDark), baseUrl: '' }}
+            source={{ html: buildMapHtml(coords![0], coords![1], isDark, apiKey!), baseUrl: '' }}
             style={StyleSheet.absoluteFill}
             javaScriptEnabled
             domStorageEnabled
@@ -269,7 +313,7 @@ export default function LocationMapView({ location, mapLink, height = 200 }: Loc
         </Animated.View>
       )}
 
-      {!loading && !coords && (
+      {!loading && (!coords || !apiKey) && (
         <View style={[styles.centered, { backgroundColor: isDark ? '#111' : '#e8e8e8' }]}>
           <MapPin size={28} color={colors.placeholder} />
           <Text style={[styles.fallbackText, { color: colors.placeholder }]}>
