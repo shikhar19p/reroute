@@ -45,6 +45,12 @@ export default {
         backgroundColor: "#F9F8EF"
       },
       edgeToEdgeEnabled: true,
+      // Default (adjustResize) shrinks the window for the keyboard but doesn't
+      // auto-scroll a focused field into view — with edge-to-edge enabled this
+      // left the focused input at the bottom of forms hidden behind the
+      // keyboard app-wide. "pan" instead slides the whole screen up so the
+      // focused field stays visible, matching iOS's KeyboardAvoidingView feel.
+      softwareKeyboardLayoutMode: "pan",
       googleServicesFile: IS_STAGING_BACKEND
         ? (process.env.GOOGLE_SERVICES_FILE || "./google-services.staging.json")
         : "./google-services.json"

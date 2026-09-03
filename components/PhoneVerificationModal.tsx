@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { FirebaseRecaptchaVerifierModal } from 'expo-firebase-recaptcha';
 import { PhoneAuthProvider, updatePhoneNumber, signInWithCredential, signOut } from 'firebase/auth';
@@ -7,6 +7,8 @@ import { useTheme } from '../context/ThemeContext';
 import { ensureCompatFirebaseApp } from '../utils/recaptchaCompat';
 
 ensureCompatFirebaseApp(firebaseConfig);
+
+const RESEND_COOLDOWN_SECONDS = 60;
 
 interface PhoneVerificationModalProps {
   visible: boolean;
@@ -38,14 +40,25 @@ export default function PhoneVerificationModal({ visible, phone, onVerified, onC
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   const e164Phone = `+91${phone}`;
+
+  // Tick the resend cooldown down once a second while it's active.
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((s) => Math.max(0, s - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown > 0]);
 
   const reset = () => {
     setStep('send');
     setCode('');
     setVerificationId('');
     setError('');
+    setResendCooldown(0);
   };
 
   const handleClose = () => {
@@ -54,6 +67,7 @@ export default function PhoneVerificationModal({ visible, phone, onVerified, onC
   };
 
   const sendOtp = async () => {
+    if (resendCooldown > 0) return;
     setError('');
     setSending(true);
     try {
@@ -61,6 +75,7 @@ export default function PhoneVerificationModal({ visible, phone, onVerified, onC
       const id = await provider.verifyPhoneNumber(e164Phone, recaptchaVerifier.current!);
       setVerificationId(id);
       setStep('code');
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
     } catch (e: any) {
       setError(e?.message || 'Could not send verification code. Try again.');
     } finally {
@@ -133,6 +148,11 @@ export default function PhoneVerificationModal({ visible, phone, onVerified, onC
                   ? <ActivityIndicator color={colors.buttonText} />
                   : <Text style={[styles.btnText, { color: colors.buttonText }]}>Send Code</Text>}
               </TouchableOpacity>
+              {sending && (
+                <Text style={[styles.hint, { color: colors.placeholder }]}>
+                  This may take up to 30 seconds…
+                </Text>
+              )}
             </>
           ) : (
             <>
@@ -160,8 +180,14 @@ export default function PhoneVerificationModal({ visible, phone, onVerified, onC
                   ? <ActivityIndicator color={colors.buttonText} />
                   : <Text style={[styles.btnText, { color: colors.buttonText }]}>Verify & Continue</Text>}
               </TouchableOpacity>
-              <TouchableOpacity style={{ alignItems: 'center', marginTop: 12 }} onPress={sendOtp} disabled={sending}>
-                <Text style={{ color: colors.placeholder, fontSize: 13 }}>Resend code</Text>
+              <TouchableOpacity
+                style={{ alignItems: 'center', marginTop: 12 }}
+                onPress={sendOtp}
+                disabled={sending || resendCooldown > 0}
+              >
+                <Text style={{ color: colors.placeholder, fontSize: 13 }}>
+                  {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
+                </Text>
               </TouchableOpacity>
             </>
           )}
@@ -183,4 +209,5 @@ const styles = StyleSheet.create({
   btn: { height: 50, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   btnText: { fontSize: 16, fontWeight: '600' },
   error: { color: '#EF4444', fontSize: 13, marginBottom: 12 },
+  hint: { fontSize: 12, textAlign: 'center', marginTop: 10 },
 });
