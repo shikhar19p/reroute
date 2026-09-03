@@ -18,7 +18,7 @@ import {
   completePaymentFlow,
 } from '../../services/paymentService';
 import { parseError } from '../../utils/errorHandler';
-import { CreditCard, Check, Square, CheckSquare } from 'lucide-react-native';
+import { CreditCard, Square, CheckSquare } from 'lucide-react-native';
 import { calculatePlatformFee, PAYMENT_CONFIG } from '../../config/constants';
 
 type RegistrationFeeScreenProps = {
@@ -133,26 +133,11 @@ export default function RegistrationFeeScreen({ navigation }: RegistrationFeeScr
               </View>
               <View style={styles.feeBreakdownRow}>
                 <Text style={styles.feeBreakdownLabel}>
-                  Platform Fee ({(PAYMENT_CONFIG.PLATFORM_FEE_PERCENTAGE * 100).toFixed(0)}%, non-refundable)
+                  Platform Fee ({(PAYMENT_CONFIG.PLATFORM_FEE_PERCENTAGE * 100).toFixed(0)}%)
                 </Text>
                 <Text style={styles.feeBreakdownValue}>₹{platformFee.toLocaleString('en-IN')}</Text>
               </View>
             </View>
-          </View>
-
-          <View style={styles.benefitsContainer}>
-            <Text style={styles.benefitsTitle}>What you get</Text>
-            {[
-              'Premium listing on platform',
-              'Verified farmhouse badge',
-              'Access to booking management',
-              '24/7 customer support',
-            ].map((item) => (
-              <View key={item} style={styles.benefitItem}>
-                <Check size={14} color="#16A34A" />
-                <Text style={styles.benefitText}>{item}</Text>
-              </View>
-            ))}
           </View>
 
           {/* T&C Checkbox */}
@@ -296,29 +281,6 @@ const styles = StyleSheet.create({
   feeBreakdownValue: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#374151',
-  },
-  benefitsContainer: {
-    width: '100%',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  benefitsTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 12,
-  },
-  benefitItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 10,
-  },
-  benefitText: {
-    fontSize: 14,
     color: '#374151',
   },
   termsRow: {
