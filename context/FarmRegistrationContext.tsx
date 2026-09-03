@@ -264,7 +264,6 @@ const cloneForPathSegment = (value: any): any => {
 };
 
 const DRAFT_STORAGE_KEY = 'farm_registration_draft';
-const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 1 week
 
 interface StoredDraft {
   farm: Farm;
@@ -322,14 +321,13 @@ export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) 
 
       if (draftData) {
         const parsed = JSON.parse(draftData);
-        // Validate parsed draft has expected structure and isn't past the 1-week limit
-        const isExpired = !parsed?.savedAt || (Date.now() - parsed.savedAt) > DRAFT_MAX_AGE_MS;
-        if (parsed?.farm && typeof parsed.farm === 'object' && 'kyc' in parsed.farm && !isExpired) {
+        // Validate parsed draft has the expected structure
+        if (parsed?.farm && typeof parsed.farm === 'object' && 'kyc' in parsed.farm) {
           setFarm(parsed.farm);
           setHasDraft(true);
           return true;
         }
-        // Corrupted or expired draft - clear it
+        // Corrupted draft - clear it
         await storageRemove(draftKey);
         setHasDraft(false);
         return false;
@@ -358,18 +356,7 @@ export const FarmRegistrationProvider = ({ children }: { children: ReactNode }) 
       try {
         const draftKey = getDraftKey();
         const draftData = await storageGet(draftKey);
-        if (draftData) {
-          const parsed = JSON.parse(draftData);
-          const isExpired = !parsed?.savedAt || (Date.now() - parsed.savedAt) > DRAFT_MAX_AGE_MS;
-          if (isExpired) {
-            await storageRemove(draftKey);
-            setHasDraft(false);
-          } else {
-            setHasDraft(true);
-          }
-        } else {
-          setHasDraft(false);
-        }
+        setHasDraft(!!draftData);
         setIsInitialized(true);
       } catch (error) {
         console.warn('Error checking for draft:', error);

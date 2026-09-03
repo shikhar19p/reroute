@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LogOut, MapPin, Home, ChevronRight, Compass, Bell } from 'lucide-react-native';
+import { LogOut, MapPin, Home, ChevronRight, Compass, Bell, Plus } from 'lucide-react-native';
 import { useAuth } from '../../authContext';
 import { useOwnerBookings } from '../../GlobalDataContext';
 import { useTheme } from '../../context/ThemeContext';
@@ -250,10 +250,11 @@ export default function MyFarmhousesScreen({ navigation }: Props) {
                 <Text style={[styles.smallPillText, { color: colors.text }]}>Bookings</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.addIconButton, { backgroundColor: colors.buttonBackground }]}
+                style={[styles.smallPillButton, styles.addPillButton, { backgroundColor: colors.buttonBackground }]}
                 onPress={() => navigation.navigate('FarmBasicDetails' as never)}
               >
-                <Text style={[styles.addIcon, { color: colors.buttonText }]}>+</Text>
+                <Plus size={14} color={colors.buttonText} />
+                <Text style={[styles.smallPillText, { color: colors.buttonText }]}>Add Farmhouse</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -365,20 +366,10 @@ const styles = StyleSheet.create({
     fontSize: isSmallDevice() ? 12 : 14,
     marginTop: 4,
   },
-  addIconButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    flexShrink: 0,
-  },
-  addIcon: {
-    fontSize: 18,
-    fontWeight: '400',
-    lineHeight: 18,
-    includeFontPadding: false,
-    textAlignVertical: 'center',
+  addPillButton: {
+    flexDirection: 'row',
+    gap: 4,
+    borderWidth: 0,
   },
   smallPillButton: {
     borderWidth: 1,
